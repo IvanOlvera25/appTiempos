@@ -1,0 +1,37 @@
+<!-- app/templates/list_employees.html -->
+
+{% extends "layout.html" %}
+
+{% block title %}Lista de Empleados{% endblock %}
+
+{% block content %}
+  <h2>Lista de Empleados</h2>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Número de Empleado</th>
+        <th>Nombre Completo</th>
+        <th>Departamento</th>
+        <th>Puesto</th>
+        <th>Código QR</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for employee in employees %}
+        <tr>
+          <td>{{ employee.id }}</td>
+          <td>{{ employee.n_empleado }}</td>
+          <td>{{ employee.nombre }} {{ employee.apellido_paterno }} {{ employee.apellido_materno }}</td>
+          <td>{{ employee.departamento }}</td>
+          <td>{{ employee.puesto }}</td>
+          <td>
+            <a href="{{ url_for('main.employee_qr', employee_id=employee.id) }}" target="_blank">
+              <img src="{{ url_for('static', filename='qr_codes/' ~ employee.qr_code) }}" alt="QR de {{ employee.nompropio }}" width="50">
+            </a>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

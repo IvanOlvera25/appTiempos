@@ -1,0 +1,84 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h1>Editar Empleado</h1>
+    <hr>
+
+    <!-- Opcional: Puedes mostrar alguna referencia del empleado que se está editando -->
+    <p><strong>Empleado:</strong> {{ employee.nompropio }} (ID: {{ employee.id }})</p>
+
+    <!-- Formulario para editar empleado -->
+    <form method="POST" action="">
+        {{ form.hidden_tag() }}
+
+        <div class="mb-3">
+            {{ form.nompropio.label(class="form-label") }}
+            {{ form.nompropio(class="form-control") }}
+            {% for error in form.nompropio.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-3">
+            {{ form.n_empleado.label(class="form-label") }}
+            {{ form.n_empleado(class="form-control") }}
+            {% for error in form.n_empleado.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-3">
+            {{ form.nombre.label(class="form-label") }}
+            {{ form.nombre(class="form-control") }}
+            {% for error in form.nombre.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-3">
+            {{ form.apellido_paterno.label(class="form-label") }}
+            {{ form.apellido_paterno(class="form-control") }}
+            {% for error in form.apellido_paterno.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-3">
+            {{ form.apellido_materno.label(class="form-label") }}
+            {{ form.apellido_materno(class="form-control") }}
+            {% for error in form.apellido_materno.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-3">
+            {{ form.departamento.label(class="form-label") }}
+            {{ form.departamento(class="form-select") }}
+            {% for error in form.departamento.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-3">
+            {{ form.puesto.label(class="form-label") }}
+            {{ form.puesto(class="form-control") }}
+            {% for error in form.puesto.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mb-3">
+            {{ form.qr_code.label(class="form-label") }}
+            {{ form.qr_code(class="form-control") }}
+            {% for error in form.qr_code.errors %}
+                <div class="text-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="mt-4">
+            {{ form.submit(class="btn btn-primary") }}
+            <a href="{{ url_for('main.manage_employees') }}" class="btn btn-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

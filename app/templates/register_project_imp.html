@@ -1,0 +1,248 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+    /* Marcador rojo para proyectos con registro activo */
+    .active-record {
+        position: relative;
+        border: 2px solid red !important;
+    }
+
+    .active-record::after {
+        content: "ACTIVO";
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background: red;
+        color: white;
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-size: 0.8rem;
+    }
+
+    /* Botón resaltado al elegir actividad */
+    .active-activity-btn {
+        background-color: #ffdddd !important;
+        border-color: #ff0000 !important;
+        color: #a00 !important;
+    }
+</style>
+
+<div class="container mt-5">
+    <h2 class="mb-4">Registrar Tiempo (Impresión)</h2>
+
+    {% if department %}
+    <div class="alert alert-info text-center">
+        Departamento <strong>{{ department }}</strong>: <span id="activeWorkersCount">{{ active_records|length }}</span>
+        registro(s) activo(s).
+    </div>
+    {% endif %}
+
+    <form id="new-time-form" method="POST">
+        {{ form.hidden_tag() }}
+        <input type="hidden" name="department" value="{{ department }}">
+        <input type="hidden" name="employee_id" value="{{ selected_employee.id }}">
+        <!-- input project_id & activity se inyectarán vía JS -->
+
+        <!-- Registros activos individuales -->
+        <div class="mb-4">
+            <h5>Registros Activos</h5>
+            {% if active_records %}
+            <ul class="list-group">
+                {% for rec in active_records %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>FP:</strong> {{ rec.project.folio }}<br>
+                        <strong>Proyecto:</strong> {{ rec.project.name }}<br>
+                        <strong>Actividad:</strong> {{ rec.actividad or 'Sin especificar' }}<br>
+                        <strong>Inicio:</strong> {{ rec.start_time.strftime('%Y-%m-%d %H:%M:%S') }}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-danger finalize-btn"
+                        data-record-id="{{ rec.id }}">Finalizar</button>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p>No hay registros activos.</p>
+            {% endif %}
+        </div>
+
+        <!-- Selección de proyecto -->
+        <div class="mb-4" id="project-selection">
+            <h5>Seleccionar Proyecto</h5>
+            <div class="row">
+                {% for project in projects %}
+                <div class="col-md-4 mb-3">
+                    <div class="card project-card shadow-sm{% if project.id in active_activities %} active-record{% endif %}"
+                        data-project-id="{{ project.id }}" data-folio="{{ project.folio }}">
+                        <div class="card-body">
+                            <h5 class="card-title"><strong>FP:</strong> {{ project.folio if project.folio else 'N/A' }}
+                            </h5>
+                            <p><strong>Proyecto:</strong> {{ project.name }}</p>
+                            <p><strong>Cliente:</strong> {{ project.client }}</p>
+                            {% if project.id in active_activities %}
+                            <div class="mt-2 text-danger small">
+                                <strong>Actividades activas:</strong> {{ active_activities[project.id]|join(', ') }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Actividades -->
+        <div id="activity-section" class="mb-4" style="display:none;">
+            <h5>Seleccionar Actividad</h5>
+            <div class="row" id="activity-buttons-container">
+                {% for act in activities %}
+                <div class="col-md-4 mb-3">
+                    <button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="{{ act }}">{{
+                        act }}</button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <button type="submit" name="iniciar" class="btn btn-success" id="start-btn" disabled>Iniciar</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(function () {
+        // ═══════════════════════════════════════════════════════════
+        // LOADER INTEGRATION FOR IMPRESION
+        // Prevents double-click and shows professional loading state
+        // ═══════════════════════════════════════════════════════════
+        let isSubmitting = false;
+
+        // 1. Finalizar registro individual con loader
+        $('.finalize-btn').click(function () {
+            if (isSubmitting) return;
+
+            const recId = $(this).data('record-id');
+            const $btn = $(this);
+
+            isSubmitting = true;
+            $btn.prop('disabled', true).css('opacity', '0.6');
+
+            // Show loader
+            if (window.AD17Loader) {
+                AD17Loader.showTimeEnd();
+            }
+
+            $.post(`/finalize_time_record/${recId}`, {}, res => {
+                if (res.success) {
+                    location.reload();
+                } else {
+                    if (window.AD17Loader) AD17Loader.hide();
+                    isSubmitting = false;
+                    $btn.prop('disabled', false).css('opacity', '1');
+                    alert(res.message || 'No se pudo finalizar.');
+                }
+            }).fail(function () {
+                if (window.AD17Loader) AD17Loader.hide();
+                isSubmitting = false;
+                $btn.prop('disabled', false).css('opacity', '1');
+                alert('Error de conexión. Intente de nuevo.');
+            });
+        });
+
+        // Guardar HTML original de actividades (del departamento)
+        const $activitySection = $('#activity-section');
+        const defaultActivityHTML = $('#activity-buttons-container').html();
+
+        // Extras para FP = 0 (Costos Administrativos)
+        const extraHtml = `
+        <div class="row">
+            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Limpieza de taller">Limpieza de taller</button></div>
+            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Escombrar y acomodar">Escombrar y acomodar</button></div>
+            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Gestión de materiales">Gestión de materiales</button></div>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Reciclado">Reciclado</button></div>
+            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Mantenimiento">Mantenimiento</button></div>
+            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Fabricar accesorios">Fabricar accesorios</button></div>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Construcción y obra">Construcción y obra</button></div>
+            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Administración y coordinación">Administración y coordinación</button></div>
+            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Job costing">Job costing</button></div>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Apoyo a comercialización">Apoyo a comercialización</button></div>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Preparación de maquinaria">Preparación de maquinaria</button></div>
+        </div>`;
+
+        // Helper para adjuntar listeners a los botones de actividad
+        function attachActivityButtons() {
+            $('.activity-btn').off('click').on('click', function () {
+                $('.activity-btn').removeClass('active-activity-btn');
+                $(this).addClass('active-activity-btn');
+                const act = $(this).data('activity');
+                $('#new-time-form input[name="activity"]').remove();
+                $('<input>', { type: 'hidden', name: 'activity', value: act }).appendTo('#new-time-form');
+                $('#start-btn').prop('disabled', false);
+            });
+        }
+
+        attachActivityButtons();
+
+        // 2. Seleccionar proyecto
+        $('.project-card').click(function () {
+            $('.project-card').removeClass('border border-primary');
+            $(this).addClass('border border-primary');
+
+            const projId = $(this).data('project-id');
+            const projFolio = $(this).data('folio');
+
+            $('#new-time-form input[name="project_id"]').remove();
+            $('<input>', { type: 'hidden', name: 'project_id', value: projId }).appendTo('#new-time-form');
+
+            // Combinar actividades extra + departamento si FP==0
+            if (String(projFolio) === '0') {
+                $('#activity-buttons-container').html(extraHtml + defaultActivityHTML);
+            } else {
+                $('#activity-buttons-container').html(defaultActivityHTML);
+            }
+            attachActivityButtons();
+
+            $('#project-selection').hide();
+            $activitySection.show();
+            $('#start-btn').prop('disabled', true);
+        });
+
+        // 3. Form submission with loader
+        $('#new-time-form').on('submit', function (e) {
+            if (isSubmitting) {
+                e.preventDefault();
+                return false;
+            }
+
+            // Validate activity is selected
+            if (!$('#new-time-form input[name="activity"]').val()) {
+                e.preventDefault();
+                alert('Por favor selecciona una actividad antes de iniciar.');
+                return false;
+            }
+
+            isSubmitting = true;
+
+            // Show loader AFTER a small delay to allow form to submit
+            setTimeout(function () {
+                $('#start-btn').prop('disabled', true).css('opacity', '0.6');
+
+                if (window.AD17Loader) {
+                    AD17Loader.showTimeStart();
+                }
+            }, 50);
+
+            return true;
+        });
+    });
+</script>
+{% endblock %}

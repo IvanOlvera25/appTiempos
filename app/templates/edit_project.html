@@ -1,0 +1,291 @@
+{% extends "layout.html" %}
+{% block title %}Editar Proyecto - AD17 Solutions{% endblock %}
+
+{% block content %}
+<style>
+  .edit-header {
+    background: linear-gradient(135deg, #FF8800 0%, #ff6600 100%);
+    color: white;
+    padding: 2rem 0;
+    margin-bottom: 2rem;
+    border-radius: 0 0 1rem 1rem;
+  }
+
+  .form-card {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+  }
+
+  .form-label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.5rem;
+  }
+
+  .form-control:focus {
+    border-color: #FF8800;
+    box-shadow: 0 0 0 0.2rem rgba(255, 136, 0, 0.25);
+  }
+
+  .btn-primary {
+    background-color: #FF8800;
+    border-color: #FF8800;
+  }
+
+  .btn-primary:hover {
+    background-color: #e07b00;
+    border-color: #e07b00;
+  }
+
+  .info-box {
+    background-color: #f8f9fa;
+    border-left: 4px solid #FF8800;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: 0.25rem;
+  }
+</style>
+
+<!-- Header -->
+<div class="edit-header">
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb mb-2" style="background: transparent;">
+            <li class="breadcrumb-item"><a href="{{ url_for('main.home') }}" class="text-white-50">Inicio</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('main.project_page') }}" class="text-white-50">Proyectos</a></li>
+            <li class="breadcrumb-item text-white active">Editar Proyecto</li>
+          </ol>
+        </nav>
+        <h1 class="mb-0">
+          <i class="bi bi-pencil-square me-2"></i>Editar Proyecto
+        </h1>
+        <p class="mb-0 mt-2 opacity-75">Modifica los detalles del proyecto</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <!-- Información del proyecto actual -->
+      <div class="info-box">
+        <h5 class="mb-2">
+          <i class="bi bi-info-circle me-2"></i>Información Actual
+        </h5>
+        <div class="row">
+          <div class="col-md-6">
+            <p class="mb-1"><strong>Folio:</strong> {{ project.folio }}</p>
+            <p class="mb-0"><strong>Cliente:</strong> {{ project.client }}</p>
+          </div>
+          <div class="col-md-6">
+            <p class="mb-1"><strong>Nombre:</strong> {{ project.name }}</p>
+            <p class="mb-0"><strong>Estado:</strong>
+              {% if project.active %}
+                <span class="badge bg-success">Activo</span>
+              {% else %}
+                <span class="badge bg-secondary">Inactivo</span>
+              {% endif %}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Formulario de edición -->
+      <div class="card form-card">
+        <div class="card-body p-4">
+          <form method="POST" id="editProjectForm">
+            {{ form.hidden_tag() }}
+
+            <div class="row">
+              <!-- Folio -->
+              <div class="col-md-4 mb-3">
+                <label for="{{ form.folio.id }}" class="form-label">
+                  <i class="bi bi-hash me-1"></i>{{ form.folio.label.text }}
+                  <span class="text-danger">*</span>
+                </label>
+                {{ form.folio(class="form-control", placeholder="Ej: 1234") }}
+                {% if form.folio.errors %}
+                  <div class="text-danger small mt-1">
+                    {% for error in form.folio.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+
+              <!-- Fecha de Entrega -->
+              <div class="col-md-8 mb-3">
+                <label for="{{ form.delivery_date.id }}" class="form-label">
+                  <i class="bi bi-calendar me-1"></i>{{ form.delivery_date.label.text }}
+                </label>
+                {{ form.delivery_date(class="form-control") }}
+                {% if form.delivery_date.errors %}
+                  <div class="text-danger small mt-1">
+                    {% for error in form.delivery_date.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Cliente -->
+            <div class="mb-3">
+              <label for="{{ form.client.id }}" class="form-label">
+                <i class="bi bi-building me-1"></i>{{ form.client.label.text }}
+                <span class="text-danger">*</span>
+              </label>
+              {{ form.client(class="form-control", placeholder="Ej: Empresa ABC") }}
+              {% if form.client.errors %}
+                <div class="text-danger small mt-1">
+                  {% for error in form.client.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Nombre del Proyecto -->
+            <div class="mb-4">
+              <label for="{{ form.name.id }}" class="form-label">
+                <i class="bi bi-folder me-1"></i>{{ form.name.label.text }}
+                <span class="text-danger">*</span>
+              </label>
+              {{ form.name(class="form-control", placeholder="Ej: Proyecto de Marketing Digital") }}
+              {% if form.name.errors %}
+                <div class="text-danger small mt-1">
+                  {% for error in form.name.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Botones de acción -->
+            <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+              <a href="{{ url_for('main.project_page') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-2"></i>Cancelar
+              </a>
+              <div>
+                <button type="button" class="btn btn-outline-primary me-2" onclick="resetForm()">
+                  <i class="bi bi-arrow-clockwise me-2"></i>Restablecer
+                </button>
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-check-lg me-2"></i>Guardar Cambios
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Información adicional -->
+      <div class="mt-4 text-center text-muted">
+        <p class="mb-1">
+          <i class="bi bi-info-circle me-1"></i>
+          Los campos marcados con <span class="text-danger">*</span> son obligatorios
+        </p>
+        <p>
+          <i class="bi bi-clock-history me-1"></i>
+          Última modificación: {{ project.updated_at.strftime('%d/%m/%Y %H:%M') if project.updated_at else 'No disponible' }}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Guardar valores originales del formulario
+    const originalValues = {
+        folio: $('#{{ form.folio.id }}').val(),
+        delivery_date: $('#{{ form.delivery_date.id }}').val(),
+        client: $('#{{ form.client.id }}').val(),
+        name: $('#{{ form.name.id }}').val()
+    };
+
+    // Función para restablecer el formulario
+    window.resetForm = function() {
+        $('#{{ form.folio.id }}').val(originalValues.folio);
+        $('#{{ form.delivery_date.id }}').val(originalValues.delivery_date);
+        $('#{{ form.client.id }}').val(originalValues.client);
+        $('#{{ form.name.id }}').val(originalValues.name);
+
+        // Limpiar mensajes de error
+        $('.text-danger.small').remove();
+        $('.form-control').removeClass('is-invalid');
+    };
+
+    // Validación del formulario antes de enviar
+    $('#editProjectForm').on('submit', function(e) {
+        let isValid = true;
+
+        // Validar folio
+        const folio = $('#{{ form.folio.id }}').val().trim();
+        if (!folio || isNaN(folio)) {
+            e.preventDefault();
+            $('#{{ form.folio.id }}').addClass('is-invalid');
+            if (!$('#{{ form.folio.id }}').next('.text-danger').length) {
+                $('#{{ form.folio.id }}').after('<div class="text-danger small mt-1">El folio debe ser un número válido</div>');
+            }
+            isValid = false;
+        }
+
+        // Validar cliente
+        const client = $('#{{ form.client.id }}').val().trim();
+        if (!client) {
+            e.preventDefault();
+            $('#{{ form.client.id }}').addClass('is-invalid');
+            if (!$('#{{ form.client.id }}').next('.text-danger').length) {
+                $('#{{ form.client.id }}').after('<div class="text-danger small mt-1">El cliente es requerido</div>');
+            }
+            isValid = false;
+        }
+
+        // Validar nombre
+        const name = $('#{{ form.name.id }}').val().trim();
+        if (!name) {
+            e.preventDefault();
+            $('#{{ form.name.id }}').addClass('is-invalid');
+            if (!$('#{{ form.name.id }}').next('.text-danger').length) {
+                $('#{{ form.name.id }}').after('<div class="text-danger small mt-1">El nombre del proyecto es requerido</div>');
+            }
+            isValid = false;
+        }
+
+        if (!isValid) {
+            // Scroll al primer campo con error
+            const firstError = $('.is-invalid').first();
+            if (firstError.length) {
+                $('html, body').animate({
+                    scrollTop: firstError.offset().top - 100
+                }, 500);
+            }
+        }
+    });
+
+    // Limpiar errores cuando el usuario escribe
+    $('.form-control').on('input', function() {
+        $(this).removeClass('is-invalid');
+        $(this).next('.text-danger').remove();
+    });
+
+    // Detectar cambios en el formulario
+    let formChanged = false;
+    $('.form-control').on('change', function() {
+        formChanged = true;
+    });
+
+    // Advertir al usuario si intenta salir con cambios sin guardar
+    window.addEventListener('beforeunload', function(e) {
+        if (formChanged) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+
+    // No advertir si se envía el formulario
+    $('#editProjectForm').on('submit', function() {
+        formChanged = false;
+    });
+});
+</script>
+{% endblock %}

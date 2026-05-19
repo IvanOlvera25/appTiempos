@@ -1,0 +1,134 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container mt-5">
+  <h2 class="mb-4">Registrar Tiempo (Empleado)</h2>
+
+  {% if department %}
+    <div class="alert alert-info text-center">
+      Departamento <strong>{{ department }}</strong>: <span id="activeWorkersCount">{{ active_count }}</span> trabajador(es) con tiempos activos sin finalizar.
+    </div>
+  {% endif %}
+
+  <!-- Lista de Empleados Manual -->
+  <div class="card mb-4">
+    <div class="card-header bg-orange text-white">
+      Seleccione un Trabajador
+    </div>
+    <div class="card-body p-0">
+      <div id="employeeList" class="list-group list-group-flush" style="max-height:500px; overflow-y:auto;">
+        {% for emp in employees %}
+        <button type="button"
+                class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                data-id="{{ emp.id }}">
+          <div>
+            <div class="fw-semibold">{{ emp.nombre }} {{ emp.apellido_paterno }} {{ emp.apellido_materno }}</div>
+            <small class="text-muted">{{ emp.nompropio }}</small>
+          </div>
+          <i class="bi bi-chevron-right"></i>
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Registros Activos del Departamento -->
+  <div class="card">
+    <div class="card-header bg-danger text-white">
+      Registros Activos (<small>{{ department }}</small>)
+    </div>
+    <div class="card-body p-0">
+      {% if active_records %}
+      <ul class="list-group list-group-flush">
+        {% for rec in active_records %}
+        <li class="list-group-item">
+          <div class="fw-semibold">{{ rec.employee.nombre }} {{ rec.employee.apellido_paterno }} {{ rec.employee.apellido_materno }}</div>
+          <div>
+            <small><strong>Proyecto:</strong> {{ rec.project.name }}</small><br>
+            <small><strong>Actividad:</strong> {{ rec.actividad or 'Sin especificar' }}</small>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-center text-muted m-3">No hay registros activos en este departamento.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Toast: selección exitosa -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+  <div id="selectionSuccessToast" class="toast align-items-center text-bg-warning border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body">
+        Empleado <strong id="selectedEmployeeName"></strong> seleccionado.
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast: cuenta regresiva y captura -->
+<div class="position-fixed top-50 start-50 translate-middle p-3" style="z-index: 1100;">
+  <div id="countdownToast" class="toast text-bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true" style="opacity:1; min-width:320px;">
+    <div class="toast-header text-bg-dark border-0">
+      <strong class="me-auto text-white">¡Sonríe!</strong>
+    </div>
+    <div class="toast-body d-flex flex-column align-items-center text-white">
+      <h4>Capturando foto en...</h4>
+      <h3 id="countdownTimer" class="display-6 fw-bold"></h3>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay de flash -->
+<div id="flashOverlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:white;opacity:0;pointer-events:none;z-index:2000;transition:opacity .2s;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const dept = {{ department|tojson }};
+    const baseUrl = dept === 'Impresion'
+      ? "{{ url_for('main.register_project_imp') }}"
+      : "{{ url_for('main.register_project') }}";
+
+    document.querySelectorAll('#employeeList .list-group-item-action').forEach(item => {
+      item.addEventListener('click', function() {
+        const empId = this.dataset.id;
+        const empName = this.querySelector('.fw-semibold').innerText;
+
+        // Toast de selección
+        document.getElementById('selectedEmployeeName').textContent = empName;
+        new bootstrap.Toast(
+          document.getElementById('selectionSuccessToast'),
+          { delay: 2000 }
+        ).show();
+
+        // Cuenta regresiva
+        const countdownToastEl = document.getElementById('countdownToast');
+        const countdownTimer   = document.getElementById('countdownTimer');
+        const countdownToast   = new bootstrap.Toast(countdownToastEl, { autohide: false });
+        let count = 1;
+        countdownTimer.textContent = count;
+        countdownToast.show();
+        const interval = setInterval(() => {
+          count--; if (count > 0) {
+            countdownTimer.textContent = count;
+          } else {
+            clearInterval(interval);
+            countdownToast.hide();
+            // Flash
+            const overlay = document.getElementById('flashOverlay');
+            overlay.style.opacity = 1;
+            setTimeout(() => overlay.style.opacity = 0, 200);
+            // Redirigir
+            window.location.href = `${baseUrl}?department=${encodeURIComponent(dept)}&employee_id=${empId}`;
+          }
+        }, 1000);
+      });
+    });
+  });
+</script>
+{% endblock %}

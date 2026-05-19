@@ -1,0 +1,96 @@
+{# add_project.html #}
+{% extends "layout.html" %}
+
+{% block title %}Agregar Proyecto - AD17 Solutions{% endblock %}
+
+{% block content %}
+  <h2 class="mb-4">Agregar Nuevo Proyecto</h2>
+
+  <!-- Barra de búsqueda para FP -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <label for="fp_search" class="form-label">Buscar FP</label>
+      <div class="input-group">
+        <input type="text" id="fp_search" class="form-control" placeholder="Ingrese FP">
+        <button type="button" class="btn btn-primary" id="search_fp_btn">Buscar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-6">
+      <form method="POST">
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+          {{ form.folio.label(class="form-label") }}
+          {{ form.folio(class="form-control", id="folio") }}
+          {% for error in form.folio.errors %}
+            <div class="text-danger">{{ error }}</div>
+          {% endfor %}
+        </div>
+        <div class="mb-3">
+          {{ form.delivery_date.label(class="form-label") }}
+          {{ form.delivery_date(class="form-control", id="delivery_date") }}
+          {% for error in form.delivery_date.errors %}
+            <div class="text-danger">{{ error }}</div>
+          {% endfor %}
+        </div>
+        <div class="mb-3">
+          {{ form.client.label(class="form-label") }}
+          {{ form.client(class="form-control", id="client") }}
+          {% for error in form.client.errors %}
+            <div class="text-danger">{{ error }}</div>
+          {% endfor %}
+        </div>
+        <div class="mb-3">
+          {{ form.name.label(class="form-label") }}
+          {{ form.name(class="form-control", id="name") }}
+          {% for error in form.name.errors %}
+            <div class="text-danger">{{ error }}</div>
+          {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary">{{ form.submit.label.text }}</button>
+      </form>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  console.log("DEBUG: add_project.html – Document ready (scripts block)");
+
+  $('#search_fp_btn').click(function() {
+    console.log("DEBUG: Botón Buscar presionado");
+    var fp = $('#fp_search').val().trim();
+    console.log("DEBUG: Valor ingresado en FP:", fp);
+    if(fp === '') {
+      alert("Por favor, ingrese un FP.");
+      return;
+    }
+    $.ajax({
+      url: '/search_fp',
+      type: 'GET',
+      data: { fp: fp },
+      dataType: 'json',
+      success: function(data) {
+        console.log("DEBUG: Respuesta AJAX recibida:", data);
+        if(data && data.length > 0) {
+          var result = data[0];  // Se toma el primer registro encontrado
+          console.log("DEBUG: Registro encontrado:", result);
+          $('#folio').val(result.fp);
+          $('#name').val(result.proyecto);
+          $('#client').val(result.cliente);
+          console.log("DEBUG: Campos autocompletados correctamente");
+        } else {
+          alert("No se encontró información para FP: " + fp);
+          console.log("DEBUG: No se encontraron registros para FP:", fp);
+        }
+      },
+      error: function(xhr, status, error) {
+        console.error("DEBUG: Error en AJAX al buscar FP:", error);
+        alert("Error al buscar FP.");
+      }
+    });
+  });
+</script>
+{% endblock %}

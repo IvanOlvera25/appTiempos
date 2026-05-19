@@ -1,0 +1,724 @@
+{% extends "layout.html" %}
+{% block title %}Gestión de Costos - AD17 Solutions{% endblock %}
+
+{% block content %}
+<div style="margin:5px;">
+
+<!-- Meta tag CSRF necesario para las peticiones AJAX -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0">Gestión de Costos</h1>
+        <p class="text-muted">Administración completa de registros de tiempo</p>
+    </div>
+    <div>
+        <a href="{{ url_for('main.activities_admin') }}"
+           class="btn btn-outline-secondary d-inline-flex align-items-center"
+           title="Administrar catálogo de actividades" data-bs-toggle="tooltip">
+            <i class="bi bi-gear me-1"></i>
+            <span class="d-none d-sm-inline">Actividades</span>
+        </a>
+        <button class="btn btn-danger me-2" id="bulkDeleteBtn" style="display: none;">
+            <i class="bi bi-trash"></i> Eliminar Seleccionados
+        </button>
+        <a href="{{ url_for('main.create_time_record') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Nuevo Registro
+        </a>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="bi bi-funnel"></i> Filtros
+        </h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" id="filterForm">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label for="search" class="form-label">
+                        <i class="bi bi-search"></i> Buscar FP/Proyecto
+                    </label>
+                    <input type="text" name="search" id="search" class="form-control"
+                           placeholder="Buscar por FP o proyecto..."
+                           value="{{ filters.search or '' }}"
+                           data-bs-toggle="tooltip"
+                           title="Busca por FP (folio), nombre de proyecto, empleado o departamento">
+                </div>
+                <div class="col-md-2">
+                    <label for="department" class="form-label">Departamento</label>
+                    <select name="department" id="department" class="form-select">
+                        <option value="">Todos los departamentos</option>
+                        <option value="Metal" {% if filters.department == 'Metal' %}selected{% endif %}>Metal</option>
+                        <option value="Costura" {% if filters.department == 'Costura' %}selected{% endif %}>Costura</option>
+                        <option value="Impresion" {% if filters.department == 'Impresion' %}selected{% endif %}>Impresión</option>
+                        <option value="Stagging" {% if filters.department == 'Stagging' %}selected{% endif %}>Stagging</option>
+                        <option value="Montaje" {% if filters.department == 'Montaje' %}selected{% endif %}>Montaje</option>
+                        <option value="Transporte" {% if filters.department == 'Transporte' %}selected{% endif %}>Transporte</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="project_id" class="form-label">Proyecto</label>
+                    <select name="project_id" id="project_id" class="form-select">
+                        <option value="">Todos los proyectos</option>
+                        {% for project in projects %}
+                        <option value="{{ project.id }}"
+                                {% if filters.project_id == project.id %}selected{% endif %}>
+                            {% if project.folio and project.folio != 0 %}
+                                [{{ project.folio }}] {{ project.name }}
+                            {% else %}
+                                {{ project.name }}
+                            {% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="employee_id" class="form-label">Empleado</label>
+                    <select name="employee_id" id="employee_id" class="form-select">
+                        <option value="">Todos los empleados</option>
+                        {% for employee in employees %}
+                        <option value="{{ employee.id }}"
+                                {% if filters.employee_id == employee.id %}selected{% endif %}>
+                            {{ employee.nompropio }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="date_from" class="form-label">Desde</label>
+                    <input type="date" name="date_from" id="date_from" class="form-control"
+                           value="{{ filters.date_from or '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label for="date_to" class="form-label">Hasta</label>
+                    <input type="date" name="date_to" id="date_to" class="form-control"
+                           value="{{ filters.date_to or '' }}">
+                </div>
+            </div>
+            <!-- Segunda fila con el filtro de duración -->
+            <div class="row g-3 mt-2">
+                <div class="col-md-3">
+                    <label for="duration_filter" class="form-label">
+                        <i class="bi bi-clock"></i> Filtrar por Duración
+                    </label>
+                    <select name="duration_filter" id="duration_filter" class="form-select">
+                        <option value="">Todas las duraciones</option>
+                        <option value="0-15min" {% if '0-15min' in (filters.duration_filter or []) %}selected{% endif %}>
+                            0-15 minutos
+                        </option>
+                        <option value="15-60min" {% if '15-60min' in (filters.duration_filter or []) %}selected{% endif %}>
+                            15-60 minutos
+                        </option>
+                        <option value="1-4h" {% if '1-4h' in (filters.duration_filter or []) %}selected{% endif %}>
+                            1-4 horas
+                        </option>
+                        <option value="4-10h" {% if '4-10h' in (filters.duration_filter or []) %}selected{% endif %}>
+                            4-10 horas
+                        </option>
+                        <option value="10h+" {% if '10h+' in (filters.duration_filter or []) %}selected{% endif %}>
+                            Más de 10 horas
+                        </option>
+                        <option value="1day+" {% if '1day+' in (filters.duration_filter or []) %}selected{% endif %}>
+                            + de 1 día
+                        </option>
+                        <option value="active" {% if 'active' in (filters.duration_filter or []) %}selected{% endif %}>
+                            <i class="bi bi-clock-history"></i> Solo registros activos
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-9 d-flex align-items-end">
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-search"></i> Aplicar Filtros
+                        </button>
+                        <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x"></i> Limpiar
+                        </a>
+                        <!-- Indicador visual de filtros activos -->
+                        {% if filters.duration_filter or filters.search or filters.department or filters.project_id or filters.employee_id or filters.date_from or filters.date_to %}
+                        <div class="alert alert-info alert-sm d-flex align-items-center mb-0 py-2" role="alert">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <small>Filtros aplicados</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Estadísticas -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <h5 class="card-title">Total Registros</h5>
+                        <h2 class="mb-0">{{ total_records }}</h2>
+                        {% if filters.duration_filter %}
+                        <small class="opacity-75">
+                            Filtrados por:
+                            {% if '0-15min' in (filters.duration_filter or []) %}0-15 min{% endif %}
+                            {% if '15-60min' in (filters.duration_filter or []) %} 15-60 min{% endif %}
+                            {% if '1-4h' in (filters.duration_filter or []) %} 1-4 horas{% endif %}
+                            {% if '4-10h' in (filters.duration_filter or []) %} 4-10 horas{% endif %}
+                            {% if '10h+' in (filters.duration_filter or []) %} +10 horas{% endif %}
+                            {% if '1day+' in (filters.duration_filter or []) %} + de 1 día{% endif %}
+                            {% if 'active' in (filters.duration_filter or []) %} Activos{% endif %}
+                        </small>
+                        {% endif %}
+                    </div>
+                    <div class="fs-1">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <h5 class="card-title">Horas Totales</h5>
+                        <h2 class="mb-0">{{ total_hours }}</h2>
+                        {% if filters.duration_filter and ('active' not in (filters.duration_filter or [])) %}
+                        <small class="opacity-75">Solo registros finalizados</small>
+                        {% endif %}
+                    </div>
+                    <div class="fs-1">
+                        <i class="bi bi-stopwatch"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla de registros -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Registros de Tiempo</h5>
+        <div>
+            <input type="checkbox" id="selectAll" class="form-check-input me-2">
+            <label for="selectAll" class="form-check-label">Seleccionar todos</label>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th width="50">
+                            <input type="checkbox" id="headerCheckbox" class="form-check-input">
+                        </th>
+                        <th>Empleado</th>
+                        <th>Proyecto</th>
+                        <th>Departamento</th>
+                        <th>Actividad</th>
+                        <th>Inicio</th>
+                        <th>Fin</th>
+                        <th>
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-clock me-1"></i>
+                                Duración
+                            </div>
+                        </th>
+                        <th>Estado</th>
+                        <th width="250">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records.items %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" class="form-check-input record-checkbox"
+                                   value="{{ record.id }}">
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar bg-light rounded-circle p-2 me-2">
+                                    <i class="bi bi-person"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-medium">{{ record.employee.nompropio }}</div>
+                                    <small class="text-muted">{{ record.employee.departamento or 'N/A' }}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="fw-medium">
+                                {% if record.project.folio and record.project.folio != 0 %}
+                                    <span class="badge bg-primary me-2">{{ record.project.folio }}</span>
+                                {% endif %}
+                                {{ record.project.name }}
+                            </div>
+                            <small class="text-muted">{{ record.project.client or 'N/A' }}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">{{ record.departamento or 'N/A' }}</span>
+                        </td>
+                        <td>
+                            <span class="text-muted">{{ record.actividad or 'Sin especificar' }}</span>
+                        </td>
+                        <td>
+                            <div>{{ record.start_time_cdmx.strftime('%d/%m/%Y') }}</div>
+                            <small class="text-muted">{{ record.start_time_cdmx.strftime('%H:%M') }}</small>
+                        </td>
+                        <td>
+                            {% if record.end_time_cdmx %}
+                                <div>{{ record.end_time_cdmx.strftime('%d/%m/%Y') }}</div>
+                                <small class="text-muted">{{ record.end_time_cdmx.strftime('%H:%M') }}</small>
+                            {% else %}
+                                <span class="text-muted">En progreso</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.end_time %}
+                                {% set duration = (record.end_time - record.start_time).total_seconds() / 3600 %}
+                                <div class="fw-medium">
+                                    {% if duration < 0.25 %}
+                                        <span class="badge bg-info">{{ "%.0f"|format(duration * 60) }}m</span>
+                                    {% elif duration < 1 %}
+                                        <span class="badge bg-warning">{{ "%.0f"|format(duration * 60) }}m</span>
+                                    {% elif duration < 4 %}
+                                        <span class="badge bg-success">{{ "%.1f"|format(duration) }}h</span>
+                                    {% elif duration < 10 %}
+                                        <span class="badge bg-primary">{{ "%.1f"|format(duration) }}h</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">{{ "%.1f"|format(duration) }}h</span>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted">{{ "%.2f"|format(duration) }} horas</small>
+                            {% else %}
+                                <span class="badge bg-warning pulse-animation">
+                                    <i class="bi bi-clock"></i> Activo
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if record.end_time %}
+                                <span class="badge bg-success">Finalizado</span>
+                            {% else %}
+                                <span class="badge bg-warning">En progreso</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a href="{{ url_for('main.edit_time_record', record_id=record.id) }}"
+                                   class="btn btn-outline-primary btn-sm"
+                                   title="Editar registro"
+                                   data-bs-toggle="tooltip">
+                                    <i class="bi bi-pencil-square"></i>
+                                    <span class="d-none d-lg-inline">Editar</span>
+                                </a>
+
+                                {% if not record.end_time %}
+                                <button type="button"
+                                        class="btn btn-outline-warning btn-sm finalize-btn"
+                                        data-record-id="{{ record.id }}"
+                                        title="Finalizar registro"
+                                        data-bs-toggle="tooltip">
+                                    <i class="bi bi-stop-circle"></i>
+                                    <span class="d-none d-lg-inline">Finalizar</span>
+                                </button>
+                                {% endif %}
+
+                                <button type="button"
+                                        class="btn btn-outline-danger btn-sm delete-btn"
+                                        data-record-id="{{ record.id }}"
+                                        title="Eliminar registro"
+                                        data-bs-toggle="tooltip">
+                                    <i class="bi bi-trash3"></i>
+                                    <span class="d-none d-lg-inline">Eliminar</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center py-5">
+                            <div class="text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                No se encontraron registros con los filtros aplicados.
+                                {% if filters.duration_filter %}
+                                <br><small>Prueba ajustando el filtro de duración</small>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Paginación -->
+{% if records.pages > 1 %}
+<nav aria-label="Paginación" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if records.has_prev %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('main.costs_dashboard', page=records.prev_num, **filters) }}">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+            </li>
+        {% endif %}
+
+        {% for page_num in records.iter_pages() %}
+            {% if page_num %}
+                {% if page_num != records.page %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('main.costs_dashboard', page=page_num, **filters) }}">
+                            {{ page_num }}
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                {% endif %}
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">…</span>
+                </li>
+            {% endif %}
+        {% endfor %}
+
+        {% if records.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('main.costs_dashboard', page=records.next_num, **filters) }}">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<!-- Modal de confirmación para eliminar -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Eliminar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmación para finalizar -->
+<div class="modal fade" id="finalizeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar finalización</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Estás seguro de que deseas finalizar este registro de tiempo?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" id="confirmFinalizeBtn">Finalizar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.avatar {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.table th {
+    border-top: none;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #495057;
+}
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+.btn-group { display: flex; gap: 0.25rem; }
+.btn-group .btn {
+    transition: all 0.2s ease-in-out;
+    border-radius: 0.375rem !important;
+    font-weight: 500;
+    display: flex; align-items: center; justify-content: center;
+    white-space: nowrap;
+}
+.btn-group .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,0.15);
+}
+.btn-outline-primary { color:#0d6efd; border-color:#0d6efd; }
+.btn-outline-primary:hover { background-color:#0d6efd; border-color:#0d6efd; color:#fff; }
+.btn-outline-warning { color:#ffc107; border-color:#ffc107; }
+.btn-outline-warning:hover { background-color:#ffc107; border-color:#ffc107; color:#000; }
+.btn-outline-danger { color:#dc3545; border-color:#dc3545; }
+.btn-outline-danger:hover { background-color:#dc3545; border-color:#dc3545; color:#fff; }
+.btn i { font-size: 0.875rem; }
+@media (max-width: 768px) { .btn-group .btn { padding: 0.375rem 0.5rem; } }
+@media (max-width: 991px) { .btn-group { flex-wrap: wrap; } }
+.table-hover tbody tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+    transform: scale(1.001);
+    transition: all 0.2s ease-in-out;
+}
+.btn:focus { box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.25); }
+.btn-outline-danger:focus { box-shadow: 0 0 0 0.2rem rgba(220,53,69,0.25); }
+.btn-outline-warning:focus { box-shadow: 0 0 0 0.2rem rgba(255,193,7,0.25); }
+@keyframes pulse { 0%{opacity:1;} 50%{opacity:.7;} 100%{opacity:1;} }
+.pulse-animation { animation: pulse 2s infinite; }
+.badge.bg-info { background-color:#0dcaf0 !important; }
+.badge.bg-warning { background-color:#ffc107 !important; color:#000 !important; }
+.badge.bg-success { background-color:#198754 !important; }
+.badge.bg-primary { background-color:#0d6efd !important; }
+.badge.bg-danger { background-color:#dc3545 !important; }
+.alert-sm { padding: 0.375rem 0.75rem; font-size: 0.875rem; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // -------- CSRF --------
+  function getCSRFToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute('content') : '';
+  }
+
+  // -------- Persistencia de selección entre páginas --------
+  function buildStorageKey() {
+    const url = new URL(window.location.href);
+    const params = new URLSearchParams(url.search);
+    // Ignora paginación
+    params.delete('page');
+    params.delete('p');
+    return 'costs:selected:' + params.toString();
+  }
+  const STORAGE_KEY = buildStorageKey();
+
+  function loadSelectedSet() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return new Set(arr);
+    } catch { return new Set(); }
+  }
+  function saveSelectedSet(set) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(set)));
+  }
+  function clearSelectedSet() {
+    localStorage.removeItem(STORAGE_KEY);
+  }
+
+  const headerCheckbox   = document.getElementById('headerCheckbox');
+  const selectAllTop     = document.getElementById('selectAll');
+  const bulkDeleteBtn    = document.getElementById('bulkDeleteBtn');
+  const recordCheckboxes = Array.from(document.querySelectorAll('.record-checkbox'));
+  const selected = loadSelectedSet();
+
+  // Marca visibles según persistencia
+  recordCheckboxes.forEach(cb => { if (selected.has(cb.value)) cb.checked = true; });
+
+  function setBulkBtnCount(n) {
+    bulkDeleteBtn.innerHTML = `<i class="bi bi-trash"></i> Eliminar Seleccionados (${n})`;
+  }
+  function updateHeaderAndButton() {
+    const total = recordCheckboxes.length;
+    const checked = recordCheckboxes.filter(cb => cb.checked).length;
+
+    if (headerCheckbox) {
+      headerCheckbox.checked = (checked === total && total > 0);
+      headerCheckbox.indeterminate = (checked > 0 && checked < total);
+    }
+    if (selectAllTop) {
+      selectAllTop.checked = headerCheckbox ? headerCheckbox.checked : (checked === total && total > 0);
+    }
+
+    const totalSelected = selected.size;
+    if (totalSelected > 0) {
+      bulkDeleteBtn.style.display = 'inline-block';
+      setBulkBtnCount(totalSelected);
+    } else {
+      bulkDeleteBtn.style.display = 'none';
+    }
+  }
+  updateHeaderAndButton();
+
+  // Checks individuales
+  recordCheckboxes.forEach(cb => {
+    cb.addEventListener('change', function() {
+      if (this.checked) selected.add(this.value);
+      else selected.delete(this.value);
+      saveSelectedSet(selected);
+      updateHeaderAndButton();
+    });
+  });
+
+  // Seleccionar todos (encabezado)
+  if (headerCheckbox) {
+    headerCheckbox.addEventListener('change', function() {
+      recordCheckboxes.forEach(cb => {
+        cb.checked = headerCheckbox.checked;
+        if (cb.checked) selected.add(cb.value); else selected.delete(cb.value);
+      });
+      saveSelectedSet(selected);
+      if (selectAllTop) selectAllTop.checked = headerCheckbox.checked;
+      updateHeaderAndButton();
+    });
+  }
+
+  // Seleccionar todos (arriba)
+  if (selectAllTop) {
+    selectAllTop.addEventListener('change', function() {
+      const mark = selectAllTop.checked;
+      recordCheckboxes.forEach(cb => {
+        cb.checked = mark;
+        if (mark) selected.add(cb.value); else selected.delete(cb.value);
+      });
+      saveSelectedSet(selected);
+      if (headerCheckbox) { headerCheckbox.checked = mark; headerCheckbox.indeterminate = false; }
+      updateHeaderAndButton();
+    });
+  }
+
+  // -------- Eliminar individual --------
+  const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+  let recordToDelete = null;
+
+  document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      recordToDelete = this.getAttribute('data-record-id');
+      deleteModal.show();
+    });
+  });
+
+  document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+    if (!recordToDelete) return;
+    fetch(`/costs/delete/${recordToDelete}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        selected.delete(String(recordToDelete));
+        saveSelectedSet(selected);
+        location.reload();
+      } else {
+        alert('Error: ' + (data.message || 'No se pudo eliminar.'));
+      }
+    })
+    .catch(() => alert('Error al eliminar el registro'))
+    .finally(() => { deleteModal.hide(); recordToDelete = null; });
+  });
+
+  // -------- Finalizar --------
+  const finalizeModal = new bootstrap.Modal(document.getElementById('finalizeModal'));
+  let recordToFinalize = null;
+
+  document.querySelectorAll('.finalize-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      recordToFinalize = this.getAttribute('data-record-id');
+      finalizeModal.show();
+    });
+  });
+
+  document.getElementById('confirmFinalizeBtn').addEventListener('click', function() {
+    if (!recordToFinalize) return;
+    fetch(`/costs/finalize/${recordToFinalize}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) location.reload();
+      else alert('Error: ' + (data.message || 'No se pudo finalizar.'));
+    })
+    .catch(() => alert('Error al finalizar el registro'))
+    .finally(() => { finalizeModal.hide(); recordToFinalize = null; });
+  });
+
+  // -------- Eliminar múltiple --------
+  // Botón para limpiar selección (opcional)
+  const clearSelBtn = document.createElement('button');
+  clearSelBtn.type = 'button';
+  clearSelBtn.className = 'btn btn-outline-secondary ms-2';
+  clearSelBtn.textContent = 'Limpiar selección';
+  clearSelBtn.style.display = selected.size > 0 ? 'inline-block' : 'none';
+  bulkDeleteBtn.parentElement.appendChild(clearSelBtn);
+
+  function updateClearButton() {
+    clearSelBtn.style.display = selected.size > 0 ? 'inline-block' : 'none';
+  }
+  updateClearButton();
+
+  bulkDeleteBtn.addEventListener('click', function() {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (!confirm(`¿Eliminar ${ids.length} registro(s)? Esta acción no se puede deshacer.`)) return;
+
+    fetch('/costs/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+      body: JSON.stringify({ record_ids: ids })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        clearSelectedSet();
+        location.reload();
+      } else {
+        alert('Error: ' + (data.message || 'No se pudo eliminar en bloque.'));
+      }
+    })
+    .catch(() => alert('Error al eliminar los registros'));
+  });
+
+  clearSelBtn.addEventListener('click', function() {
+    clearSelectedSet();
+    recordCheckboxes.forEach(cb => { cb.checked = false; });
+    selected.clear();
+    updateHeaderAndButton();
+    updateClearButton();
+  });
+
+  // -------- Tooltips y Select2 --------
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
+
+  if (typeof $ !== 'undefined' && $.fn.select2) {
+    $('#project_id, #employee_id, #department, #duration_filter').select2({
+      theme: 'bootstrap4',
+      allowClear: true,
+      width: '100%'
+    });
+  }
+});
+</script>
+
+<!-- Moment.js (si lo usas en otros lugares) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.40/moment-timezone-with-data.min.js"></script>
+</div>
+{% endblock %}

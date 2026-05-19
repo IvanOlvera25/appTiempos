@@ -1,0 +1,501 @@
+{% extends "layout.html" %}
+{% block title %}Gestión de Proyectos - AD17 Solutions{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div style="background: linear-gradient(135deg, #FF8800 0%, #ff6600 100%); color: white; padding: 2rem 0; margin-bottom: 2rem; border-radius: 0 0 1rem 1rem;">
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col-md-6">
+        <h1 class="mb-0">
+          <i class="bi bi-folder-fill me-2"></i>Gestión de Proyectos
+        </h1>
+        <p class="mb-0 mt-2" style="opacity: 0.85;">Administra y supervisa todos los proyectos</p>
+      </div>
+      <div class="col-md-6 text-md-end mt-3 mt-md-0">
+        <a href="{{ url_for('main.add_project') }}" class="btn btn-light btn-lg">
+          <i class="bi bi-plus-circle me-2"></i>Nuevo Proyecto
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <!-- Estadísticas Rápidas -->
+  <div class="row mb-4">
+    <div class="col-md-3 mb-3">
+      <div class="card bg-primary text-white" style="border: none; border-radius: 0.75rem; transition: transform 0.2s;">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="flex-grow-1">
+              <h3 class="mb-0">{{ all_projects|length }}</h3>
+              <p class="mb-0">Total Proyectos</p>
+            </div>
+            <i class="bi bi-folder fs-1" style="opacity: 0.5;"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+      <div class="card bg-success text-white" style="border: none; border-radius: 0.75rem; transition: transform 0.2s;">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="flex-grow-1">
+              <h3 class="mb-0">{{ all_projects|selectattr('active')|list|length }}</h3>
+              <p class="mb-0">Activos</p>
+            </div>
+            <i class="bi bi-check-circle fs-1" style="opacity: 0.5;"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+      <div class="card bg-secondary text-white" style="border: none; border-radius: 0.75rem; transition: transform 0.2s;">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="flex-grow-1">
+              <h3 class="mb-0">{{ all_projects|rejectattr('active')|list|length }}</h3>
+              <p class="mb-0">Inactivos</p>
+            </div>
+            <i class="bi bi-pause-circle fs-1" style="opacity: 0.5;"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+      <div class="card bg-info text-white" style="border: none; border-radius: 0.75rem; transition: transform 0.2s;">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="flex-grow-1">
+              <h3 class="mb-0">{{ all_projects|map(attribute='client')|unique|list|length }}</h3>
+              <p class="mb-0">Clientes</p>
+            </div>
+            <i class="bi bi-people fs-1" style="opacity: 0.5;"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla de Proyectos Activos -->
+  <div class="card mb-4" style="border-radius: 0.75rem; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+    <div class="card-header bg-white" style="border-bottom: 2px solid #FF8800; border-radius: 0.75rem 0.75rem 0 0;">
+      <h5 class="mb-0 text-dark">
+        <i class="bi bi-play-circle me-2 text-primary"></i>Proyectos Activos
+      </h5>
+    </div>
+    <div class="card-body">
+      <!-- Búsqueda -->
+      <div class="mb-4">
+        <div class="position-relative">
+          <i class="bi bi-search position-absolute" style="left: 15px; top: 50%; transform: translateY(-50%); color: #6c757d;"></i>
+          <input type="text" id="activeSearch" class="form-control" style="padding-left: 40px;" placeholder="Buscar por folio, nombre o cliente...">
+        </div>
+      </div>
+
+      <!-- Tabla -->
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead style="background-color: #f8f9fa;">
+            <tr>
+              <th>Folio</th>
+              <th>Nombre del Proyecto</th>
+              <th>Cliente</th>
+              <th>Fecha Entrega</th>
+              <th class="text-center" style="width: 400px;">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="activeProjectsTable">
+            {% set active_projects = all_projects | selectattr('active') | list %}
+            {% for proj in active_projects | sort(attribute='folio') %}
+              <tr data-folio="{{ proj.folio }}" data-name="{{ proj.name }}" data-client="{{ proj.client }}">
+                <td>
+                  <span class="badge bg-primary" style="font-size: 0.9rem; padding: 0.5rem 1rem;">{{ proj.folio }}</span>
+                </td>
+                <td><strong>{{ proj.name }}</strong></td>
+                <td>{{ proj.client }}</td>
+                <td>
+                  {% if proj.delivery_date %}
+                    {{ proj.delivery_date.strftime('%d/%m/%Y') }}
+                  {% else %}
+                    <span class="text-muted">Sin fecha</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {% if proj.folio != 0 %}
+                    <div class="btn-group" role="group">
+                      <!-- Botón Editar -->
+                      <a href="{{ url_for('main.edit_project', project_id=proj.id) }}"
+                         class="btn"
+                         style="background-color: white; color: #0d6efd; border: 2px solid #0d6efd; padding: 8px 16px; font-weight: 500; margin-right: 8px; border-radius: 6px; text-decoration: none;">
+                        <i class="bi bi-pencil-square"></i> Editar
+                      </a>
+
+                      <!-- Botón Desactivar -->
+                      <button type="button"
+                              class="btn toggle-project-btn"
+                              data-project-id="{{ proj.id }}"
+                              data-action="deactivate"
+                              style="background-color: white; color: #ffc107; border: 2px solid #ffc107; padding: 8px 16px; font-weight: 500; margin-right: 8px; border-radius: 6px;">
+                        <i class="bi bi-pause-circle"></i> Desactivar
+                      </button>
+
+                      <!-- Botón Eliminar -->
+                      <button type="button"
+                              class="btn delete-project-btn"
+                              data-project-id="{{ proj.id }}"
+                              data-project-name="{{ proj.name }}"
+                              style="background-color: white; color: #dc3545; border: 2px solid #dc3545; padding: 8px 16px; font-weight: 500; border-radius: 6px;">
+                        <i class="bi bi-trash3"></i> Eliminar
+                      </button>
+                    </div>
+                  {% else %}
+                    <span class="badge bg-secondary" style="padding: 10px 20px; font-size: 0.9rem;">
+                      <i class="bi bi-shield-lock"></i> Proyecto Sistema
+                    </span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla de Todos los Proyectos -->
+  <div class="card" style="border-radius: 0.75rem; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+    <div class="card-header bg-white" style="border-bottom: 2px solid #FF8800; border-radius: 0.75rem 0.75rem 0 0;">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 text-dark">
+          <i class="bi bi-list-ul me-2 text-primary"></i>Todos los Proyectos
+        </h5>
+        <div class="btn-group" role="group">
+          <button type="button" class="btn btn-outline-secondary active" onclick="filterProjects('all')">Todos</button>
+          <button type="button" class="btn btn-outline-success" onclick="filterProjects('active')">Activos</button>
+          <button type="button" class="btn btn-outline-secondary" onclick="filterProjects('inactive')">Inactivos</button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <!-- Búsqueda -->
+      <div class="mb-4">
+        <div class="position-relative">
+          <i class="bi bi-search position-absolute" style="left: 15px; top: 50%; transform: translateY(-50%); color: #6c757d;"></i>
+          <input type="text" id="allSearch" class="form-control" style="padding-left: 40px;" placeholder="Buscar por folio, nombre o cliente...">
+        </div>
+      </div>
+
+      <!-- Tabla -->
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead style="background-color: #f8f9fa;">
+            <tr>
+              <th>Folio</th>
+              <th>Nombre del Proyecto</th>
+              <th>Cliente</th>
+              <th>Estado</th>
+              <th>Fecha Entrega</th>
+              <th class="text-center" style="width: 400px;">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="allProjectsTable">
+            {% for proj in all_projects | sort(attribute='folio') %}
+              <tr data-status="{% if proj.active %}active{% else %}inactive{% endif %}"
+                  data-folio="{{ proj.folio }}"
+                  data-name="{{ proj.name }}"
+                  data-client="{{ proj.client }}">
+                <td>
+                  <span class="badge bg-primary" style="font-size: 0.9rem; padding: 0.5rem 1rem;">{{ proj.folio }}</span>
+                </td>
+                <td><strong>{{ proj.name }}</strong></td>
+                <td>{{ proj.client }}</td>
+                <td>
+                  {% if proj.active %}
+                    <span class="badge bg-success" style="padding: 6px 12px;">
+                      <i class="bi bi-check-circle"></i> Activo
+                    </span>
+                  {% else %}
+                    <span class="badge bg-secondary" style="padding: 6px 12px;">
+                      <i class="bi bi-x-circle"></i> Inactivo
+                    </span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if proj.delivery_date %}
+                    {{ proj.delivery_date.strftime('%d/%m/%Y') }}
+                  {% else %}
+                    <span class="text-muted">Sin fecha</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {% if proj.folio != 0 %}
+                    <div class="btn-group" role="group">
+                      <!-- Botón Editar -->
+                      <a href="{{ url_for('main.edit_project', project_id=proj.id) }}"
+                         class="btn"
+                         style="background-color: white; color: #0d6efd; border: 2px solid #0d6efd; padding: 8px 16px; font-weight: 500; margin-right: 8px; border-radius: 6px; text-decoration: none;">
+                        <i class="bi bi-pencil-square"></i> Editar
+                      </a>
+
+                      <!-- Botón Activar/Desactivar -->
+                      {% if proj.active %}
+                        <button type="button"
+                                class="btn toggle-project-btn"
+                                data-project-id="{{ proj.id }}"
+                                data-action="deactivate"
+                                style="background-color: white; color: #ffc107; border: 2px solid #ffc107; padding: 8px 16px; font-weight: 500; margin-right: 8px; border-radius: 6px;">
+                          <i class="bi bi-pause-circle"></i> Desactivar
+                        </button>
+                      {% else %}
+                        <button type="button"
+                                class="btn toggle-project-btn"
+                                data-project-id="{{ proj.id }}"
+                                data-action="activate"
+                                style="background-color: white; color: #198754; border: 2px solid #198754; padding: 8px 16px; font-weight: 500; margin-right: 8px; border-radius: 6px;">
+                          <i class="bi bi-play-circle"></i> Activar
+                        </button>
+                      {% endif %}
+
+                      <!-- Botón Eliminar -->
+                      <button type="button"
+                              class="btn delete-project-btn"
+                              data-project-id="{{ proj.id }}"
+                              data-project-name="{{ proj.name }}"
+                              style="background-color: white; color: #dc3545; border: 2px solid #dc3545; padding: 8px 16px; font-weight: 500; border-radius: 6px;">
+                        <i class="bi bi-trash3"></i> Eliminar
+                      </button>
+                    </div>
+                  {% else %}
+                    <span class="badge bg-secondary" style="padding: 10px 20px; font-size: 0.9rem;">
+                      <i class="bi bi-shield-lock"></i> Proyecto Sistema
+                    </span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmación para eliminar -->
+<div class="modal fade" id="deleteProjectModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-exclamation-triangle text-danger me-2"></i>Confirmar Eliminación
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>¿Estás seguro de que deseas eliminar el proyecto <strong id="deleteProjectName"></strong>?</p>
+        <p class="text-danger mb-0">
+          <i class="bi bi-info-circle me-1"></i>Esta acción no se puede deshacer.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+          <i class="bi bi-trash me-1"></i>Eliminar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast para notificaciones -->
+<div class="toast-container position-fixed top-0 end-0 p-3">
+  <div id="projectToast" class="toast" role="alert">
+    <div class="toast-header">
+      <i class="bi bi-info-circle me-2"></i>
+      <strong class="me-auto">Notificación</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+    </div>
+    <div class="toast-body"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    let deleteProjectId = null;
+
+    // Función de búsqueda
+    function setupSearch(searchInputId, tableBodyId) {
+        $(`#${searchInputId}`).on('keyup', function() {
+            const searchTerm = $(this).val().toLowerCase();
+            let visibleRows = 0;
+
+            $(`#${tableBodyId} tr`).each(function() {
+                const row = $(this);
+                const folio = row.data('folio')?.toString().toLowerCase() || '';
+                const name = row.data('name')?.toLowerCase() || '';
+                const client = row.data('client')?.toLowerCase() || '';
+
+                const matches = folio.includes(searchTerm) ||
+                              name.includes(searchTerm) ||
+                              client.includes(searchTerm);
+
+                row.toggle(matches);
+                if (matches) visibleRows++;
+            });
+        });
+    }
+
+    setupSearch('activeSearch', 'activeProjectsTable');
+    setupSearch('allSearch', 'allProjectsTable');
+
+    // Filtrar proyectos
+    window.filterProjects = function(filter) {
+        $('.btn-group .btn').removeClass('active');
+        event.target.classList.add('active');
+
+        $('#allProjectsTable tr').each(function() {
+            const row = $(this);
+            const status = row.data('status');
+
+            if (filter === 'all') {
+                row.show();
+            } else {
+                row.toggle(status === filter);
+            }
+        });
+    };
+
+    // Hover effects para botones
+    $(document).on('mouseenter', '.btn', function() {
+        const btn = $(this);
+        if (btn.hasClass('toggle-project-btn')) {
+            if (btn.data('action') === 'deactivate') {
+                btn.css('background-color', '#ffc107').css('color', '#000');
+            } else {
+                btn.css('background-color', '#198754').css('color', '#fff');
+            }
+        } else if (btn.hasClass('delete-project-btn')) {
+            btn.css('background-color', '#dc3545').css('color', '#fff');
+        } else if (btn.attr('href') && btn.attr('href').includes('edit_project')) {
+            btn.css('background-color', '#0d6efd').css('color', '#fff');
+        }
+    });
+
+    $(document).on('mouseleave', '.btn', function() {
+        const btn = $(this);
+        if (!btn.hasClass('btn-primary') && !btn.hasClass('btn-secondary') && !btn.hasClass('btn-danger')) {
+            btn.css('background-color', 'white');
+            if (btn.hasClass('toggle-project-btn')) {
+                if (btn.data('action') === 'deactivate') {
+                    btn.css('color', '#ffc107');
+                } else {
+                    btn.css('color', '#198754');
+                }
+            } else if (btn.hasClass('delete-project-btn')) {
+                btn.css('color', '#dc3545');
+            } else if (btn.attr('href') && btn.attr('href').includes('edit_project')) {
+                btn.css('color', '#0d6efd');
+            }
+        }
+    });
+
+    // Activar/Desactivar proyecto
+    $(document).on('click', '.toggle-project-btn', function() {
+        const btn = $(this);
+        const projectId = btn.data('project-id');
+
+        $.ajax({
+            url: `/toggle_project/${projectId}`,
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            success: function(response) {
+                if (response.success) {
+                    showToast(response.message, 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast(response.error || 'Error al cambiar estado del proyecto', 'danger');
+                }
+            },
+            error: function() {
+                showToast('Error de conexión al servidor', 'danger');
+            }
+        });
+    });
+
+    // Eliminar proyecto
+    $(document).on('click', '.delete-project-btn', function() {
+        deleteProjectId = $(this).data('project-id');
+        const projectName = $(this).data('project-name');
+
+        $('#deleteProjectName').text(projectName);
+        $('#deleteProjectModal').modal('show');
+    });
+
+    // Confirmar eliminación
+    $('#confirmDeleteBtn').on('click', function() {
+        if (!deleteProjectId) return;
+
+        $.ajax({
+            url: `/projects/delete/${deleteProjectId}`,
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            success: function(response) {
+                $('#deleteProjectModal').modal('hide');
+
+                if (response.success) {
+                    showToast(response.message, 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast(response.message || 'Error al eliminar el proyecto', 'danger');
+                }
+            },
+            error: function() {
+                $('#deleteProjectModal').modal('hide');
+                showToast('Error de conexión al servidor', 'danger');
+            }
+        });
+    });
+
+    // Función para mostrar toast
+    function showToast(message, type = 'info') {
+        const toast = $('#projectToast');
+        const toastBody = toast.find('.toast-body');
+
+        toast.removeClass('bg-success bg-danger bg-warning bg-info');
+
+        switch(type) {
+            case 'success':
+                toast.addClass('bg-success text-white');
+                break;
+            case 'danger':
+                toast.addClass('bg-danger text-white');
+                break;
+            case 'warning':
+                toast.addClass('bg-warning');
+                break;
+            default:
+                toast.addClass('bg-info text-white');
+        }
+
+        toastBody.text(message);
+        const bsToast = new bootstrap.Toast(toast[0]);
+        bsToast.show();
+    }
+
+    // Animación para las cards
+    $('.card').each(function(index) {
+        $(this).css('opacity', '0').delay(index * 100).animate({opacity: 1}, 500);
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "layout.html" %}
+{% block title %}Inicio - AD17 Solutions{% endblock %}
+{% block content %}
+<style>
+  .dept-btn {
+    min-height: 150px; /* Altura mínima de 150px, ajústala según tus necesidades */
+    font-size: 1.5rem; /* Tamaño de fuente más grande */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+</style>
+<div class="text-center">
+  <h1 class="display-4">AD17 Solutions</h1>
+  <p class="lead mt-3">Bienvenido al Sistema de Registro de Tiempos.</p>
+
+  <div class="container mt-5">
+    <div class="row justify-content-center">
+      <!-- Botón para Metal -->
+      <div class="col-12 col-md-6 col-lg-4 mb-3">
+        <a href="{{ url_for('main.register_employee', department='Metal') }}" class="btn btn-primary btn-lg w-100 dept-btn">
+          Metal
+        </a>
+      </div>
+      <!-- Botón para Costura -->
+      <div class="col-12 col-md-6 col-lg-4 mb-3">
+        <a href="{{ url_for('main.register_employee', department='Costura') }}" class="btn btn-primary btn-lg w-100 dept-btn">
+          Costura
+        </a>
+      </div>
+      <!-- Botón para Impresion -->
+      <div class="col-12 col-md-6 col-lg-4 mb-3">
+        <a href="{{ url_for('main.register_employee', department='Impresion') }}" class="btn btn-primary btn-lg w-100 dept-btn">
+          Impresión
+        </a>
+      </div>
+      <!-- Botón para Montaje -->
+      <div class="col-12 col-md-6 col-lg-4 mb-3">
+        <a href="{{ url_for('main.register_employee', department='Montaje') }}" class="btn btn-primary btn-lg w-100 dept-btn">
+          Montaje
+        </a>
+      </div>
+      <!-- Botón para Stagging -->
+      <div class="col-12 col-md-6 col-lg-4 mb-3">
+        <a href="{{ url_for('main.register_employee', department='Stagging') }}" class="btn btn-primary btn-lg w-100 dept-btn">
+          Stagging
+        </a>
+      </div>
+       <div class="col-12 col-md-6 col-lg-4 mb-3">
+        <a href="{{ url_for('main.register_employee', department='Transporte') }}" class="btn btn-primary btn-lg w-100 dept-btn">
+          Transporte
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

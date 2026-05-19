@@ -1,0 +1,97 @@
+{% extends "layout.html" %}
+{% block content %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  .user-type-card{
+    cursor:pointer;
+    transition:transform .25s ease, box-shadow .25s ease;
+    border:2px solid transparent;
+  }
+  .user-type-card:hover,
+  .user-type-card.active{
+    transform:translateY(-6px);
+    box-shadow:0 0 20px rgba(0,0,0,.15);
+    border-color:#4F46E5; /* indigo */
+  }
+</style>
+<div class="container py-5">
+  <div class="row justify-content-center mb-4">
+    <div class="col-lg-8 text-center">
+      <h2 class="fw-bold mb-3">Iniciar Sesión</h2>
+      <p class="text-muted">Selecciona tu tipo de usuario para continuar</p>
+    </div>
+  </div>
+
+  <div class="row g-4 justify-content-center">
+    <div class="col-md-4">
+      <div class="card user-type-card h-100 text-center p-4" data-user-type="empleado">
+        <div class="card-body d-flex flex-column justify-content-center">
+          <i class="bi bi-person-badge fs-1 mb-3"></i>
+          <h5 class="card-title fw-semibold">Empleado</h5>
+          <p class="card-text text-muted">Registra tus actividades y proyectos.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card user-type-card h-100 text-center p-4" data-user-type="lider_proyecto">
+        <div class="card-body d-flex flex-column justify-content-center">
+          <i class="bi bi-diagram-3 fs-1 mb-3"></i>
+          <h5 class="card-title fw-semibold">Líder de Proyecto</h5>
+          <p class="card-text text-muted">Gestiona proyectos y supervisa equipos.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card user-type-card h-100 text-center p-4" data-user-type="administrador">
+        <div class="card-body d-flex flex-column justify-content-center">
+          <i class="bi bi-shield-lock fs-1 mb-3"></i>
+          <h5 class="card-title fw-semibold">Administrador</h5>
+          <p class="card-text text-muted">Gestiona empleados, proyectos y reportes.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form id="loginForm" method="POST" class="mt-5" style="display:none;">
+    {{ form.hidden_tag() }}
+    <input type="hidden" name="user_type" id="user_type" value="" />
+    <div class="row justify-content-center">
+      <div class="col-lg-6">
+        <div class="mb-3">
+          <label for="username" class="form-label">Nombre de Usuario</label>
+          {{ form.username(class="form-control", required=true) }}
+        </div>
+        <div class="mb-3">
+          <label for="password" class="form-label">Contraseña</label>
+          {{ form.password(class="form-control", required=true) }}
+        </div>
+        <div class="mb-3 form-check">
+          {{ form.remember(class="form-check-input", checked=true) }}
+          <label class="form-check-label" for="remember">Recordarme en este dispositivo</label>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 mt-2">Iniciar Sesión</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="row justify-content-center mt-4">
+    <div class="col-lg-4 text-center">
+      <a href="{{ url_for('main.register') }}" class="btn btn-outline-secondary w-100">Registrar nuevo usuario</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.user-type-card').forEach(card=>{
+    card.addEventListener('click',()=>{
+      document.querySelectorAll('.user-type-card').forEach(c=>c.classList.remove('active'));
+      card.classList.add('active');
+      const type=card.getAttribute('data-user-type');
+      document.getElementById('user_type').value=type;
+      document.getElementById('loginForm').style.display='block';
+      document.getElementById('username').focus();
+    });
+  });
+</script>
+{% endblock %}

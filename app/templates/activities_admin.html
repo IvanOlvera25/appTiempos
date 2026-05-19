@@ -1,0 +1,400 @@
+{% extends "layout.html" %}
+{% block title %}Actividades por Departamento{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+  <!-- CSRF para AJAX -->
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h4 mb-1">Actividades por Departamento</h1>
+      <p class="text-muted mb-0">Administra el catálogo central de actividades usadas en los registros de tiempo.</p>
+    </div>
+    <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Volver al dashboard
+    </a>
+  </div>
+
+  <!-- Formulario: Nueva actividad -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center">
+      <i class="bi bi-plus-circle me-2"></i> Agregar nueva actividad
+    </div>
+    <div class="card-body">
+      <form method="POST" class="row g-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+        <div class="col-md-4">
+          <label class="form-label">Departamento</label>
+          <select name="department" class="form-select" required>
+            <option value="" selected disabled>Selecciona un departamento…</option>
+            <option value="Metal">Metal</option>
+            <option value="Costura">Costura</option>
+            <option value="Impresion">Impresión</option>
+            <option value="Stagging">Stagging</option>
+            <option value="Montaje">Montaje</option>
+            <option value="Transporte">Transporte</option>
+            <option value="Administración">Administración</option>
+          </select>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Nombre de la actividad</label>
+          <input type="text" name="name" class="form-control" placeholder="Ej. Corte / Ensamble / Ripeo…" maxlength="200" required>
+        </div>
+
+        <div class="col-md-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-save"></i> Guardar
+          </button>
+        </div>
+      </form>
+      <div class="form-text mt-2">
+        Los nombres de actividad son únicos por departamento.
+      </div>
+    </div>
+  </div>
+
+  <!-- Listado agrupado por departamento -->
+  <div class="card">
+    <div class="card-header d-flex align-items-center">
+      <i class="bi bi-list-task me-2"></i> Actividades registradas
+    </div>
+    <div class="card-body p-0">
+      {% set grouped = activities|groupby('department') %}
+
+      {% if activities and activities|length > 0 %}
+        <div class="accordion" id="accActivities">
+          {% for dept, items in grouped %}
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="h-{{ loop.index }}">
+              <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#c-{{ loop.index }}"
+                      aria-expanded="{{ 'true' if loop.first else 'false' }}"
+                      aria-controls="c-{{ loop.index }}">
+                <span class="badge bg-secondary me-2">{{ items|length }}</span> {{ dept }}
+              </button>
+            </h2>
+            <div id="c-{{ loop.index }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
+                 aria-labelledby="h-{{ loop.index }}" data-bs-parent="#accActivities">
+              <div class="accordion-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-striped mb-0 align-middle">
+                    <thead class="table-light">
+                      <tr>
+                        <th style="width:80px;">ID</th>
+                        <th>Actividad</th>
+                        <th style="width:120px;">Activo</th>
+                        <th style="width:140px;">Orden</th>
+                        <th style="width:260px;" class="text-end">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for a in items|sort(attribute='sort_order') %}
+                      <tr data-activity-id="{{ a.id }}">
+                        <td class="text-muted">{{ a.id }}</td>
+                        <td>{{ a.name }}</td>
+                        <td>
+                          {% if a.is_active %}
+                            <span class="badge bg-success">Sí</span>
+                          {% else %}
+                            <span class="badge bg-secondary">No</span>
+                          {% endif %}
+                        </td>
+                        <td>
+                          <span class="text-muted">{{ a.sort_order or 0 }}</span>
+                        </td>
+                        <td class="text-end">
+                          <div class="btn-group">
+                            <!-- Editar -->
+                            <button
+                              class="btn btn-sm btn-outline-primary btn-edit"
+                              data-id="{{ a.id }}"
+                              data-name="{{ a.name|e }}"
+                              data-department="{{ a.department|e }}"
+                              data-active="{{ 1 if a.is_active else 0 }}"
+                              data-sort="{{ a.sort_order or 0 }}"
+                              title="Editar">
+                              <i class="bi bi-pencil-square"></i>
+                              <span class="d-none d-lg-inline">Editar</span>
+                            </button>
+
+                            <!-- Activar/Desactivar -->
+                            <button
+                              class="btn btn-sm {% if a.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %} btn-toggle"
+                              data-id="{{ a.id }}"
+                              data-active="{{ 1 if a.is_active else 0 }}"
+                              title="{% if a.is_active %}Desactivar{% else %}Activar{% endif %}">
+                              {% if a.is_active %}
+                                <i class="bi bi-pause-circle"></i>
+                                <span class="d-none d-lg-inline">Desactivar</span>
+                              {% else %}
+                                <i class="bi bi-play-circle"></i>
+                                <span class="d-none d-lg-inline">Activar</span>
+                              {% endif %}
+                            </button>
+
+                            <!-- Eliminar -->
+                            <button
+                              class="btn btn-sm btn-outline-danger btn-delete"
+                              data-id="{{ a.id }}"
+                              data-name="{{ a.name|e }}"
+                              title="Eliminar">
+                              <i class="bi bi-trash3"></i>
+                              <span class="d-none d-lg-inline">Eliminar</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="p-4 text-center text-muted">
+          <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+          No hay actividades registradas aún.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal Editar -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="editForm" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pencil-square me-1"></i> Editar actividad</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit_id">
+        <div class="mb-3">
+          <label class="form-label">Departamento</label>
+          <select id="edit_department" class="form-select" required>
+            <option value="Metal">Metal</option>
+            <option value="Costura">Costura</option>
+            <option value="Impresion">Impresión</option>
+            <option value="Stagging">Stagging</option>
+            <option value="Montaje">Montaje</option>
+            <option value="Transporte">Transporte</option>
+            <option value="Administración">Administración</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Nombre</label>
+          <input type="text" id="edit_name" class="form-control" maxlength="200" required>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Activo</label>
+            <select id="edit_active" class="form-select">
+              <option value="1">Sí</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Orden</label>
+            <input type="number" id="edit_sort" class="form-control" value="0" min="0" step="1">
+          </div>
+        </div>
+        <div class="form-text mt-2">El nombre debe ser único dentro del mismo departamento.</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-save"></i> Guardar cambios
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Eliminar -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-1"></i> Confirmar eliminación</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">¿Eliminar la actividad <strong id="del_name"></strong> (ID <span id="del_id"></span>)? Esta acción no se puede deshacer.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-danger" id="confirmDeleteBtn">
+          <i class="bi bi-trash3"></i> Eliminar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .accordion-button { font-weight: 600; }
+  .btn-group .btn { border-radius: .375rem !important; }
+  .btn-group .btn i { font-size: .9rem; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // ---------- CSRF (token fijo desde servidor) ----------
+  const CSRF_TOKEN = "{{ csrf_token() }}";
+
+  // ---------- URL builders ----------
+  const UPDATE_BASE = "{{ url_for('main.update_activity', activity_id=0) }}"; // /activities/0/update
+  const TOGGLE_BASE = "{{ url_for('main.toggle_activity', activity_id=0) }}"; // /activities/0/toggle
+  const DELETE_BASE = "{{ url_for('main.delete_activity', activity_id=0) }}"; // /activities/0/delete
+  // Reemplaza SOLO el segmento /0/ por /{id}/
+  const buildUrl = (base, id) => base.replace(/\/0(\/|$)/, `/${id}$1`);
+
+  // ---------- fetch JSON robusto ----------
+  async function fetchJSON(url, options = {}) {
+    const opts = {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': CSRF_TOKEN,
+        'X-CSRF-Token': CSRF_TOKEN,
+        ...(options.headers || {})
+      },
+      ...options
+    };
+
+    const r = await fetch(url, opts);
+
+    // Si hay redirect (sesión expirada), ir a login
+    if (r.redirected) {
+      window.location = r.url;
+      return null;
+    }
+
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      const txt = await r.text().catch(() => '');
+      console.error('Respuesta no JSON:', txt.slice(0, 800));
+      alert('Error inesperado del servidor (respuesta no JSON). Revisa logs.');
+      return null;
+    }
+    const data = await r.json().catch(() => null);
+    if (!data) {
+      alert('No se pudo interpretar la respuesta del servidor.');
+      return null;
+    }
+    return { ok: r.ok, status: r.status, data };
+  }
+
+  // ---------- Modal editar ----------
+  const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+  const editForm  = document.getElementById('editForm');
+
+  const setEdit = (btn) => {
+    document.getElementById('edit_id').value         = btn.dataset.id;
+    document.getElementById('edit_name').value       = btn.dataset.name || '';
+    document.getElementById('edit_department').value = btn.dataset.department || 'Metal';
+    document.getElementById('edit_active').value     = btn.dataset.active || '1';
+    document.getElementById('edit_sort').value       = btn.dataset.sort || '0';
+  };
+
+  // Delegación de clicks (un solo listener)
+  document.addEventListener('click', async (e) => {
+    const editBtn   = e.target.closest('.btn-edit');
+    const toggleBtn = e.target.closest('.btn-toggle');
+    const delBtn    = e.target.closest('.btn-delete');
+
+    if (editBtn) {
+      setEdit(editBtn);
+      editModal.show();
+      return;
+    }
+
+    if (toggleBtn) {
+      const id = toggleBtn.dataset.id;
+      toggleBtn.disabled = true;
+      try {
+        const res = await fetchJSON(buildUrl(TOGGLE_BASE, id), { method: 'POST', body: JSON.stringify({}) });
+        if (!res) return;
+        if (res.data?.success) location.reload();
+        else alert(res.data?.message || 'No se pudo cambiar el estado.');
+      } catch (err) {
+        console.error(err);
+        alert('Error de red al cambiar estado.');
+      } finally {
+        toggleBtn.disabled = false;
+      }
+      return;
+    }
+
+    if (delBtn) {
+      const id   = delBtn.dataset.id;
+      const name = delBtn.dataset.name || '';
+      document.getElementById('del_id').textContent = id;
+      document.getElementById('del_name').textContent = name;
+      const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+      deleteModal.show();
+      return;
+    }
+  });
+
+  // Submit edición
+  editForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('edit_id').value;
+    const payload = {
+      name: document.getElementById('edit_name').value.trim(),
+      department: document.getElementById('edit_department').value,
+      is_active: document.getElementById('edit_active').value === '1',
+      sort_order: parseInt(document.getElementById('edit_sort').value || '0', 10)
+    };
+
+    const btn = editForm.querySelector('button[type="submit"]');
+    btn.disabled = true;
+
+    try {
+      const res = await fetchJSON(buildUrl(UPDATE_BASE, id), {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      if (!res) return;
+      if (res.data?.success) location.reload();
+      else alert(res.data?.message || 'No se pudieron guardar los cambios.');
+    } catch (err) {
+      console.error(err);
+      alert('Error de red al guardar cambios.');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Confirmación de borrado
+  document.getElementById('confirmDeleteBtn')?.addEventListener('click', async () => {
+    const id = document.getElementById('del_id').textContent.trim();
+    const btn = document.getElementById('confirmDeleteBtn');
+    btn.disabled = true;
+    try {
+      const res = await fetchJSON(buildUrl(DELETE_BASE, id), { method: 'POST', body: JSON.stringify({}) });
+      if (!res) return;
+      if (res.data?.success) location.reload();
+      else alert(res.data?.message || 'No se pudo eliminar la actividad.');
+    } catch (err) {
+      console.error(err);
+      alert('Error de red al eliminar.');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+});
+</script>
+{% endblock %}

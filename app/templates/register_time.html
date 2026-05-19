@@ -1,0 +1,347 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+    /* Estilo para proyectos con registro activo */
+    .active-record {
+        border: 2px solid red !important;
+        color: red;
+    }
+</style>
+<div class="container mt-5">
+    <h2 class="mb-4">Registrar Tiempo</h2>
+
+    {% if department %}
+      <div class="alert alert-info text-center">
+        Departamento <strong>{{ department }}</strong>: <span id="activeWorkersCount">{{ active_count }}</span> trabajador(es) con tiempos activos sin finalizar.
+      </div>
+    {% endif %}
+
+    <!-- Sección de Escaneo de QR -->
+    <button type="button" class="btn btn-secondary" id="manual-register-btn">Registrar Manualmente</button>
+    <div id="qr-scanner-section">
+        <div class="mb-4">
+            <video id="video" autoplay muted class="w-100 rounded"></video>
+            <p id="qr-reader-status" class="mt-2">Escaneando...</p>
+            <!-- Canvas oculto para capturar la imagen de la cámara -->
+            <canvas id="snapshotCanvas" width="300" height="200" style="display: none;"></canvas>
+        </div>
+
+    </div>
+
+    <!-- Sección de Registro Manual -->
+    <div id="manual-registration" style="display: none;">
+        <form method="POST" id="register-time-form">
+            {{ form.hidden_tag() }}
+            <!-- Campo oculto para almacenar el departamento seleccionado -->
+            <input type="hidden" name="department" value="{{ department }}">
+
+            <!-- Empleado Manual y botón de "Volver a Escanear QR" alineados -->
+            <div class="row mb-4 align-items-center">
+                <div class="col-md-8">
+                    <label for="employee_search" class="form-label">Seleccionar Empleado (Manual)</label>
+                    <select class="form-select" id="employee_search" name="employee_search">
+                        <option value="">-- Seleccione --</option>
+                        {% for emp in employees %}
+                            <option value="{{ emp.id }}">{{ emp.nompropio }}</option>
+                        {% endfor %}
+                    </select>
+                    {{ form.employee_id(class="d-none", id="employee_id_hidden") }}
+                    {{ form.qr_code(class="d-none", id="qr_code_hidden") }}
+                    {% for error in form.employee_id.errors %}
+                      <div class="text-danger">{{ error }}</div>
+                    {% endfor %}
+                    {% for error in form.qr_code.errors %}
+                      <div class="text-danger">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                <div class="col-md-4 text-end">
+                    <button type="button" class="btn btn-secondary" id="back-to-scanner-btn">Volver a Escanear QR</button>
+                </div>
+            </div>
+
+            <!-- Selección de Proyecto -->
+            <div class="mb-4">
+                <label class="form-label">Seleccionar Proyecto</label>
+                {{ form.project_id(class="d-none", id="project_id_hidden") }}
+                <div class="row">
+                    {% for project in projects %}
+                        <div class="col-md-4 mb-4">
+                            <div class="card h-100 project-card shadow-sm" data-project-id="{{ project.id }}" data-folio="{{ project.folio }}">
+                                <div class="card-body">
+                                    <h5 class="card-title"><strong>FP:</strong> {{ project.folio if project.folio is not none else 'N/A' }}</h5>
+                                    <h5 class="card-title"><strong>Proyecto:</strong> {{ project.name }}</h5>
+                                    <p class="card-text"><strong>Cliente:</strong> {{ project.client }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                {% for error in form.project_id.errors %}
+                  <div class="text-danger">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <!-- Sección de Selección de Actividad (solo si el departamento es distinto a Montaje) -->
+            {% if department != "Montaje" %}
+            <div class="mb-4" id="activity-section" style="display: none;">
+                <label class="form-label">Seleccionar Actividad</label>
+                <div class="row">
+                    {% for act in activities %}
+                        <div class="col-md-4 mb-3">
+                            <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="{{ act }}">
+                                {{ act }}
+                            </button>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <!-- Para Montaje se asigna la actividad automáticamente -->
+            <input type="hidden" name="activity" value="Deshabilitada para Montaje">
+            {% endif %}
+
+            <!-- Campo oculto para guardar la actividad seleccionada -->
+            <input type="hidden" name="activity" id="activity_hidden">
+
+            <!-- Campos ocultos para capturar la ubicación -->
+            <input type="hidden" name="latitude" id="latitude">
+            <input type="hidden" name="longitude" id="longitude">
+
+            <!-- Botones para iniciar o finalizar -->
+            <div class="mb-3">
+                <button type="submit" class="btn btn-success me-3" name="iniciar" value="iniciar">Iniciar</button>
+                <button type="submit" class="btn btn-danger me-3" name="finalizar" value="finalizar">Finalizar</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal y toasts (se mantienen sin cambios) -->
+    <!-- ... (resto del código de modal y toasts) ... -->
+          <!-- Modal para escanear QR y Toasts -->
+  <div class="modal fade" id="qrModal" tabindex="-1" aria-labelledby="qrModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="qrModalLabel">Escanear Código QR</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <video id="modal-video" autoplay muted class="w-100 rounded"></video>
+          <p id="modal-qr-reader-status" class="mt-2 text-muted">Escaneando...</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+    <div id="qrSuccessToast" class="toast align-items-center text-bg-warning border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body">
+          QR escaneado exitosamente: <strong id="employeeNameToast">Nombre del Empleado</strong>
+        </div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="position-fixed top-50 start-50 translate-middle p-3" style="z-index: 1100;">
+    <div id="countdownToast" class="toast text-bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true" style="opacity:1; min-width: 320px;">
+      <div class="toast-header text-bg-dark border-0">
+        <i class="bi bi-camera-fill me-2 text-white" style="font-size: 1.5rem;"></i>
+        <strong class="me-auto text-white">Atención</strong>
+      </div>
+      <div class="toast-body d-flex flex-column align-items-center">
+        <h4 class="my-2 text-center text-white fw-bold">¡Sonríe, te tomaremos una foto!</h4>
+        <h3 id="countdownMessage" class="my-2 display-6 fw-bold text-center text-white" style="font-size: 2rem;"></h3>
+      </div>
+    </div>
+  </div>
+
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+    <div id="qrErrorToast" class="toast align-items-center text-bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+</div>
+
+<script>
+    // Configurar geolocalización
+    function setGeolocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          function(position) {
+            console.log("Posición obtenida:", position.coords.latitude, position.coords.longitude);
+            document.getElementById('latitude').value = position.coords.latitude;
+            document.getElementById('longitude').value = position.coords.longitude;
+          },
+          function(error) {
+            console.error("Error al obtener la ubicación:", error);
+          }
+        );
+      } else {
+        console.error("La geolocalización no es soportada por este navegador.");
+      }
+    }
+    window.onload = setGeolocation;
+
+    // Mostrar la sección de registro manual
+    document.getElementById('manual-register-btn').addEventListener('click', function() {
+        document.getElementById('qr-scanner-section').style.display = 'none';
+        document.getElementById('manual-registration').style.display = 'block';
+    });
+
+    // Botón "Volver a Escanear QR"
+    document.getElementById('back-to-scanner-btn').addEventListener('click', function() {
+        document.getElementById('manual-registration').style.display = 'none';
+        document.getElementById('qr-scanner-section').style.display = 'block';
+    });
+
+    // Guardar el contenido original de la sección de actividades
+    const activitySection = document.getElementById('activity-section');
+    let defaultActivityHTML = "";
+    if(activitySection) {
+        defaultActivityHTML = activitySection.innerHTML;
+    }
+
+    // Función para asignar eventos a los botones de actividad dentro de un contenedor
+    function attachActivityButtons(container) {
+        const buttons = container.querySelectorAll('.activity-btn');
+        buttons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                buttons.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                document.getElementById('activity_hidden').value = this.getAttribute('data-activity');
+            });
+        });
+    }
+
+    // Asignar eventos inicialmente a los botones presentes (si hay)
+    if(activitySection) {
+        attachActivityButtons(activitySection);
+    }
+
+    // Obtener el departamento (desde la plantilla)
+    const dept = "{{ department }}";
+
+    // Obtener todas las tarjetas de proyecto
+    const projectCards = document.querySelectorAll('.project-card');
+
+    // Función para revisar y marcar proyectos activos para el empleado seleccionado (solo para Impresion)
+    function markActiveProjectsForEmployee(employeeId) {
+        projectCards.forEach(card => {
+            const projId = card.getAttribute('data-project-id');
+            fetch(`/check_active_record_by_project/${employeeId}/${projId}`)
+              .then(response => response.json())
+              .then(data => {
+                  if(data.active) {
+                      card.classList.add('active-record');
+                  } else {
+                      card.classList.remove('active-record');
+                  }
+              })
+              .catch(error => {
+                  console.error("Error en check_active_record:", error);
+              });
+        });
+    }
+
+    // Agregar listener al dropdown de empleados para marcar proyectos activos cuando se seleccione un empleado
+    const employeeSelect = document.getElementById('employee_search');
+    employeeSelect.addEventListener('change', function() {
+        const employeeId = this.value;
+        document.getElementById('employee_id_hidden').value = employeeId;
+        if(dept === "Impresion" && employeeId) {
+            markActiveProjectsForEmployee(employeeId);
+        }
+    });
+
+    // Manejar la selección de proyecto
+    projectCards.forEach(card => {
+        card.addEventListener('click', function() {
+            const projectId = this.getAttribute('data-project-id');
+            const projectFolio = parseInt(this.getAttribute('data-folio'));
+
+            if (dept === "Impresion") {
+                const employeeId = document.getElementById('employee_id_hidden').value;
+                if (!employeeId) {
+                    alert("Seleccione un empleado primero");
+                    return;
+                }
+                // Consultar si ya existe un registro activo para este empleado/proyecto
+                fetch(`/check_active_record_by_project/${employeeId}/${projectId}`)
+                  .then(response => response.json())
+                  .then(data => {
+                      if (data.active) {
+                          // Si la tarjeta ya tiene la clase que indica registro activo, finalizar registro
+                          if (this.classList.contains('active-record')) {
+                              fetch(`/finalize_active_record/${employeeId}/${projectId}`, { method: 'POST' })
+                                .then(res => res.json())
+                                .then(finalizeData => {
+                                    if (finalizeData.success) {
+                                        alert("Registro finalizado para este proyecto.");
+                                        this.classList.remove('active-record');
+                                        // Redirigir a la parte de QR: ocultar formulario manual y mostrar la cámara
+                                        document.getElementById('manual-registration').style.display = 'none';
+                                        document.getElementById('qr-scanner-section').style.display = 'block';
+                                    } else {
+                                        alert("Error al finalizar el registro.");
+                                    }
+                                });
+                          } else {
+                              // Si ya existe registro activo pero no estaba marcada, se marca como activa
+                              projectCards.forEach(c => c.classList.remove('active-record'));
+                              this.classList.add('active-record');
+                          }
+                      } else {
+                          // No existe registro activo para este proyecto: se selecciona normalmente
+                          projectCards.forEach(c => {
+                              c.classList.remove('border', 'border-primary');
+                              c.classList.remove('active-record');
+                          });
+                          this.classList.add('border', 'border-primary');
+                          document.getElementById('project_id_hidden').value = projectId;
+                          {% if department != "Montaje" %}
+                              activitySection.innerHTML = defaultActivityHTML;
+                              activitySection.style.display = 'block';
+                              attachActivityButtons(activitySection);
+                          {% endif %}
+                      }
+                  })
+                  .catch(error => {
+                      console.error("Error en la consulta AJAX:", error);
+                  });
+            } else {
+                // Para departamentos distintos de "Impresion"
+                projectCards.forEach(c => c.classList.remove('border', 'border-primary'));
+                this.classList.add('border', 'border-primary');
+                document.getElementById('project_id_hidden').value = projectId;
+                if (projectFolio === 0) {
+                    activitySection.innerHTML = `
+                        <label class="form-label">Seleccionar Actividad</label>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="barrer">barrer</button>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="recoger">recoger</button>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="limpiar">limpiar</button>
+                            </div>
+                        </div>
+                    `;
+                    activitySection.style.display = 'block';
+                    attachActivityButtons(activitySection);
+                } else {
+                    {% if department != "Montaje" %}
+                        activitySection.innerHTML = defaultActivityHTML;
+                        activitySection.style.display = 'block';
+                        attachActivityButtons(activitySection);
+                    {% endif %}
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

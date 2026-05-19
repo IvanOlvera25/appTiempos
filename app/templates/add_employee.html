@@ -1,0 +1,120 @@
+{% extends "layout.html" %}
+{% block title %}Agregar Empleado{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Agregar Nuevo Empleado</h2>
+
+    <div class="card shadow">
+        <div class="card-body">
+            <form method="POST">
+                {{ form.hidden_tag() }}
+
+                <div class="row g-3">
+                    <!-- Número de Empleado -->
+                    <div class="col-md-6">
+                        {{ form.n_empleado.label(class="form-label") }}
+                        {{ form.n_empleado(class="form-control", placeholder="Ej: 123") }}
+                        {% for error in form.n_empleado.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                        <small class="text-muted">Mínimo 3 dígitos</small>
+                    </div>
+
+                    <!-- Nombre Propio (Campo que faltaba) -->
+                    <div class="col-md-6">
+                        {{ form.nompropio.label(class="form-label") }}
+                        {{ form.nompropio(class="form-control", placeholder="Nombre completo del empleado") }}
+                        {% for error in form.nompropio.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Nombre -->
+                    <div class="col-md-6">
+                        {{ form.nombre.label(class="form-label") }}
+                        {{ form.nombre(class="form-control", placeholder="Primer nombre") }}
+                        {% for error in form.nombre.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Apellido Paterno -->
+                    <div class="col-md-6">
+                        {{ form.apellido_paterno.label(class="form-label") }}
+                        {{ form.apellido_paterno(class="form-control", placeholder="Apellido paterno") }}
+                        {% for error in form.apellido_paterno.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Apellido Materno -->
+                    <div class="col-md-6">
+                        {{ form.apellido_materno.label(class="form-label") }}
+                        {{ form.apellido_materno(class="form-control", placeholder="Apellido materno (opcional)") }}
+                        {% for error in form.apellido_materno.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Departamento -->
+                    <div class="col-md-6">
+                        {{ form.departamento.label(class="form-label") }}
+                        {{ form.departamento(class="form-select") }}
+                        {% for error in form.departamento.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Puesto -->
+                    <div class="col-md-6">
+                        {{ form.puesto.label(class="form-label") }}
+                        {{ form.puesto(class="form-control", placeholder="Cargo del empleado") }}
+                        {% for error in form.puesto.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Código QR (generado automáticamente) -->
+                    <div class="col-md-6">
+                        {{ form.qr_code.label(class="form-label") }}
+                        {{ form.qr_code(class="form-control", readonly=true, placeholder="Se genera automáticamente") }}
+                        {% for error in form.qr_code.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                        <small class="text-muted">El código QR se generará automáticamente basado en el número de empleado</small>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Guardar Empleado
+                    </button>
+                    <a href="{{ url_for('main.manage_employees') }}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Cancelar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-generar código QR basado en número de empleado
+document.addEventListener('DOMContentLoaded', function() {
+    const nEmpleadoField = document.getElementById('n_empleado');
+    const qrCodeField = document.getElementById('qr_code');
+
+    if (nEmpleadoField && qrCodeField) {
+        nEmpleadoField.addEventListener('input', function() {
+            const numeroEmpleado = this.value.trim();
+            if (numeroEmpleado.length >= 3) {
+                // Generar código QR simple: EMP + número de empleado
+                qrCodeField.value = 'EMP' + numeroEmpleado.padStart(3, '0');
+            } else {
+                qrCodeField.value = '';
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

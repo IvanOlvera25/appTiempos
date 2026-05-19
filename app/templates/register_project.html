@@ -1,0 +1,427 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+    /* TUS ESTILOS ORIGINALES */
+    .active-record {
+        border: 2px solid red !important;
+        color: red;
+    }
+
+    /* NUEVOS ESTILOS PARA IMPRESION (NO MODIFICAN TU CÓDIGO) */
+    .active-record::after {
+        content: "ACTIVO";
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background: red;
+        color: white;
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-size: 0.8rem;
+    }
+
+    .active-activity {
+        background-color: #ffe6e6 !important;
+        border: 2px solid #ff0000 !important;
+    }
+
+    .countdown-pulse {
+        animation: pulse 0.5s ease-in-out;
+    }
+
+    @keyframes pulse {
+        0% {
+            transform: scale(1);
+        }
+
+        50% {
+            transform: scale(1.1);
+        }
+
+        100% {
+            transform: scale(1);
+        }
+    }
+</style>
+
+<div class="container mt-5">
+    <!-- TOAST DE ADVERTENCIA NUEVO (NO AFECTA TU DISEÑO) -->
+    <div class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1100;">
+        <div id="activeWarningToast" class="toast align-items-center text-bg-danger border-0" role="alert"
+            aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body" id="activeWarningMessage"></div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
+                    aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TU CONTENIDO ORIGINAL COMPLETO -->
+    <h2 class="mb-4">Seleccionar Proyecto</h2>
+
+    {% if department %}
+    <div class="alert alert-info text-center">
+        Departamento <strong>{{ department }}</strong>:
+        <span id="activeWorkersCount">{{ active_count }}</span> trabajador(es) con tiempos activos sin finalizar.
+    </div>
+    {% endif %}
+
+    <form method="POST" id="register-time-form">
+        {{ form.hidden_tag() }}
+        <input type="hidden" name="department" value="{{ department }}">
+        <input type="hidden" id="employee_id_hidden" name="employee_id" value="{{ employee_id }}">
+        <input type="hidden" id="project_id_hidden" name="project_id">
+        <input type="hidden" id="activity_hidden" name="activity">
+        <input type="hidden" name="latitude" id="latitude">
+        <input type="hidden" name="longitude" id="longitude">
+
+        <!-- SECCIÓN PROYECTOS (CON ADICIONES PARA IMPRESION) -->
+        <div class="mb-4" id="project-selection">
+            <label class="form-label">Seleccionar Proyecto</label>
+            <div class="row">
+                {% for project in projects %}
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 project-card shadow-sm
+                        {% if project.id in active_activities %}active-record{% endif %}"
+                        data-project-id="{{ project.id }}" data-folio="{{ project.folio }}">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <strong>FP:</strong>
+                                {{ project.folio if project.folio is not none else 'N/A' }}
+                            </h5>
+                            <h5 class="card-title">
+                                <strong>Proyecto:</strong> {{ project.name }}
+                            </h5>
+                            <p class="card-text"><strong>Cliente:</strong> {{ project.client }}</p>
+                            <!-- NUEVA SECCIÓN ACTIVIDADES ACTIVAS -->
+                            {% if project.id in active_activities %}
+                            <div class="mt-2 text-danger small">
+                                <strong>Actividades activas:</strong>
+                                {{ active_activities[project.id]|join(', ') }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- SECCIÓN DE ACTIVIDADES - AHORA INCLUYE MONTAJE -->
+        <div class="mb-4" id="activity-section" style="display: none;">
+            <label class="form-label">Seleccionar Actividad</label>
+            <div class="row">
+                {% for act in activities %}
+                <div class="col-md-4 mb-3">
+                    <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn"
+                        data-activity="{{ act }}">
+                        {{ act }}
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-success me-3" name="iniciar" value="iniciar" id="iniciarBtn" disabled>
+            Iniciar
+        </button>
+        <button type="submit" class="btn btn-danger me-3" name="finalizar" value="finalizar">
+            Finalizar
+        </button>
+    </form>
+</div>
+
+<!-- TUS MODALS Y TOASTS ORIGINALES COMPLETOS -->
+<div class="modal fade" id="qrModal" tabindex="-1" aria-labelledby="qrModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="qrModalLabel">Escanear Código QR</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <video id="modal-video" autoplay muted class="w-100 rounded"></video>
+                <p id="modal-qr-reader-status" class="mt-2 text-muted">Escaneando...</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+    <div id="qrSuccessToast" class="toast align-items-center text-bg-warning border-0" role="alert"
+        aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                QR escaneado exitosamente: <strong id="employeeNameToast">Nombre del Empleado</strong>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
+                aria-label="Cerrar"></button>
+        </div>
+    </div>
+</div>
+
+<div class="position-fixed top-50 start-50 translate-middle p-3" style="z-index: 1100;">
+    <div id="countdownToast" class="toast text-bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true"
+        style="opacity:1; min-width: 320px;">
+        <div class="toast-header text-bg-dark border-0">
+            <i class="bi bi-camera-fill me-2 text-white" style="font-size: 1.5rem;"></i>
+            <strong class="me-auto text-white">Atención</strong>
+        </div>
+        <div class="toast-body d-flex flex-column align-items-center">
+            <h4 class="my-2 text-center text-white fw-bold">¡Sonríe, te tomaremos una foto!</h4>
+            <h3 id="countdownMessage" class="my-2 display-6 fw-bold text-center text-white" style="font-size: 2rem;">
+            </h3>
+        </div>
+    </div>
+</div>
+
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+    <div id="qrErrorToast" class="toast align-items-center text-bg-danger border-0" role="alert" aria-live="assertive"
+        aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">Error al escanear QR</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
+                aria-label="Cerrar"></button>
+        </div>
+    </div>
+</div>
+
+<!-- Canvas oculto para capturas de foto -->
+<canvas id="snapshotCanvas" width="640" height="480" style="display: none;"></canvas>
+
+<!-- Overlay para efecto flash -->
+<div id="flashOverlay"
+    style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; z-index: 9999; pointer-events: none; transition: opacity 0.3s;">
+</div>
+
+<script>
+    // 1) Geolocalización
+    function setGeolocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                function (position) {
+                    document.getElementById('latitude').value = position.coords.latitude;
+                    document.getElementById('longitude').value = position.coords.longitude;
+                },
+                function (error) {
+                    console.error("Error al obtener la ubicación:", error);
+                }
+            );
+        }
+    }
+    window.onload = setGeolocation;
+
+    // Lógica para la selección de proyectos
+    const projectCards = document.querySelectorAll('.project-card');
+    const activitySection = document.getElementById('activity-section');
+    let defaultActivityHTML = "";
+    if (activitySection) {
+        defaultActivityHTML = activitySection.innerHTML;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // helpers
+    const iniciarBtn = document.getElementById('iniciarBtn');
+    const activityHid = document.getElementById('activity_hidden');
+
+    function setIniciarEnabled(state) {
+        if (state) {
+            iniciarBtn.removeAttribute('disabled');
+        } else {
+            iniciarBtn.setAttribute('disabled', 'disabled');
+        }
+        // por claridad del usuario, podemos cambiar el cursor
+        iniciarBtn.style.cursor = state ? 'pointer' : 'not-allowed';
+    }
+
+    function attachActivityButtons(container) {
+        const buttons = container.querySelectorAll('.activity-btn');
+        buttons.forEach(btn => {
+            btn.addEventListener('click', function () {
+                buttons.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                activityHid.value = this.getAttribute('data-activity');
+                setIniciarEnabled(true);     // ✅ listo para enviar
+            });
+        });
+    }
+
+    // Inicializar botones de actividad si existen
+    if (activitySection) {
+        attachActivityButtons(activitySection);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 1) al cargar la página → botón deshabilitado
+    setIniciarEnabled(false);
+
+    projectCards.forEach(card => {
+        card.addEventListener('click', function () {
+            // Limpiar selecciones previas
+            projectCards.forEach(c => c.classList.remove('border', 'border-primary'));
+            this.classList.add('border', 'border-primary');
+
+            const projectId = this.getAttribute('data-project-id');
+            const projectFolio = this.getAttribute('data-folio');
+
+            document.getElementById('project_id_hidden').value = projectId;
+            document.getElementById('project-selection').style.display = 'none';
+
+            // Reiniciar estado del botón
+            setIniciarEnabled(false);
+            activityHid.value = '';
+
+            // Mostrar actividades para TODOS los departamentos que las tengan
+            if (projectFolio === "0") {
+                // Si es proyecto especial, agregar actividades extra además de las actividades del departamento
+                let extraHtml = `
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="Limpieza de taller">Limpieza de taller</button>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="escombrar y acomodar">escombrar y acomodar</button>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="gestion de materiales">gestion de materiales</button>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="reciclado">reciclado</button>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="mantenimiento">mantenimiento</button>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="fabricar accesorios">fabricar accesorios</button>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="construccion y obra">construccion y obra</button>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="administracion y coordinacion">administracion y coordinacion</button>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="job costing">job costing</button>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="apoyo a comercializacion">apoyo a comercializacion</button>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="Preparacion de maquinaria">Preparación de maquinaria</button>
+                        </div>
+                    </div>
+                `;
+                // Combinar las actividades extra y las actividades originales (del departamento)
+                activitySection.innerHTML = extraHtml + defaultActivityHTML;
+            } else {
+                activitySection.innerHTML = defaultActivityHTML;
+            }
+
+            activitySection.style.display = 'block';
+            attachActivityButtons(activitySection);
+        });
+    });
+
+    // Efecto flash para la foto
+    function doFlashEffect(onEnd) {
+        const flashOverlay = document.getElementById('flashOverlay');
+        flashOverlay.style.opacity = '0.8';
+        setTimeout(() => {
+            flashOverlay.style.opacity = '0';
+            if (onEnd) onEnd();
+        }, 300);
+    }
+
+    // Agregar estilos dinámicos para el efecto flash
+    const flashOverlay = document.getElementById('flashOverlay');
+    if (flashOverlay) {
+        flashOverlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            opacity: 0;
+            z-index: 9999;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        `;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // LOADER INTEGRATION FOR TIME REGISTRATION
+    // Prevents double-click and shows professional loading state
+    // ═══════════════════════════════════════════════════════════
+    (function () {
+        const form = document.getElementById('register-time-form');
+        if (!form) return;
+
+        let isSubmitting = false;
+        let clickedButtonName = null;
+
+        // Track which button was clicked
+        form.querySelectorAll('button[type="submit"]').forEach(btn => {
+            btn.addEventListener('click', function () {
+                clickedButtonName = this.name;
+            });
+        });
+
+        form.addEventListener('submit', function (e) {
+            // Prevent double submission
+            if (isSubmitting) {
+                e.preventDefault();
+                return false;
+            }
+
+            const isIniciar = clickedButtonName === 'iniciar';
+            const isFinalizar = clickedButtonName === 'finalizar';
+
+            // Validate that activity is selected for "iniciar"
+            if (isIniciar && !activityHid.value) {
+                e.preventDefault();
+                clickedButtonName = null;
+                alert('Por favor selecciona una actividad antes de iniciar.');
+                return false;
+            }
+
+            // Mark as submitting
+            isSubmitting = true;
+
+            // Show loader AFTER a small delay to allow form to submit
+            setTimeout(function () {
+                // Disable all submit buttons
+                form.querySelectorAll('button[type="submit"]').forEach(btn => {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.6';
+                    btn.style.cursor = 'not-allowed';
+                });
+
+                // Show appropriate loader message
+                if (window.AD17Loader) {
+                    if (isIniciar) {
+                        AD17Loader.showTimeStart();
+                    } else if (isFinalizar) {
+                        AD17Loader.showTimeEnd();
+                    } else {
+                        AD17Loader.show('Procesando...', 'Por favor espere');
+                    }
+                }
+            }, 50);
+
+            // Allow form to submit normally
+            return true;
+        });
+    })();
+</script>
+{% endblock %}

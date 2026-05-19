@@ -1,0 +1,499 @@
+{% extends "layout.html" %}
+{% block title %}Editar Registro - Costos{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">
+                        <i class="bi bi-pencil"></i> Editar Registro de Tiempo
+                    </h4>
+                    <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Volver
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Información del registro -->
+                <div class="alert alert-light mb-4">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <strong>ID del Registro:</strong> #{{ record.id }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Creado:</strong> {{ record.start_time.strftime('%d/%m/%Y %H:%M') }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Estado:</strong>
+                            {% if record.end_time %}
+                                <span class="badge bg-success">Finalizado</span>
+                            {% else %}
+                                <span class="badge bg-warning">En progreso</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <form method="POST" id="editRecordForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+                    <div class="row">
+                        <!-- Empleado -->
+                        <div class="col-md-6 mb-3">
+                            <label for="employee_id" class="form-label">
+                                Empleado <span class="text-danger">*</span>
+                            </label>
+                            <select name="employee_id" id="employee_id" class="form-select" required>
+                                <option value="">Selecciona un empleado</option>
+                                {% for employee in employees %}
+                                <option value="{{ employee.id }}"
+                                        {% if employee.id == record.employee_id %}selected{% endif %}>
+                                    {{ employee.nompropio }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Proyecto con búsqueda por FP -->
+                        <div class="col-md-6 mb-3">
+                            <label for="fp_search" class="form-label">
+                                Proyecto (buscar por FP) <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <input type="text" id="fp_search" class="form-control"
+                                       placeholder="Escribe el FP para buscar..."
+                                       value="{{ record.project.folio if record.project.folio != 0 else '' }}">
+                                <button type="button" id="search_fp_btn" class="btn btn-outline-secondary">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+
+                            <!-- Campo principal del proyecto que se enviará -->
+                            <input type="hidden" name="project_id" id="project_id" value="{{ record.project_id }}">
+
+                            <!-- Mostrar proyecto actual -->
+                            <div id="current_project_info" class="mt-2">
+                                <div class="alert alert-info">
+                                    <strong>Proyecto actual:</strong>
+                                    {% if record.project.folio == 0 %}
+                                        {{ record.project.name }} (Proyecto especial)
+                                    {% else %}
+                                        FP: {{ record.project.folio }} - {{ record.project.name }} ({{ record.project.client }})
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div id="search_results" class="mt-2" style="display: none;">
+                                <!-- Aquí aparecerán los resultados de búsqueda -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <!-- Departamento -->
+                        <div class="col-md-6 mb-3">
+                            <label for="departamento" class="form-label">
+                                Departamento <span class="text-danger">*</span>
+                            </label>
+                            <select name="departamento" id="departamento" class="form-select" required>
+                                <option value="">Selecciona un departamento</option>
+                                <option value="Metal" {% if record.departamento == 'Metal' %}selected{% endif %}>Metal</option>
+                                <option value="Costura" {% if record.departamento == 'Costura' %}selected{% endif %}>Costura</option>
+                                <option value="Impresion" {% if record.departamento == 'Impresion' %}selected{% endif %}>Impresión</option>
+                                <option value="Stagging" {% if record.departamento == 'Stagging' %}selected{% endif %}>Stagging</option>
+                                <option value="Montaje" {% if record.departamento == 'Montaje' %}selected{% endif %}>Montaje</option>
+                                <option value="Transporte" {% if record.departamento == 'Transporte' %}selected{% endif %}>Transporte</option>
+                            </select>
+                        </div>
+
+                        <!-- Actividad -->
+                        <div class="col-md-6 mb-3">
+                            <label for="actividad" class="form-label">Actividad</label>
+                            <input type="text" name="actividad" id="actividad" class="form-control"
+                                   placeholder="Descripción de la actividad"
+                                   value="{{ record.actividad or '' }}">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <!-- Fecha y hora de inicio -->
+                        <div class="col-md-6 mb-3">
+                            <label for="start_time" class="form-label">
+                                Fecha y Hora de Inicio <span class="text-danger">*</span>
+                                <small class="text-muted">(CDMX)</small>
+                            </label>
+                            <input type="datetime-local" name="start_time" id="start_time"
+                                   class="form-control" required
+                                   value="{{ record.start_time_cdmx }}">
+                        </div>
+
+                        <!-- Fecha y hora de fin -->
+                        <div class="col-md-6 mb-3">
+                            <label for="end_time" class="form-label">
+                                Fecha y Hora de Fin
+                                <small class="text-muted">(opcional - CDMX)</small>
+                            </label>
+                            <input type="datetime-local" name="end_time" id="end_time"
+                                   class="form-control"
+                                   value="{{ record.end_time_cdmx if record.end_time else '' }}">
+                            <div class="form-text">
+                                Deja vacío si el registro debe estar en progreso
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Información calculada -->
+                    <div class="row">
+                        <div class="col-md-6 mb-3" id="originalDurationInfo">
+                            <div class="alert alert-light">
+                                <strong>Duración original:</strong>
+                                {% if record.end_time %}
+                                    {% set original_duration = (record.end_time - record.start_time).total_seconds() / 3600 %}
+                                    {{ "%.2f"|format(original_duration) }} horas
+                                {% else %}
+                                    En progreso
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 mb-3" id="newDurationInfo" style="display: none;">
+                            <div class="alert alert-info">
+                                <strong>Nueva duración:</strong> <span id="calculatedDuration">0 horas</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Coordenadas (solo lectura) -->
+                    {% if record.latitude and record.longitude %}
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <div class="alert alert-secondary">
+                                <i class="bi bi-geo-alt"></i>
+                                <strong>Ubicación registrada:</strong>
+                                {{ record.latitude }}, {{ record.longitude }}
+                                <a href="https://maps.google.com/?q={{ record.latitude }},{{ record.longitude }}"
+                                   target="_blank" class="btn btn-sm btn-outline-primary ms-2">
+                                    Ver en mapa
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-end gap-2">
+                                <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-secondary">
+                                    Cancelar
+                                </a>
+                                <button type="submit" class="btn btn-primary" id="submitBtn">
+                                    <i class="bi bi-check-circle"></i> Guardar Cambios
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing form...');
+
+    // Inicializar Select2 para empleado y departamento
+    $('#employee_id, #departamento').select2({
+        theme: 'bootstrap4'
+    });
+
+    // Función para buscar proyectos por FP
+    function searchProjectsByFP() {
+        const fp = document.getElementById('fp_search').value.trim();
+        const searchBtn = document.getElementById('search_fp_btn');
+        const searchResults = document.getElementById('search_results');
+
+        if (!fp) {
+            searchResults.style.display = 'none';
+            return;
+        }
+
+        console.log('Searching for FP:', fp);
+
+        // Mostrar estado de carga
+        searchBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        searchBtn.disabled = true;
+
+        fetch(`/search_fp?fp=${encodeURIComponent(fp)}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('Search results:', data);
+
+                // Restaurar botón
+                searchBtn.innerHTML = '<i class="bi bi-search"></i>';
+                searchBtn.disabled = false;
+
+                if (data.error) {
+                    searchResults.innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> ${data.error}
+                        </div>
+                    `;
+                    searchResults.style.display = 'block';
+                    return;
+                }
+
+                if (data.length === 0) {
+                    searchResults.innerHTML = `
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> No se encontraron proyectos con el FP "${fp}"
+                        </div>
+                    `;
+                    searchResults.style.display = 'block';
+                    return;
+                }
+
+                // Crear cards para los resultados
+                let resultsHTML = '<div class="alert alert-success mb-3">';
+                resultsHTML += `<i class="bi bi-check-circle"></i> Se encontraron ${data.length} proyecto(s):`;
+                resultsHTML += '</div>';
+
+                data.forEach(project => {
+                    // Crear card visual
+                    resultsHTML += `
+                        <div class="card project-result-card mb-2" style="cursor: pointer;"
+                             data-project-id="${project.project_id || project.fp}"
+                             data-fp="${project.fp}"
+                             data-client="${project.cliente}"
+                             data-name="${project.proyecto}">
+                            <div class="card-body py-2">
+                                <div class="row align-items-center">
+                                    <div class="col-2">
+                                        <strong class="text-primary">FP: ${project.fp}</strong>
+                                    </div>
+                                    <div class="col-6">
+                                        <span class="fw-medium">${project.proyecto || 'Sin nombre'}</span>
+                                    </div>
+                                    <div class="col-4">
+                                        <small class="text-muted">${project.cliente || 'Sin cliente'}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                searchResults.innerHTML = resultsHTML;
+                searchResults.style.display = 'block';
+
+                // Agregar event listeners a las cards
+                document.querySelectorAll('.project-result-card').forEach(card => {
+                    card.addEventListener('click', function() {
+                        const projectId = this.dataset.projectId;
+                        const fp = this.dataset.fp;
+                        const client = this.dataset.client;
+                        const name = this.dataset.name;
+
+                        console.log('Project selected:', { projectId, fp, client, name });
+
+                        // Actualizar el campo hidden del proyecto
+                        document.getElementById('project_id').value = projectId;
+
+                        // Actualizar información del proyecto actual
+                        document.getElementById('current_project_info').innerHTML = `
+                            <div class="alert alert-success">
+                                <strong>Proyecto seleccionado:</strong>
+                                FP: ${fp} - ${name} (${client})
+                            </div>
+                        `;
+
+                        // Ocultar resultados
+                        searchResults.style.display = 'none';
+
+                        // Resaltar la selección
+                        document.querySelectorAll('.project-result-card').forEach(c =>
+                            c.classList.remove('border-primary'));
+                        this.classList.add('border-primary');
+                    });
+
+                    // Hover effects
+                    card.addEventListener('mouseenter', function() {
+                        this.classList.add('bg-light');
+                    });
+                    card.addEventListener('mouseleave', function() {
+                        this.classList.remove('bg-light');
+                    });
+                });
+
+            })
+            .catch(error => {
+                console.error('Error searching projects:', error);
+                searchBtn.innerHTML = '<i class="bi bi-search"></i>';
+                searchBtn.disabled = false;
+
+                searchResults.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> Error al buscar proyectos. Inténtalo de nuevo.
+                    </div>
+                `;
+                searchResults.style.display = 'block';
+            });
+    }
+
+    // Event listeners para búsqueda
+    document.getElementById('search_fp_btn').addEventListener('click', searchProjectsByFP);
+
+    document.getElementById('fp_search').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            searchProjectsByFP();
+        }
+    });
+
+    // Calcular nueva duración automáticamente
+    function calculateDuration() {
+        const startTime = document.getElementById('start_time').value;
+        const endTime = document.getElementById('end_time').value;
+        const newDurationInfo = document.getElementById('newDurationInfo');
+        const calculatedDuration = document.getElementById('calculatedDuration');
+
+        if (startTime && endTime) {
+            const start = new Date(startTime);
+            const end = new Date(endTime);
+
+            if (end > start) {
+                const diffMs = end - start;
+                const diffHours = diffMs / (1000 * 60 * 60);
+
+                calculatedDuration.textContent = `${diffHours.toFixed(2)} horas`;
+                newDurationInfo.style.display = 'block';
+            } else {
+                newDurationInfo.style.display = 'none';
+            }
+        } else {
+            if (startTime && !endTime) {
+                calculatedDuration.textContent = 'En progreso';
+                newDurationInfo.style.display = 'block';
+            } else {
+                newDurationInfo.style.display = 'none';
+            }
+        }
+    }
+
+    // Event listeners para cálculo de duración
+    document.getElementById('start_time').addEventListener('change', calculateDuration);
+    document.getElementById('end_time').addEventListener('change', calculateDuration);
+
+    // Calcular duración inicial
+    calculateDuration();
+
+    // Validación y manejo del formulario
+    const form = document.getElementById('editRecordForm');
+    const submitBtn = document.getElementById('submitBtn');
+
+    form.addEventListener('submit', function(e) {
+        console.log('Form submit event triggered');
+
+        // Prevenir envío múltiple
+        if (submitBtn.disabled) {
+            e.preventDefault();
+            return false;
+        }
+
+        // Deshabilitar botón temporalmente
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Guardando...';
+
+        const startTime = document.getElementById('start_time').value;
+        const endTime = document.getElementById('end_time').value;
+        const projectId = document.getElementById('project_id').value;
+        const employeeId = document.getElementById('employee_id').value;
+        const departamento = document.getElementById('departamento').value;
+
+        console.log('Form data:', {
+            projectId,
+            employeeId,
+            departamento,
+            startTime,
+            endTime
+        });
+
+        // Validaciones
+        if (!projectId) {
+            e.preventDefault();
+            alert('Debes seleccionar un proyecto.');
+            resetSubmitButton();
+            return false;
+        }
+
+        if (!employeeId) {
+            e.preventDefault();
+            alert('Debes seleccionar un empleado.');
+            resetSubmitButton();
+            return false;
+        }
+
+        if (!departamento) {
+            e.preventDefault();
+            alert('Debes seleccionar un departamento.');
+            resetSubmitButton();
+            return false;
+        }
+
+        if (!startTime) {
+            e.preventDefault();
+            alert('Debes especificar la fecha y hora de inicio.');
+            resetSubmitButton();
+            return false;
+        }
+
+        // Validar tiempos
+        if (startTime && endTime) {
+            const start = new Date(startTime);
+            const end = new Date(endTime);
+
+            if (end <= start) {
+                e.preventDefault();
+                alert('La hora de fin debe ser posterior a la hora de inicio.');
+                resetSubmitButton();
+                return false;
+            }
+        }
+
+        console.log('Form validation passed, submitting...');
+        // Si llegamos aquí, el formulario es válido y se enviará
+    });
+
+    function resetSubmitButton() {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Guardar Cambios';
+    }
+
+    // Resetear botón en caso de error
+    setTimeout(resetSubmitButton, 10000); // Reset después de 10 segundos por seguridad
+
+    // CSS adicional para las cards de resultados
+    const style = document.createElement('style');
+    style.textContent = `
+        .project-result-card {
+            transition: all 0.2s ease;
+        }
+        .project-result-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .project-result-card.border-primary {
+            border-width: 2px !important;
+        }
+    `;
+    document.head.appendChild(style);
+
+    console.log('Form initialization complete');
+});
+</script>
+{% endblock %}

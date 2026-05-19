@@ -1,0 +1,290 @@
+{% extends "layout.html" %}
+{% block title %}Actividades por Departamento - AD17 Solutions{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h4 mb-0">Actividades por Departamento</h1>
+      <small class="text-muted">Administra el catálogo maestro que usa <em>register_project</em></small>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver a Costos
+      </a>
+    </div>
+  </div>
+
+  <!-- Selector de departamento + alta rápida -->
+  <div class="card mb-3">
+    <div class="card-body">
+      <form id="quickCreateForm" class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label">Departamento</label>
+          <select id="qcDepartment" class="form-select" required>
+            {% for d in departments %}
+              <option value="{{ d }}" {% if d==selected_department %}selected{% endif %}>{{ d }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Nueva actividad</label>
+          <input id="qcName" type="text" class="form-control" placeholder="Nombre de la actividad…" required>
+        </div>
+        <div class="col-md-3 d-grid">
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-plus-circle"></i> Agregar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Tabs de departamentos -->
+  <ul class="nav nav-tabs" id="deptTabs" role="tablist">
+    {% for d in departments %}
+      <li class="nav-item" role="presentation">
+        <button class="nav-link {% if d==selected_department %}active{% endif %}" id="tab-{{ d|replace(' ','_') }}"
+                data-bs-toggle="tab" data-bs-target="#pane-{{ d|replace(' ','_') }}" type="button" role="tab">
+          {{ d }}
+          <span class="badge bg-light text-muted ms-1">{{ (activities_by_dept.get(d) or [])|length }}</span>
+        </button>
+      </li>
+    {% endfor %}
+  </ul>
+
+  <div class="tab-content border border-top-0 rounded-bottom p-0" id="deptTabsContent">
+    {% for d in departments %}
+    {% set items = activities_by_dept.get(d) or [] %}
+    <div class="tab-pane fade {% if d==selected_department %}show active{% endif %}" id="pane-{{ d|replace(' ','_') }}" role="tabpanel">
+      <div class="p-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Actividades de {{ d }}</h5>
+          <small class="text-muted">Arrastra para reordenar</small>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width:48px;"></th>
+                <th>Nombre</th>
+                <th style="width:130px;">Estado</th>
+                <th style="width:230px;">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="sortable-body" data-department="{{ d }}">
+              {% for a in items|sort(attribute='sort_order') %}
+              <tr draggable="true" data-id="{{ a.id }}">
+                <td class="text-muted">
+                  <i class="bi bi-grip-vertical"></i>
+                </td>
+                <td>
+                  <span class="act-name">{{ a.name }}</span>
+                  <input class="form-control form-control-sm d-none act-edit-input" value="{{ a.name }}">
+                </td>
+                <td>
+                  {% if a.is_active %}
+                    <span class="badge bg-success">Activa</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Inactiva</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="btn-group">
+                    <button class="btn btn-outline-primary btn-sm btn-edit"><i class="bi bi-pencil"></i> Editar</button>
+                    <button class="btn btn-outline-success btn-sm btn-toggle" data-active="{{ 1 if a.is_active else 0 }}">
+                      {% if a.is_active %}<i class="bi bi-pause-circle"></i> Desactivar{% else %}<i class="bi bi-play-circle"></i> Activar{% endif %}
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm btn-delete"><i class="bi bi-trash"></i> Eliminar</button>
+                  </div>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="4" class="text-center text-muted py-4">
+                  No hay actividades en este departamento.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Guardar orden -->
+        <div class="text-end mt-3">
+          <button class="btn btn-outline-primary btn-save-order" data-department="{{ d }}">
+            <i class="bi bi-save"></i> Guardar orden
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+
+<style>
+.sortable-body tr.dragging {
+  opacity: .6;
+  background: #f8f9fa;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+  // Alta rápida
+  document.getElementById('quickCreateForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const department = document.getElementById('qcDepartment').value;
+    const name = document.getElementById('qcName').value.trim();
+    if (!name) return;
+
+    const r = await fetch('{{ url_for("main.activities_create") }}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json','X-CSRFToken': csrf},
+      body: JSON.stringify({ department, name })
+    });
+    const data = await r.json();
+    if (data.success) location.reload();
+    else alert(data.message || 'No se pudo crear la actividad.');
+  });
+
+  // Drag & drop sencillo
+  document.querySelectorAll('.sortable-body').forEach(tbody => {
+    let dragEl = null;
+
+    tbody.addEventListener('dragstart', (e) => {
+      const tr = e.target.closest('tr');
+      if (!tr) return;
+      dragEl = tr;
+      tr.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    tbody.addEventListener('dragend', (e) => {
+      const tr = e.target.closest('tr');
+      if (tr) tr.classList.remove('dragging');
+      dragEl = null;
+    });
+
+    tbody.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const after = getDragAfterElement(tbody, e.clientY);
+      if (after == null) {
+        tbody.appendChild(dragEl);
+      } else {
+        tbody.insertBefore(dragEl, after);
+      }
+    });
+
+    function getDragAfterElement(container, y) {
+      const els = [...container.querySelectorAll('tr:not(.dragging)')];
+      return els.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+          return { offset, element: child };
+        } else {
+          return closest;
+        }
+      }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+  });
+
+  // Guardar orden
+  document.querySelectorAll('.btn-save-order').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const department = btn.getAttribute('data-department');
+      const tbody = document.querySelector(`.sortable-body[data-department="${CSS.escape(department)}"]`);
+      const ids = [...tbody.querySelectorAll('tr')].map((tr, idx) => ({ id: tr.dataset.id, sort_order: idx }));
+      const r = await fetch('{{ url_for("main.activities_reorder") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json','X-CSRFToken': csrf},
+        body: JSON.stringify({ department, orders: ids })
+      });
+      const data = await r.json();
+      if (data.success) {
+        const toast = document.createElement('div');
+        toast.className = 'alert alert-success position-fixed top-0 end-0 m-3';
+        toast.textContent = 'Orden guardado.';
+        document.body.appendChild(toast);
+        setTimeout(()=>toast.remove(), 1500);
+      } else {
+        alert(data.message || 'No se pudo guardar el orden.');
+      }
+    });
+  });
+
+  // Editar / Guardar nombre
+  document.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const tr = e.target.closest('tr');
+      const span = tr.querySelector('.act-name');
+      const input = tr.querySelector('.act-edit-input');
+      if (input.classList.contains('d-none')) {
+        input.value = span.textContent.trim();
+        span.classList.add('d-none');
+        input.classList.remove('d-none');
+        input.focus();
+        btn.innerHTML = '<i class="bi bi-check2"></i> Guardar';
+      } else {
+        const newName = input.value.trim();
+        if (!newName) return;
+        const r = await fetch(`{{ url_for("main.activities_update", activity_id=0) }}`.replace('0', tr.dataset.id), {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json','X-CSRFToken': csrf},
+          body: JSON.stringify({ name: newName })
+        });
+        const data = await r.json();
+        if (data.success) {
+          span.textContent = newName;
+          input.classList.add('d-none');
+          span.classList.remove('d-none');
+          btn.innerHTML = '<i class="bi bi-pencil"></i> Editar';
+        } else {
+          alert(data.message || 'No se pudo actualizar.');
+        }
+      }
+    });
+  });
+
+  // Activar/Desactivar
+  document.querySelectorAll('.btn-toggle').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const tr = e.target.closest('tr');
+      const nowActive = btn.getAttribute('data-active') === '1';
+      const r = await fetch(`{{ url_for("main.activities_toggle", activity_id=0) }}`.replace('0', tr.dataset.id), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json','X-CSRFToken': csrf},
+        body: JSON.stringify({ is_active: !nowActive })
+      });
+      const data = await r.json();
+      if (data.success) location.reload();
+      else alert(data.message || 'No se pudo cambiar el estado.');
+    });
+  });
+
+  // Eliminar
+  document.querySelectorAll('.btn-delete').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      if (!confirm('¿Eliminar esta actividad?')) return;
+      const tr = e.target.closest('tr');
+      const r = await fetch(`{{ url_for("main.activities_delete", activity_id=0) }}`.replace('0', tr.dataset.id), {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json','X-CSRFToken': csrf},
+      });
+      const data = await r.json();
+      if (data.success) tr.remove();
+      else alert(data.message || 'No se pudo eliminar.');
+    });
+  });
+
+});
+</script>
+{% endblock %}

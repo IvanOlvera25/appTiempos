@@ -1,0 +1,117 @@
+/* static/css/custom.css */
+
+/* Navbar Personalizado */
+.navbar-custom {
+    background-color: #FF8800; /* Naranja */
+}
+
+.navbar-custom .navbar-brand,
+.navbar-custom .nav-link {
+    color: #FFFFFF; /* Blanco para el texto */
+}
+
+.navbar-custom .nav-link:hover {
+    color: #FFFFFF;
+    opacity: 0.8;
+}
+
+/* Estilos para Select2 */
+.select2-container--bootstrap4 .select2-selection--single {
+    height: calc(1.5em + .75rem + 2px);
+    padding: .375rem .75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+}
+
+.select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+    color: #495057;
+    line-height: 1.5;
+}
+
+.select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
+    height: calc(1.5em + .75rem + 2px);
+    right: 0.75rem;
+}
+
+/* Estilos para las tarjetas de proyectos */
+.project-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.project-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}
+
+.project-card.selected {
+    border: 2px solid #FF8800; /* Naranja para indicar selección */
+    box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+}
+
+/* Estilos para videos */
+video {
+    border-radius: 0.25rem;
+}
+
+/* Mejorar la apariencia de los botones */
+.btn-primary {
+    background-color: #FF8800;
+    border-color: #FF8800;
+}
+
+.btn-primary:hover {
+    background-color: #e07b00;
+    border-color: #e07b00;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+    border-color: #545b62;
+}
+
+.btn-success {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.btn-success:hover {
+    background-color: #218838;
+    border-color: #1e7e34;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
+
+/* Ajustes para el formulario */
+form label {
+    font-weight: 500;
+}
+
+.form-control[readonly] {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+}
+
+/* Estilos para tablas en Dashboard */
+.card-header.bg-orange {
+    background-color: #FF8800 !important;
+}
+
+.text-black {
+    color: #000000 !important;
+}

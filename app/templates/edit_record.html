@@ -1,0 +1,14 @@
+{% extends "layout.html" %}
+{% block title %}Editar registro{% endblock %}
+{% block content %}
+<h3>Editar actividad del registro #{{ record.id }}</h3>
+<form method="POST">
+  <div class="mb-3">
+    <label class="form-label">Actividad</label>
+    <input type="text" name="actividad" class="form-control"
+           value="{{ record.actividad }}">
+  </div>
+  <button type="submit" class="btn btn-primary">Guardar</button>
+  <a href="{{ url_for('main.my_dashboard') }}" class="btn btn-secondary">Cancelar</a>
+</form>
+{% endblock %}

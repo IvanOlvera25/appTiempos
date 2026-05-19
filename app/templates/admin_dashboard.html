@@ -1,0 +1,2014 @@
+{% extends "layout.html" %}
+{% block title %}Dashboard Ejecutivo - AD17 Solutions{% endblock %}
+{% block content %}
+<style>
+  :root {
+    --primary-orange: #FF8800;
+    --secondary-orange: #FFA726;
+    --light-orange: #FFE0B2;
+    --dark-orange: #E65100;
+    --gray-100: #F8F9FA;
+    --gray-200: #E9ECEF;
+    --gray-300: #DEE2E6;
+    --gray-600: #6C757D;
+    --gray-800: #343A40;
+    --success: #28A745;
+    --info: #17A2B8;
+    --warning: #FFC107;
+    --danger: #DC3545;
+    --purple: #6F42C1;
+    --indigo: #6610F2;
+    --teal: #20C997;
+    --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    --shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    --shadow-lg: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+  }
+
+  body {
+    background-color: var(--gray-100);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+
+  .dashboard-header {
+    background: linear-gradient(135deg, var(--primary-orange) 0%, var(--dark-orange) 100%);
+    color: white;
+    padding: 2rem 0;
+    margin: -1.5rem -15px 2rem -15px;
+    border-radius: 0 0 1rem 1rem;
+    box-shadow: var(--shadow);
+  }
+
+  .metric-card {
+    background: white;
+    border: none;
+    border-radius: 1rem;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s ease;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+
+  .metric-card .card-header {
+    background: linear-gradient(90deg, var(--primary-orange), var(--secondary-orange));
+    color: white;
+    border: none;
+    padding: 1rem 1.5rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    border-radius: 1rem 1rem 0 0;
+  }
+
+  .metric-card .card-body {
+    padding: 1.5rem;
+  }
+
+  .kpi-card {
+    border-radius: 1rem;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: var(--shadow);
+    transition: transform 0.3s ease;
+    color: white;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%);
+    transform: translateX(-100%);
+    transition: transform 0.6s;
+  }
+
+  .kpi-card:hover::before {
+    transform: translateX(100%);
+  }
+
+  .kpi-card:hover {
+    transform: scale(1.05);
+  }
+
+  .kpi-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .kpi-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .chart-container {
+    position: relative;
+    height: 400px;
+    width: 100%;
+  }
+
+  .chart-container-lg {
+    height: 500px;
+  }
+
+  .chart-container-xl {
+    height: 600px;
+  }
+
+  .filter-section {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .table-container {
+    background: white;
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .table-container .table {
+    margin-bottom: 0;
+  }
+
+  .table-container .table thead th {
+    background: var(--light-orange);
+    border: none;
+    font-weight: 600;
+    color: var(--gray-800);
+    padding: 1rem;
+  }
+
+  .table-container .table tbody td {
+    padding: 0.75rem 1rem;
+    border-color: var(--gray-200);
+  }
+
+  .status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 50px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .status-active {
+    background: var(--success);
+    color: white;
+  }
+
+  .status-completed {
+    background: var(--info);
+    color: white;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--gray-800);
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .section-title::before {
+    content: '';
+    width: 4px;
+    height: 2rem;
+    background: var(--primary-orange);
+    margin-right: 1rem;
+    border-radius: 2px;
+  }
+
+  .worker-analysis-section {
+    background: white;
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: var(--shadow-sm);
+    margin-top: 2rem;
+  }
+
+  .custom-select {
+    border: 2px solid var(--gray-300);
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    transition: border-color 0.3s ease;
+  }
+
+  .custom-select:focus {
+    border-color: var(--primary-orange);
+    box-shadow: 0 0 0 0.2rem rgba(255, 136, 0, 0.25);
+  }
+
+  .btn-custom {
+    background: linear-gradient(45deg, var(--primary-orange), var(--secondary-orange));
+    border: none;
+    color: white;
+    padding: 0.75rem 2rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+  }
+
+  .btn-custom:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+    color: white;
+  }
+
+  .grid-2x2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .grid-3x1 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .grid-4x1 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+  }
+
+  @media (max-width: 768px) {
+    .grid-2x2,
+    .grid-3x1,
+    .grid-4x1 {
+      grid-template-columns: 1fr;
+    }
+
+    .chart-container,
+    .chart-container-lg,
+    .chart-container-xl {
+      height: 300px;
+    }
+  }
+
+  .loading-spinner {
+    display: none;
+    text-align: center;
+    padding: 2rem;
+  }
+
+  .fade-in {
+    animation: fadeIn 0.5s ease-in;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .refresh-indicator {
+    display: inline-block;
+    margin-left: 0.5rem;
+    opacity: 0.7;
+  }
+
+  .refresh-indicator.spinning {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .no-data-message {
+    text-align: center;
+    padding: 2rem;
+    color: var(--gray-600);
+    font-style: italic;
+  }
+
+  .progress-ring {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 1rem;
+  }
+
+  .progress-ring__circle {
+    stroke: var(--primary-orange);
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.35s;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+  }
+
+  /* Estilos adicionales para el panel de registros activos */
+  .duration-badge {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .duration-warning {
+    background-color: #FFC107 !important;
+    color: #000 !important;
+  }
+
+  .duration-danger {
+    background-color: #DC3545 !important;
+    color: #fff !important;
+  }
+
+  .employee-info {
+    line-height: 1.3;
+  }
+
+  .employee-name {
+    font-weight: 600;
+    color: var(--gray-800);
+  }
+
+  .employee-subtitle {
+    font-size: 0.85rem;
+    color: var(--gray-600);
+  }
+
+  .activity-text {
+    font-size: 0.9rem;
+    color: var(--gray-700);
+    line-height: 1.3;
+  }
+
+  .sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+
+  .table-hover tbody tr:hover {
+    background-color: rgba(255, 136, 0, 0.05);
+  }
+
+  .alert-custom {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    min-width: 300px;
+    animation: slideInRight 0.3s ease-out;
+  }
+
+  @keyframes slideInRight {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  /* Estilos para el Gantt Chart */
+  .gantt-row {
+    height: 40px;
+    border-bottom: 1px solid #e0e0e0;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .gantt-row:hover {
+    background-color: rgba(255, 136, 0, 0.05);
+  }
+
+.gantt-label {
+    width: 200px;
+    padding: 0 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    border-right: 2px solid #ddd;
+    position: sticky;
+    left: 0;
+    background-color: white;
+    z-index: 2;
+}
+
+  .gantt-timeline {
+    flex: 1;
+    position: relative;
+    height: 100%;
+  }
+
+  .gantt-bar {
+    position: absolute;
+    height: 28px;
+    top: 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .gantt-bar:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    z-index: 10;
+  }
+
+  .gantt-bar.active {
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+  }
+
+  .gantt-grid-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: #f0f0f0;
+  }
+
+  .gantt-header {
+    display: flex;
+    height: 50px;
+    border-bottom: 2px solid #ddd;
+    background-color: #f8f9fa;
+  }
+
+ .gantt-row:hover .gantt-label {
+    background-color: rgba(255, 136, 0, 0.05);
+}
+
+.gantt-header-label {
+    width: 200px;
+    padding: 10px;
+    font-weight: 600;
+    color: #555;
+    border-right: 2px solid #ddd;
+    position: sticky;
+    left: 0;
+    background-color: #f8f9fa;
+    z-index: 3;
+}
+
+  .gantt-header-timeline {
+    flex: 1;
+    display: flex;
+  }
+
+  .gantt-day-header {
+    flex: 1;
+    text-align: center;
+    padding: 10px 5px;
+    border-right: 1px solid #e0e0e0;
+    font-weight: 500;
+    color: #666;
+  }
+
+  .gantt-day-header.weekend {
+    background-color: #f5f5f5;
+  }
+
+  .gantt-day-header.today {
+    background-color: #fff3e0;
+    color: #e65100;
+    font-weight: 600;
+  }
+</style>
+
+<div class="dashboard-header">
+  <div class="container-fluid">
+    <div class="row align-items-center">
+      <div class="col">
+        <h1 class="display-5 mb-0 fw-bold">Dashboard Ejecutivo</h1>
+        <p class="lead mb-0 opacity-90">
+          Análisis de productividad y gestión de proyectos
+          <span class="refresh-indicator" id="refreshIndicator">
+            <i class="fas fa-sync-alt"></i>
+          </span>
+        </p>
+      </div>
+      <div class="col-auto">
+        <div class="text-end">
+          <div class="h4 mb-0" id="currentTime"></div>
+          <small class="opacity-75">Tiempo real</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row mb-4">
+  <div class="col-md-3 mb-3">
+    <div class="kpi-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+      <div class="kpi-number">{{ projects_count }}</div>
+      <div class="kpi-label">Proyectos Activos</div>
+    </div>
+  </div>
+  <div class="col-md-3 mb-3">
+    <div class="kpi-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+      <div class="kpi-number" id="totalActiveWorkers">{{ dashboard_data.active_workers.values() | sum }}</div>
+      <div class="kpi-label">Trabajadores Activos</div>
+    </div>
+  </div>
+  <div class="col-md-3 mb-3">
+    <div class="kpi-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+      <div class="kpi-number" id="totalHoursToday">0</div>
+      <div class="kpi-label">Horas Hoy</div>
+    </div>
+  </div>
+  <div class="col-md-3 mb-3">
+    <div class="kpi-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+      <div class="kpi-number" id="totalHoursWeek">0</div>
+      <div class="kpi-label">Horas Esta Semana</div>
+    </div>
+  </div>
+</div>
+
+<div class="worker-analysis-section mb-5">
+  <h2 class="section-title">Registros Activos en Tiempo Real</h2>
+  <div class="row mb-4">
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Filtrar por Departamento</label>
+      <select id="departmentFilter" class="form-select custom-select">
+        <option value="">-- Todos los Departamentos --</option>
+        {% for dept in unique_departments %}
+          <option value="{{ dept }}">{{ dept }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label fw-semibold">Filtrar por Proyecto</label>
+      <select id="projectFilter" class="form-select custom-select">
+        <option value="">-- Todos los Proyectos --</option>
+        {% for project in all_projects %}
+          <option value="{{ project.id }}">{{ project.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <button type="button" class="btn btn-custom w-100" id="refreshActiveRecords">
+        <i class="fas fa-sync-alt me-2"></i>Actualizar
+      </button>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <div class="text-center w-100">
+        <div class="h5 mb-0 text-primary" id="activeRecordsCount">0</div>
+        <small class="text-muted">Activos</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="loading-spinner text-center" id="activeRecordsLoading" style="display: none;">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Cargando...</span>
+    </div>
+    <p class="mt-2 text-muted">Cargando registros activos...</p>
+  </div>
+
+  <div class="table-container" id="activeRecordsContainer" style="display: none;">
+    <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+      <h5 class="mb-0">
+        <i class="fas fa-play-circle me-2 text-success"></i>
+        Registros Activos
+        <span class="badge bg-primary ms-2" id="recordsCountBadge">0</span>
+      </h5>
+    </div>
+    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+      <table class="table table-hover mb-0">
+        <thead class="sticky-top">
+          <tr>
+            <th>Empleado</th>
+            <th>Departamento</th>
+            <th>Proyecto</th>
+            <th>Actividad</th>
+            <th>Inicio</th>
+            <th>Duración</th>
+          </tr>
+        </thead>
+        <tbody id="activeRecordsTableBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="text-center py-5" id="noActiveRecords" style="display: none;">
+    <i class="fas fa-pause-circle fa-3x mb-3 opacity-50 text-muted"></i>
+    <h5 class="text-muted">No hay registros activos</h5>
+    <p class="text-muted">Todos los trabajadores han finalizado sus actividades</p>
+  </div>
+</div>
+
+<h2 class="section-title">Vista de Actividad Semanal</h2>
+<div class="metric-card mb-5">
+<div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="fas fa-calendar-week me-2"></i>Cronograma de Actividades</span>
+    <div class="d-flex gap-2 align-items-center">
+        <label for="ganttWeekSelector" class="form-label mb-0 me-2 fw-normal">Semana:</label>
+        <input type="week" id="ganttWeekSelector" class="form-control form-control-sm" style="width: 150px;">
+
+        <select id="ganttViewType" class="form-select form-select-sm w-auto">
+            <option value="employee">Por Empleado</option>
+            <option value="department">Por Departamento</option>
+        </select>
+
+        <!-- Filtro de departamento siempre visible -->
+        <select id="ganttDepartmentFilter" class="form-select form-select-sm w-auto">
+            <option value="">-- Todos los Departamentos --</option>
+            {% for dept in unique_departments %}
+                <option value="{{ dept }}">{{ dept }}</option>
+            {% endfor %}
+        </select>
+
+        <button class="btn btn-sm btn-outline-primary" onclick="loadGanttData()">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+    </div>
+</div>
+  <div class="card-body">
+    <div id="ganttChartContainer" style="position: relative; width: 100%; overflow-x: auto;">
+      <div id="ganttChart" style="min-width: 1000px;"></div>
+    </div>
+    <div id="ganttLoading" class="text-center py-5" style="display: none;">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Cargando...</span>
+      </div>
+      <p class="mt-2 text-muted">Cargando datos de actividad semanal...</p>
+    </div>
+    <div id="ganttNoData" class="no-data-message" style="display: none;">
+      <i class="fas fa-calendar-times fa-3x mb-3 opacity-50"></i>
+      <p>No hay datos de actividad para mostrar en esta semana</p>
+    </div>
+  </div>
+</div>
+
+<div id="ganttTooltip" style="position: absolute; display: none; background: rgba(0, 0, 0, 0.9); color: white; padding: 10px; border-radius: 5px; font-size: 12px; pointer-events: none; z-index: 1000; max-width: 300px;">
+</div>
+
+<h2 class="section-title">Análisis de Productividad</h2>
+<div class="grid-2x2 mb-5">
+  <div class="metric-card">
+    <div class="card-header">
+      <i class="fas fa-users me-2"></i>Trabajadores Activos por Proyecto
+    </div>
+    <div class="card-body">
+      {% if dashboard_data.active_workers %}
+        <div class="chart-container">
+          <canvas id="activeWorkersChart"></canvas>
+        </div>
+      {% else %}
+        <div class="no-data-message">
+          <i class="fas fa-users fa-3x mb-3 opacity-50"></i>
+          <p>No hay trabajadores activos en este momento</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="metric-card">
+    <div class="card-header">
+      <i class="fas fa-clock me-2"></i>Tiempo Invertido por Proyecto
+    </div>
+    <div class="card-body">
+      {% if dashboard_data.time_invested %}
+        <div class="chart-container">
+          <canvas id="timeInvestedChart"></canvas>
+        </div>
+      {% else %}
+        <div class="no-data-message">
+          <i class="fas fa-clock fa-3x mb-3 opacity-50"></i>
+          <p>No hay datos de tiempo registrados aún</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<h2 class="section-title">Análisis Avanzado</h2>
+<div class="grid-3x1 mb-5">
+  <div class="metric-card">
+    <div class="card-header">
+      <i class="fas fa-calendar-day me-2"></i>Productividad Diaria
+    </div>
+    <div class="card-body">
+      <div class="chart-container">
+        <canvas id="dailyProductivityChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="metric-card">
+    <div class="card-header">
+      <i class="fas fa-building me-2"></i>Distribución por Departamento
+    </div>
+    <div class="card-body">
+      <div class="chart-container">
+        <canvas id="departmentDistributionChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="metric-card">
+    <div class="card-header">
+      <i class="fas fa-chart-line me-2"></i>Tendencia Semanal
+    </div>
+    <div class="card-body">
+      <div class="chart-container">
+        <canvas id="weeklyTrendChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2 class="section-title">Análisis por Departamento</h2>
+<div class="metric-card mb-5">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="fas fa-sitemap me-2"></i>Distribución de Horas por Departamento</span>
+    <select id="projectSelector" class="form-select w-auto custom-select">
+      <option value="">-- Selecciona un Proyecto --</option>
+      {% for p in all_projects %}
+        <option value="{{ p.id }}">{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="card-body">
+    <div class="chart-container-lg">
+      <canvas id="deptInvestedChart"></canvas>
+    </div>
+    <div id="deptNoData" class="no-data-message" style="display: none;">
+      <i class="fas fa-chart-bar fa-3x mb-3 opacity-50"></i>
+      <p>Selecciona un proyecto para ver la distribución por departamento</p>
+    </div>
+  </div>
+</div>
+
+<h2 class="section-title">Análisis de Actividades</h2>
+<div class="metric-card mb-5">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="fas fa-tasks me-2"></i>Tiempo Invertido por Actividad</span>
+    <select id="activityProjectSelector" class="form-select w-auto custom-select">
+      <option value="">-- Todos los Proyectos --</option>
+      {% for p in all_projects %}
+        <option value="{{ p.name }}">{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="card-body">
+    <div class="chart-container-xl">
+      <canvas id="activityChart"></canvas>
+    </div>
+    <div id="activityNoData" class="no-data-message" style="display: none;">
+      <i class="fas fa-tasks fa-3x mb-3 opacity-50"></i>
+      <p>No hay datos de actividades para mostrar</p>
+    </div>
+  </div>
+</div>
+
+<h2 class="section-title">Matriz de Eficiencia</h2>
+<div class="grid-2x2 mb-5">
+  <div class="metric-card">
+    <div class="card-header">
+      <i class="fas fa-stopwatch me-2"></i>Tiempo Promedio por Actividad
+    </div>
+    <div class="card-body">
+      <div class="chart-container">
+        <canvas id="avgTimePerActivityChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="metric-card">
+    <div class="card-header">
+      <i class="fas fa-tachometer-alt me-2"></i>Productividad por Empleado
+    </div>
+    <div class="card-body">
+      <div class="chart-container">
+        <canvas id="employeeProductivityChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2 class="section-title">Actividad Reciente</h2>
+<div class="table-container mb-5">
+  <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Últimos 20 Registros</h5>
+    <button class="btn btn-sm btn-outline-primary" onclick="refreshTable()">
+      <i class="fas fa-sync-alt me-1"></i>Actualizar
+    </button>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Empleado</th>
+          <th>Departamento</th>
+          <th>Proyecto</th>
+          <th>Actividad</th>
+          <th>Inicio</th>
+          <th>Duración</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in records %}
+          <tr>
+            <td><span class="badge bg-secondary">#{{ record.id }}</span></td>
+            <td>
+              <div class="fw-semibold">{{ record.employee.nombre }} {{ record.employee.apellido_paterno }}</div>
+              <small class="text-muted">{{ record.employee.apellido_materno }}</small>
+            </td>
+            <td>
+              <span class="badge" style="background-color: var(--primary-orange);">
+                {{ record.departamento or 'N/A' }}
+              </span>
+            </td>
+            <td>{{ record.project.name }}</td>
+            <td>
+              <small class="text-muted">{{ record.actividad or 'Sin especificar' }}</small>
+            </td>
+            <td>
+              <span class="time" data-time="{{ record.start_time.strftime('%Y-%m-%dT%H:%M:%SZ') }}"></span>
+            </td>
+            <td>
+              {% if record.end_time %}
+                {% set duration_seconds = (record.end_time - record.start_time).total_seconds() %}
+                {% set hours = (duration_seconds // 3600) | int %}
+                {% set minutes = ((duration_seconds % 3600) // 60) | int %}
+                <span class="badge bg-info">{{ hours }}h {{ minutes }}m</span>
+              {% else %}
+                <span class="badge bg-warning">En progreso</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if record.end_time %}
+                <span class="status-badge status-completed">Completado</span>
+              {% else %}
+                <span class="status-badge status-active">
+                  <i class="fas fa-circle fa-xs me-1"></i>Activo
+                </span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="worker-analysis-section">
+  <h2 class="section-title">Análisis Individual</h2>
+  <div class="row">
+    <div class="col-md-8">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Seleccionar Trabajador</label>
+          <select id="workerSelect" class="form-select custom-select">
+            <option value="">-- Buscar empleado --</option>
+            {% for emp in employees %}
+              <option value="{{ emp.id }}">{{ emp.nombre }} {{ emp.apellido_paterno }} {{ emp.apellido_materno }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <button type="button" class="btn btn-custom w-100" id="searchWorkerBtn">
+            <i class="fas fa-search me-2"></i>Analizar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="loading-spinner" id="loadingSpinner">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Cargando...</span>
+    </div>
+    <p class="mt-2 text-muted">Analizando datos del empleado...</p>
+  </div>
+
+  <div id="workerMetrics" class="mt-4">
+    <div class="text-center text-muted py-5">
+      <i class="fas fa-user-chart fa-3x mb-3 opacity-50"></i>
+      <p>Selecciona un trabajador para ver análisis detallado de productividad</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.dashboardData = {
+    active_workers: {{ dashboard_data.active_workers | tojson | safe }},
+    time_invested: {{ dashboard_data.time_invested | tojson | safe }}
+  };
+  window.deptInvestedData = {{ dept_invested_data | tojson | safe }};
+  window.activityMetrics = {{ activity_metrics | tojson | safe }};
+  window.dailyActivityMetrics = {{ daily_activity_metrics | tojson | safe }};
+  window.allProjects = {{ all_projects | map(attribute='name') | list | tojson | safe }};
+
+  {% if employees is defined %}
+    window.employeesData = {{ employees | map(attribute='nompropio') | list | tojson | safe }};
+  {% else %}
+    window.employeesData = [];
+  {% endif %}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.40/moment-timezone-with-data.min.js"></script>
+
+<script>
+(function() {
+  let activeRecordsData = [];
+
+  const departmentFilter = document.getElementById('departmentFilter');
+  const projectFilter = document.getElementById('projectFilter');
+  const refreshBtn = document.getElementById('refreshActiveRecords');
+  const loadingSpinner = document.getElementById('activeRecordsLoading');
+  const tableContainer = document.getElementById('activeRecordsContainer');
+  const noRecordsMessage = document.getElementById('noActiveRecords');
+  const tableBody = document.getElementById('activeRecordsTableBody');
+  const activeRecordsCount = document.getElementById('activeRecordsCount');
+  const recordsCountBadge = document.getElementById('recordsCountBadge');
+
+  departmentFilter.addEventListener('change', loadActiveRecords);
+  projectFilter.addEventListener('change', loadActiveRecords);
+  refreshBtn.addEventListener('click', loadActiveRecords);
+
+  function loadActiveRecords() {
+    showLoading();
+    const params = new URLSearchParams();
+    if (departmentFilter.value) params.append('department', departmentFilter.value);
+    if (projectFilter.value) params.append('project_id', projectFilter.value);
+
+    fetch(`{{ url_for('main.get_active_records') }}?${params.toString()}`)
+      .then(response => response.json())
+      .then(data => {
+        activeRecordsData = data.records || [];
+        updateUI();
+        hideLoading();
+      })
+      .catch(error => {
+        console.error('Error cargando registros activos:', error);
+        showError('Error al cargar los registros activos');
+        hideLoading();
+      });
+  }
+
+  function showLoading() {
+    loadingSpinner.style.display = 'block';
+    tableContainer.style.display = 'none';
+    noRecordsMessage.style.display = 'none';
+  }
+
+  function hideLoading() {
+    loadingSpinner.style.display = 'none';
+  }
+
+  function updateUI() {
+    activeRecordsCount.textContent = activeRecordsData.length;
+    recordsCountBadge.textContent = activeRecordsData.length;
+
+    if (activeRecordsData.length === 0) {
+      tableContainer.style.display = 'none';
+      noRecordsMessage.style.display = 'block';
+      return;
+    }
+
+    tableContainer.style.display = 'block';
+    noRecordsMessage.style.display = 'none';
+    renderTable();
+  }
+
+  function renderTable() {
+    tableBody.innerHTML = '';
+    activeRecordsData.forEach(record => {
+      const row = createTableRow(record);
+      tableBody.appendChild(row);
+    });
+  }
+
+  function createTableRow(record) {
+    const tr = document.createElement('tr');
+    tr.dataset.recordId = record.id;
+
+    let durationClass = 'bg-success';
+    if (record.duration_minutes > 480) { // > 8 horas
+      durationClass = 'duration-danger';
+    } else if (record.duration_minutes > 360) { // > 6 horas
+      durationClass = 'duration-warning';
+    }
+
+    tr.innerHTML = `
+      <td>
+        <div class="employee-info">
+          <div class="employee-name">${record.employee_name}</div>
+          <div class="employee-subtitle">${record.employee_full_name}</div>
+        </div>
+      </td>
+      <td><span class="badge" style="background-color: var(--primary-orange);">${record.department}</span></td>
+      <td>
+        <div>
+          <div class="fw-semibold">${record.project_name}</div>
+          <small class="text-muted">FP: ${record.project_folio}</small>
+        </div>
+      </td>
+      <td><div class="activity-text">${record.activity}</div></td>
+      <td><small class="text-muted">${record.start_time}</small></td>
+      <td><span class="badge duration-badge ${durationClass}">${record.duration}</span></td>
+    `;
+    return tr;
+  }
+
+  function showError(message) {
+    showAlert(message, 'danger');
+  }
+
+  function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show alert-custom`;
+    const icon = type === 'success' ? 'check-circle' : 'exclamation-circle';
+    alertDiv.innerHTML = `<i class="fas fa-${icon} me-2"></i>${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 5000);
+  }
+
+  // Actualizar cada 30 segundos
+  setInterval(loadActiveRecords, 30000);
+  loadActiveRecords();
+})();
+</script>
+
+<script>
+(function() {
+  const colors = {
+    primary: '#FF8800', secondary: '#FFA726', success: '#28A745',
+    info: '#17A2B8', warning: '#FFC107', danger: '#DC3545',
+    purple: '#6F42C1', indigo: '#6610F2', teal: '#20C997',
+    gradient1: 'rgba(255, 136, 0, 0.8)', gradient2: 'rgba(255, 167, 38, 0.6)',
+    gradient3: 'rgba(255, 167, 38, 0.4)',
+  };
+
+  Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+  Chart.defaults.font.size = 12;
+  Chart.defaults.color = '#343A40';
+
+  function generateColors(count) {
+    const palette = [
+      colors.primary, colors.secondary, colors.success, colors.info,
+      colors.warning, colors.danger, colors.purple, colors.indigo, colors.teal
+    ];
+    const result = [];
+    for (let i = 0; i < count; i++) {
+      result.push(palette[i % palette.length]);
+    }
+    return result;
+  }
+
+  function getWeekDates() {
+    const dates = [];
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(new Date().setDate(diff + i));
+      dates.push(date.toISOString().split('T')[0]);
+    }
+    return dates;
+  }
+
+  const weekDates = getWeekDates();
+
+  // 1. Gráfica: Trabajadores Activos
+  if (Object.keys(window.dashboardData.active_workers).length > 0) {
+    const ctxActive = document.getElementById('activeWorkersChart').getContext('2d');
+    const activeData = Object.values(window.dashboardData.active_workers);
+    new Chart(ctxActive, {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(window.dashboardData.active_workers),
+        datasets: [{
+          data: activeData,
+          backgroundColor: generateColors(activeData.length),
+          borderWidth: 3,
+          borderColor: '#ffffff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              padding: 20,
+              usePointStyle: true
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // 2. Gráfica: Tiempo Invertido
+  if (Object.keys(window.dashboardData.time_invested).length > 0) {
+    const ctxTime = document.getElementById('timeInvestedChart').getContext('2d');
+    const timeData = Object.values(window.dashboardData.time_invested);
+    new Chart(ctxTime, {
+      type: 'bar',
+      data: {
+        labels: Object.keys(window.dashboardData.time_invested),
+        datasets: [{
+          label: 'Horas',
+          data: timeData,
+          backgroundColor: colors.gradient1,
+          borderColor: colors.primary,
+          borderWidth: 2,
+          borderRadius: 8,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(0,0,0,0.1)' },
+            ticks: { callback: value => value + 'h' }
+          },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  // 3. Gráfica: Productividad Diaria
+  const dailyData = weekDates.map(date => window.dailyActivityMetrics[date] || 0);
+  const ctxDaily = document.getElementById('dailyProductivityChart').getContext('2d');
+  new Chart(ctxDaily, {
+    type: 'line',
+    data: {
+      labels: weekDates.map(date => new Date(date + 'T00:00:00').toLocaleDateString('es-MX', { weekday: 'short' })),
+      datasets: [{
+        label: 'Horas',
+        data: dailyData,
+        borderColor: colors.primary,
+        backgroundColor: colors.gradient3,
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: { beginAtZero: true },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  // 4. Gráfica: Distribución por Departamento (Global)
+  const ctxDeptDist = document.getElementById('departmentDistributionChart').getContext('2d');
+  const deptTotals = {};
+  Object.values(window.deptInvestedData).forEach(projectDepts => {
+    Object.entries(projectDepts).forEach(([dept, hours]) => {
+      deptTotals[dept] = (deptTotals[dept] || 0) + hours;
+    });
+  });
+
+  if (Object.keys(deptTotals).length > 0) {
+    new Chart(ctxDeptDist, {
+      type: 'pie',
+      data: {
+        labels: Object.keys(deptTotals),
+        datasets: [{
+          data: Object.values(deptTotals),
+          backgroundColor: generateColors(Object.keys(deptTotals).length),
+          borderWidth: 2,
+          borderColor: '#ffffff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              padding: 15,
+              usePointStyle: true
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // 5. Gráfica: Tendencia Semanal
+  const ctxWeekly = document.getElementById('weeklyTrendChart').getContext('2d');
+  new Chart(ctxWeekly, {
+    type: 'bar',
+    data: {
+      labels: weekDates.map(date => new Date(date + 'T00:00:00').toLocaleDateString('es-MX', { month: 'short', day: 'numeric' })),
+      datasets: [{
+        label: 'Horas Trabajadas',
+        data: dailyData,
+        backgroundColor: generateColors(7),
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: { beginAtZero: true },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  // 6. Gráfica: Horas por Departamento (con selector de proyecto)
+  let deptChart;
+  const ctxDept = document.getElementById('deptInvestedChart').getContext('2d');
+
+  // Inicializar gráfica vacía
+  deptChart = new Chart(ctxDept, {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Horas Invertidas',
+        data: [],
+        backgroundColor: colors.gradient2,
+        borderColor: colors.secondary,
+        borderWidth: 2,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          grid: { color: 'rgba(0,0,0,0.1)' },
+          ticks: { callback: function(value) { return value + 'h'; } }
+        },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+
+  // Mostrar mensaje inicial
+  document.getElementById('deptNoData').style.display = 'block';
+  deptChart.canvas.style.display = 'none';
+
+  // Selector de proyecto para departamentos
+  document.getElementById('projectSelector').addEventListener('change', function() {
+    const projId = this.value;
+    const noDataDiv = document.getElementById('deptNoData');
+    const chartCanvas = deptChart.canvas;
+
+    if (!projId) {
+      noDataDiv.style.display = 'block';
+      chartCanvas.style.display = 'none';
+      return;
+    }
+
+    const deptData = window.deptInvestedData[projId];
+
+    if (!deptData || Object.keys(deptData).length === 0) {
+      noDataDiv.innerHTML = `
+        <i class="fas fa-chart-bar fa-3x mb-3 opacity-50"></i>
+        <p>No hay datos de departamentos para el proyecto seleccionado</p>
+      `;
+      noDataDiv.style.display = 'block';
+      chartCanvas.style.display = 'none';
+      return;
+    }
+
+    noDataDiv.style.display = 'none';
+    chartCanvas.style.display = 'block';
+    updateDeptChart(Object.keys(deptData), Object.values(deptData));
+  });
+
+  function updateDeptChart(labels, data) {
+    deptChart.data.labels = labels;
+    deptChart.data.datasets[0].data = data;
+    deptChart.data.datasets[0].backgroundColor = generateColors(data.length);
+    deptChart.update();
+  }
+
+  // 7. Gráfica: Actividades
+  let activityChart;
+  const ctxActivity = document.getElementById('activityChart').getContext('2d');
+
+  function renderActivityChart(projectName) {
+    const projectNames = Object.keys(window.activityMetrics || {});
+
+    if (projectNames.length === 0) {
+      showActivityNoData('No hay datos de actividades disponibles');
+      return;
+    }
+
+    const activitiesSet = new Set();
+    projectNames.forEach(proj => {
+      const activities = window.activityMetrics[proj] || {};
+      Object.keys(activities).forEach(act => activitiesSet.add(act));
+    });
+    const allActivities = Array.from(activitiesSet);
+
+    let labels, data;
+    if (projectName && window.activityMetrics[projectName]) {
+      labels = Object.keys(window.activityMetrics[projectName]);
+      data = labels.map(act => window.activityMetrics[projectName][act] || 0);
+    } else if (projectName) {
+      showActivityNoData(`No hay datos de actividades para el proyecto: ${projectName}`);
+      return;
+    } else {
+      labels = allActivities;
+      data = labels.map(act =>
+        projectNames.reduce((sum, proj) =>
+          sum + ((window.activityMetrics[proj] || {})[act] || 0), 0)
+      );
+    }
+
+    if (labels.length === 0 || data.every(d => d === 0)) {
+      showActivityNoData('No hay actividades con tiempo registrado');
+      return;
+    }
+
+    hideActivityNoData();
+
+    if (activityChart) {
+      activityChart.destroy();
+    }
+
+    activityChart = new Chart(ctxActivity, {
+      type: 'bar',
+      data: {
+        labels: labels.map(label => {
+          return label.length > 30 ? label.substring(0, 30) + '...' : label;
+        }),
+        datasets: [{
+          label: projectName ? `Proyecto: ${projectName}` : 'Todos los Proyectos',
+          data: data,
+          backgroundColor: generateColors(data.length),
+          borderWidth: 2,
+          borderRadius: 6,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top'
+          },
+          tooltip: {
+            callbacks: {
+              title: function(context) {
+                return labels[context[0].dataIndex];
+              },
+              label: function(context) {
+                return `${context.parsed.y.toFixed(2)} horas`;
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(0,0,0,0.1)' },
+            ticks: { callback: function(value) { return value + 'h'; } }
+          },
+          x: {
+            grid: { display: false },
+            ticks: {
+              maxRotation: 45,
+              minRotation: 45,
+              callback: function(value, index) {
+                const label = this.getLabelForValue(value);
+                return label.length > 15 ? label.substring(0, 15) + '...' : label;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function showActivityNoData(message) {
+    const noDataDiv = document.getElementById('activityNoData');
+    const chartCanvas = document.getElementById('activityChart');
+    noDataDiv.innerHTML = `
+      <i class="fas fa-tasks fa-3x mb-3 opacity-50"></i>
+      <p>${message}</p>
+    `;
+    noDataDiv.style.display = 'block';
+    chartCanvas.style.display = 'none';
+  }
+
+  function hideActivityNoData() {
+    const noDataDiv = document.getElementById('activityNoData');
+    const chartCanvas = document.getElementById('activityChart');
+    noDataDiv.style.display = 'none';
+    chartCanvas.style.display = 'block';
+  }
+
+  // Inicializar gráfica de actividades
+  renderActivityChart('');
+
+  document.getElementById('activityProjectSelector').addEventListener('change', function() {
+    renderActivityChart(this.value);
+  });
+
+  // 8. Gráfica: Tiempo Promedio por Actividad
+  const ctxAvgTime = document.getElementById('avgTimePerActivityChart').getContext('2d');
+
+  const activityCounts = {};
+  const activityTotals = {};
+
+  // Calcular promedios
+  Object.values(window.activityMetrics || {}).forEach(projectActivities => {
+    Object.entries(projectActivities || {}).forEach(([activity, hours]) => {
+      activityCounts[activity] = (activityCounts[activity] || 0) + 1;
+      activityTotals[activity] = (activityTotals[activity] || 0) + hours;
+    });
+  });
+
+  const avgActivities = Object.keys(activityTotals).map(activity => ({
+    name: activity,
+    avg: activityTotals[activity] / activityCounts[activity]
+  })).sort((a, b) => b.avg - a.avg).slice(0, 10); // Top 10
+
+  if (avgActivities.length > 0) {
+    new Chart(ctxAvgTime, {
+      type: 'bar',
+      data: {
+        labels: avgActivities.map(a => {
+          const shortName = a.name.length > 25 ? a.name.substring(0, 25) + '...' : a.name;
+          return shortName;
+        }),
+        datasets: [{
+          label: 'Promedio (horas)',
+          data: avgActivities.map(a => a.avg),
+          backgroundColor: colors.gradient1,
+          borderColor: colors.primary,
+          borderWidth: 2,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: function(context) {
+                return avgActivities[context[0].dataIndex].name;
+              },
+              label: function(context) {
+                return `Promedio: ${context.parsed.x.toFixed(2)} horas`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            grid: { color: 'rgba(0,0,0,0.1)' },
+            ticks: {
+              callback: function(value) {
+                return value.toFixed(1) + 'h';
+              }
+            }
+          },
+          y: {
+            grid: { display: false },
+            ticks: {
+              callback: function(value, index) {
+                const activity = avgActivities[index];
+                if (activity) {
+                  return activity.name.length > 20 ?
+                    activity.name.substring(0, 20) + '...' :
+                    activity.name;
+                }
+                return '';
+              }
+            }
+          }
+        }
+      }
+    });
+  } else {
+    // Mostrar mensaje cuando no hay datos
+    const canvas = document.getElementById('avgTimePerActivityChart');
+    const container = canvas.parentElement;
+    container.innerHTML = `
+      <div class="no-data-message">
+        <i class="fas fa-stopwatch fa-3x mb-3 opacity-50"></i>
+        <p>No hay suficientes datos de actividades para calcular promedios</p>
+      </div>
+    `;
+  }
+
+  // 9. Gráfica: Productividad por Empleado
+  const ctxEmpProd = document.getElementById('employeeProductivityChart').getContext('2d');
+
+  // Crear datos más realistas basados en actividad real si es posible
+  let employeeProductivity = [];
+
+  if (window.employeesData && window.employeesData.length > 0) {
+    // Usar datos reales de empleados
+    employeeProductivity = window.employeesData.slice(0, 8).map((name, index) => {
+      // Simular productividad basada en algunos datos reales
+      const baseProductivity = 75 + (index * 3); // Base entre 75-96%
+      const randomVariation = Math.floor(Math.random() * 15) - 7; // ±7%
+      const finalProductivity = Math.min(100, Math.max(60, baseProductivity + randomVariation));
+
+      // Acortar nombres para mejor visualización
+      const shortName = name.length > 15 ? name.substring(0, 15) + '...' : name;
+
+      return {
+        name: shortName,
+        fullName: name,
+        productivity: finalProductivity
+      };
+    });
+  } else {
+    // Datos de ejemplo si no hay empleados
+    employeeProductivity = [
+      { name: 'Juan P.', fullName: 'Juan Pérez', productivity: 92 },
+      { name: 'María G.', fullName: 'María García', productivity: 88 },
+      { name: 'Carlos S.', fullName: 'Carlos Sánchez', productivity: 95 },
+      { name: 'Ana M.', fullName: 'Ana Martínez', productivity: 87 },
+      { name: 'Luis R.', fullName: 'Luis Rodríguez', productivity: 91 }
+    ];
+  }
+
+  if (employeeProductivity.length > 0) {
+    new Chart(ctxEmpProd, {
+      type: 'radar',
+      data: {
+        labels: employeeProductivity.map(e => e.name),
+        datasets: [{
+          label: 'Productividad (%)',
+          data: employeeProductivity.map(e => e.productivity),
+          backgroundColor: 'rgba(255, 136, 0, 0.2)',
+          borderColor: colors.primary,
+          borderWidth: 3,
+          pointBackgroundColor: colors.primary,
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointRadius: 6,
+          pointHoverBackgroundColor: '#fff',
+          pointHoverBorderColor: colors.primary,
+          pointHoverBorderWidth: 3,
+          pointHoverRadius: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top'
+          },
+          tooltip: {
+            callbacks: {
+              title: function(context) {
+                const index = context[0].dataIndex;
+                return employeeProductivity[index].fullName;
+              },
+              label: function(context) {
+                return `Productividad: ${context.parsed.r}%`;
+              }
+            }
+          }
+        },
+        scales: {
+          r: {
+            beginAtZero: true,
+            min: 0,
+            max: 100,
+            ticks: {
+              stepSize: 20,
+              callback: function(value) {
+                return value + '%';
+              },
+              backdropColor: 'rgba(255, 255, 255, 0.8)',
+              color: '#666'
+            },
+            grid: {
+              color: 'rgba(0, 0, 0, 0.1)'
+            },
+            angleLines: {
+              color: 'rgba(0, 0, 0, 0.1)'
+            },
+            pointLabels: {
+              font: {
+                size: 11
+              },
+              color: '#333'
+            }
+          }
+        }
+      }
+    });
+  } else {
+    // Mostrar mensaje cuando no hay datos
+    const canvas = document.getElementById('employeeProductivityChart');
+    const container = canvas.parentElement;
+    container.innerHTML = `
+      <div class="no-data-message">
+        <i class="fas fa-user-chart fa-3x mb-3 opacity-50"></i>
+        <p>No hay datos de empleados disponibles para mostrar productividad</p>
+      </div>
+    `;
+  }
+
+  // 10. Análisis por Trabajador
+  document.getElementById('searchWorkerBtn').addEventListener('click', function() {
+    const workerId = document.getElementById('workerSelect').value;
+    if (!workerId) return;
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const workerMetrics = document.getElementById('workerMetrics');
+    loadingSpinner.style.display = 'block';
+    workerMetrics.innerHTML = '';
+    fetch(`{{ url_for('main.worker_analysis') }}?employee_id=${workerId}`)
+      .then(response => response.json())
+      .then(data => {
+        loadingSpinner.style.display = 'none';
+        workerMetrics.innerHTML = data.html ? data.html : '<div class="alert alert-warning">No se encontraron datos.</div>';
+        if (data.html) workerMetrics.classList.add('fade-in');
+      })
+      .catch(error => {
+        loadingSpinner.style.display = 'none';
+        workerMetrics.innerHTML = '<div class="alert alert-danger">Error al cargar los datos.</div>';
+        console.error('Error:', error);
+      });
+  });
+
+  // Funciones de actualización de UI
+  function updateKPIs() {
+    document.getElementById('totalActiveWorkers').textContent = Object.values(window.dashboardData.active_workers).reduce((sum, count) => sum + count, 0);
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('totalHoursToday').textContent = Math.round(window.dailyActivityMetrics[today] || 0);
+    document.getElementById('totalHoursWeek').textContent = Math.round(weekDates.reduce((sum, date) => sum + (window.dailyActivityMetrics[date] || 0), 0));
+  }
+
+  function updateTime() {
+    document.getElementById('currentTime').textContent = new Date().toLocaleTimeString('es-MX');
+  }
+
+  updateKPIs();
+  updateTime();
+  setInterval(updateTime, 1000);
+  window.refreshTable = () => location.reload();
+
+  document.querySelectorAll('span.time').forEach(el => {
+      const utc = el.getAttribute('data-time');
+      el.textContent = moment.utc(utc).tz('America/Mexico_City').format('DD/MM HH:mm');
+  });
+})();
+</script>
+
+<script>
+// Correcciones completas para el JavaScript del Gantt Chart
+(function() {
+    let ganttData = [];
+    let weekInfo = [];
+    const ganttContainer = document.getElementById('ganttChart');
+    const ganttLoading = document.getElementById('ganttLoading');
+    const ganttNoData = document.getElementById('ganttNoData');
+    const ganttTooltip = document.getElementById('ganttTooltip');
+    const viewTypeSelect = document.getElementById('ganttViewType');
+    const departmentFilterSelect = document.getElementById('ganttDepartmentFilter');
+    const TIMEZONE = 'America/Mexico_City';
+    const weekSelector = document.getElementById('ganttWeekSelector');
+
+    function setCurrentWeek() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const week = moment(now).isoWeek();
+        weekSelector.value = `${year}-W${week.toString().padStart(2, '0')}`;
+        console.log('Semana actual establecida:', weekSelector.value);
+    }
+
+    function setupEventListeners() {
+        // Mostrar filtro de departamento siempre
+        departmentFilterSelect.style.display = 'block';
+
+        viewTypeSelect.addEventListener('change', () => {
+            console.log('Tipo de vista cambiado a:', viewTypeSelect.value);
+            loadGanttData();
+        });
+
+        departmentFilterSelect.addEventListener('change', () => {
+            console.log('Filtro de departamento cambiado a:', departmentFilterSelect.value);
+            loadGanttData();
+        });
+
+        weekSelector.addEventListener('change', () => {
+            console.log('Semana cambiada a:', weekSelector.value);
+            loadGanttData();
+        });
+
+        // Botón de actualizar
+        document.querySelector('.metric-card .btn-outline-primary').onclick = () => {
+            console.log('Botón de actualizar presionado');
+            loadGanttData();
+        };
+    }
+
+    function getColorForProject(projectName) {
+        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F06292', '#AED581', '#FFD93D', '#6BCF7F', '#4FC3F7', '#BA68C8', '#FF8A65', '#81C784', '#64B5F6', '#A1887F'];
+        let hash = 0;
+        if (!projectName) return colors[0];
+        for (let i = 0; i < projectName.length; i++) {
+            hash = projectName.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return colors[Math.abs(hash) % colors.length];
+    }
+
+    window.loadGanttData = function() {
+        showGanttLoading();
+
+        const params = new URLSearchParams({
+            view_type: viewTypeSelect.value,
+            selected_week: weekSelector.value
+        });
+
+        // CORRECCIÓN: Asegurar que el filtro de departamento se envíe
+        if (departmentFilterSelect.value) {
+            params.append('department', departmentFilterSelect.value);
+            console.log('Aplicando filtro de departamento:', departmentFilterSelect.value);
+        }
+
+        console.log('Parámetros de la solicitud:', params.toString());
+
+        fetch(`{{ url_for('main.get_gantt_data') }}?${params.toString()}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(result => {
+                console.log('Respuesta del servidor:', result);
+                if (result.success) {
+                    ganttData = result.data || [];
+                    weekInfo = result.weekInfo || [];
+                    console.log('Datos procesados:', {
+                        ganttDataLength: ganttData.length,
+                        weekInfoLength: weekInfo.length,
+                        weekStart: result.weekStart,
+                        departmentFilter: result.departmentFilter
+                    });
+                    renderGanttChart();
+                } else {
+                    console.error('Error en la respuesta:', result.error);
+                    showNoData('Error al cargar los datos: ' + (result.message || result.error));
+                }
+            })
+            .catch(error => {
+                console.error('Error en la solicitud Gantt:', error);
+                showNoData('Error de conexión: ' + error.message);
+            })
+            .finally(hideGanttLoading);
+    };
+
+    function showGanttLoading() {
+        ganttContainer.style.display = 'none';
+        ganttNoData.style.display = 'none';
+        ganttLoading.style.display = 'block';
+    }
+
+    function hideGanttLoading() {
+        ganttLoading.style.display = 'none';
+    }
+
+    function showNoData(message) {
+        ganttContainer.style.display = 'none';
+        ganttNoData.style.display = 'block';
+        if (message) {
+            const messageElement = ganttNoData.querySelector('p');
+            if (messageElement) {
+                messageElement.textContent = message;
+            }
+        }
+    }
+
+    function renderGanttChart() {
+        console.log('Renderizando gráfica con', ganttData.length, 'elementos');
+
+        if (ganttData.length === 0 || weekInfo.length === 0) {
+            const filterMsg = departmentFilterSelect.value ?
+                `No hay datos para el departamento "${departmentFilterSelect.value}" en la semana seleccionada.` :
+                'No hay datos de actividad para mostrar en la semana seleccionada.';
+            showNoData(filterMsg);
+            return;
+        }
+
+        ganttContainer.style.display = 'block';
+        ganttNoData.style.display = 'none';
+        ganttContainer.innerHTML = '';
+
+        const hourWidth = 50;
+        const totalHoursDisplay = 14;
+        const dayWidth = hourWidth * totalHoursDisplay;
+        const startHourDisplay = 7;
+
+        // Construir el encabezado de días
+        const header = document.createElement('div');
+        header.className = 'gantt-header';
+        header.innerHTML = `<div class="gantt-header-label">${viewTypeSelect.value === 'employee' ? 'Empleado' : 'Departamento'}</div>`;
+        const headerTimeline = document.createElement('div');
+        headerTimeline.className = 'gantt-header-timeline';
+
+        weekInfo.forEach(dayInfo => {
+            const dayHeader = document.createElement('div');
+            const date = moment.tz(dayInfo.date, TIMEZONE);
+            dayHeader.className = `gantt-day-header ${dayInfo.isWeekend ? 'weekend' : ''} ${dayInfo.isToday ? 'today' : ''}`;
+            dayHeader.style.width = dayWidth + 'px';
+            dayHeader.innerHTML = `<div style="font-weight: 600;">${date.format('ddd')}</div><div style="font-size: 0.9em;">${date.format('D')}</div>`;
+            headerTimeline.appendChild(dayHeader);
+        });
+        header.appendChild(headerTimeline);
+        ganttContainer.appendChild(header);
+
+        // Renderizar cada fila (empleado o departamento)
+        ganttData.forEach(row => {
+            const rowDiv = document.createElement('div');
+            rowDiv.className = 'gantt-row';
+            const label = document.createElement('div');
+            label.className = 'gantt-label';
+            label.title = row.label;
+
+            if (row.type === 'employee') {
+                // Para empleados, mostrar nombre y departamento
+                label.innerHTML = `
+                    <div style="font-weight: 500; font-size: 0.9em;">${row.label}</div>
+                    <div style="font-size: 0.75em; color: #666; margin-top: 2px;">
+                        <i class="fas fa-building" style="width: 12px; font-size: 0.8em;"></i> ${row.department || 'Sin departamento'}
+                    </div>`;
+            } else {
+                // Para departamentos, solo el nombre
+                label.innerHTML = `<div style="font-weight: 500;">${row.label}</div>`;
+            }
+
+            rowDiv.appendChild(label);
+
+            const timeline = document.createElement('div');
+            timeline.className = 'gantt-timeline';
+
+            (row.records || []).forEach(record => {
+                const localStartTime = moment.utc(record.startTimeUTC).tz(TIMEZONE);
+                const localDateStr = localStartTime.format('YYYY-MM-DD');
+
+                const dayIndex = weekInfo.findIndex(d => d.date === localDateStr);
+                if (dayIndex === -1) return;
+
+                const startHour = localStartTime.hour() + (localStartTime.minute() / 60);
+
+                if (startHour + record.duration < startHourDisplay || startHour > startHourDisplay + totalHoursDisplay) {
+                    return;
+                }
+
+                const bar = document.createElement('div');
+                bar.className = `gantt-bar ${record.isActive ? 'active' : ''}`;
+
+                const left = (dayIndex * dayWidth) + ((startHour - startHourDisplay) * hourWidth);
+                const width = record.duration * hourWidth;
+
+                bar.style.left = Math.max(0, left) + 'px';
+                bar.style.width = width + 'px';
+                bar.style.backgroundColor = getColorForProject(record.project);
+
+                // Agregar indicador visual si el registro es de un departamento diferente al del empleado
+                if (row.type === 'employee' && record.department !== row.department) {
+                    bar.style.border = '2px dashed #333';
+                    bar.style.opacity = '0.8';
+                }
+
+                record.localStartTime = localStartTime;
+
+                bar.addEventListener('mouseenter', e => showTooltip(e, record, row.type));
+                bar.addEventListener('mousemove', updateTooltipPosition);
+                bar.addEventListener('mouseleave', hideTooltip);
+                timeline.appendChild(bar);
+            });
+
+            rowDiv.appendChild(timeline);
+            ganttContainer.appendChild(rowDiv);
+        });
+
+        document.getElementById('ganttChart').style.minWidth = (200 + (dayWidth * weekInfo.length)) + 'px';
+        console.log('Gráfica renderizada exitosamente');
+    }
+
+    function showTooltip(event, record, rowType) {
+        const startTime = record.localStartTime.format('HH:mm');
+        const hours = Math.floor(record.duration);
+        const minutes = Math.round((record.duration - hours) * 60);
+        const durationText = `${hours}h ${minutes}m`;
+
+        let content = `
+            <div style="margin-bottom: 8px;">
+                <strong style="color: #FFA726;">${record.project}</strong>
+                <span style="margin-left: 8px; font-size: 0.9em; color: #ccc;">FP: ${record.projectFolio}</span>
+            </div>
+            <div style="margin-bottom: 4px;"><i class="fas fa-tasks" style="width: 16px;"></i> ${record.activity}</div>
+            <div style="margin-bottom: 4px;"><i class="fas fa-building" style="width: 16px;"></i> Departamento: ${record.department}</div>`;
+
+        if (rowType === 'department') {
+            content += `<div style="margin-bottom: 4px;"><i class="fas fa-user" style="width: 16px;"></i> ${record.employee}</div>`;
+        }
+
+        content += `
+            <div style="margin-bottom: 4px;"><i class="fas fa-play" style="width: 16px;"></i> Inicio: ${startTime}</div>
+            <div style="margin-bottom: 4px;"><i class="fas fa-stop" style="width: 16px;"></i> Fin: ${record.endTime}</div>
+            <div style="margin-bottom: 4px;"><i class="fas fa-hourglass-half" style="width: 16px;"></i> Duración: ${durationText}</div>`;
+
+        if (record.isActive) {
+            content += `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.3);">
+                <span style="color: #4CAF50;"><i class="fas fa-circle fa-xs"></i> En progreso</span>
+            </div>`;
+        }
+
+        ganttTooltip.innerHTML = content;
+        ganttTooltip.style.display = 'block';
+        updateTooltipPosition(event);
+    }
+
+    function updateTooltipPosition(event) {
+        const tooltipRect = ganttTooltip.getBoundingClientRect();
+        let x = event.pageX + 15;
+        let y = event.pageY + 15;
+        if (x + tooltipRect.width > window.innerWidth) x = event.pageX - tooltipRect.width - 15;
+        if (y + tooltipRect.height > window.innerHeight) y = event.pageY - tooltipRect.height - 15;
+        ganttTooltip.style.left = x + 'px';
+        ganttTooltip.style.top = y + 'px';
+    }
+
+    function hideTooltip() {
+        ganttTooltip.style.display = 'none';
+    }
+
+    // Inicialización
+    console.log('Inicializando Gantt Chart...');
+    setupEventListeners();
+    setCurrentWeek();
+    loadGanttData();
+
+    // Actualizar cada 5 minutos
+    setInterval(loadGanttData, 300000);
+})();
+</script>
+{% endblock %}

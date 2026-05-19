@@ -1,0 +1,190 @@
+{% extends "layout.html" %}
+{% block title %}Mapa de Trabajadores{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h1 class="text-center mb-3">Mapa de Ubicación de Trabajadores</h1>
+
+  <!-- Filtros -->
+  <form id="fp-form" class="row g-3 align-items-end mb-3">
+    <div class="col-sm-6 col-md-4">
+      <label for="fp-input" class="form-label">Buscar por FP</label>
+      <input list="fp-suggestions" id="fp-input" name="fp" class="form-control" placeholder="Ej. 123456" autocomplete="off">
+      <datalist id="fp-suggestions"></datalist>
+      <small class="text-muted" id="fp-hint"></small>
+    </div>
+
+    <div class="col-sm-3 col-md-2">
+      <label for="days-select" class="form-label">Rango</label>
+      <select id="days-select" class="form-select">
+        <option value="">Todos</option>
+        <option value="7" selected>Últimos 7 días</option>
+        <option value="30">30 días</option>
+        <option value="90">90 días</option>
+      </select>
+    </div>
+
+    <div class="col-sm-3 col-md-2">
+      <div class="form-check mt-4">
+        <input class="form-check-input" type="checkbox" id="only-active" checked>
+        <label class="form-check-label" for="only-active">Solo activos</label>
+      </div>
+    </div>
+
+    <div class="col-sm-12 col-md-4 text-end">
+      <button class="btn btn-primary" type="submit">Buscar</button>
+      <button class="btn btn-outline-secondary" type="button" id="clear-btn">Limpiar</button>
+    </div>
+  </form>
+
+  <div class="mb-2 d-flex justify-content-between align-items-center">
+    <span class="badge bg-primary" id="count-badge">0 puntos</span>
+    <small class="text-muted" id="status-text"></small>
+  </div>
+
+  <div id="map" style="height:600px;border-radius:12px;box-shadow:0 10px 30px rgba(2,6,23,.06);"></div>
+</div>
+
+<!-- Leaflet base -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" crossorigin=""></script>
+
+<!-- Clustering -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" crossorigin="">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" crossorigin="">
+<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js" crossorigin=""></script>
+
+<script>
+  // -------------------- Inicialización del mapa --------------------
+  var map = L.map('map').setView([23.6345, -102.5528], 5); // centro aproximado de MX
+  var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  var clusterGroup = L.markerClusterGroup();
+  map.addLayer(clusterGroup);
+
+  // -------------------- Helpers UI --------------------
+  const fpInput     = document.getElementById('fp-input');
+  const daysSelect  = document.getElementById('days-select');
+  const onlyActive  = document.getElementById('only-active');
+  const countBadge  = document.getElementById('count-badge');
+  const statusText  = document.getElementById('status-text');
+  const clearBtn    = document.getElementById('clear-btn');
+  const fpForm      = document.getElementById('fp-form');
+  const fpDatalist  = document.getElementById('fp-suggestions');
+  const fpHint      = document.getElementById('fp-hint');
+
+  function setStatus(msg) { statusText.textContent = msg || ''; }
+
+  function renderMarkers(markers) {
+    clusterGroup.clearLayers();
+
+    if (!markers || markers.length === 0) {
+      countBadge.textContent = '0 puntos';
+      setStatus('Sin resultados para los filtros seleccionados.');
+      return;
+    }
+
+    const bounds = [];
+    markers.forEach(m => {
+      const lat = parseFloat(m.lat), lng = parseFloat(m.lng);
+      if (isNaN(lat) || isNaN(lng)) return;
+
+      const popupHtml = `
+        <div style="min-width:220px">
+          <b>${m.employee}</b><br>
+          <small>${m.department}</small><br>
+          <hr class="my-1">
+          <b>Proyecto:</b> ${m.project} <span class="badge bg-secondary">FP ${m.folio}</span><br>
+          <b>Actividad:</b> ${m.activity}<br>
+          <b>Inicio:</b> ${m.start_time}<br>
+          ${m.end_time ? `<b>Fin:</b> ${m.end_time}<br>` : `<span class="badge bg-success">Activo</span><br>`}
+          <small>ID registro: ${m.record_id}</small>
+        </div>
+      `;
+
+      const marker = L.marker([lat, lng]).bindPopup(popupHtml);
+      clusterGroup.addLayer(marker);
+      bounds.push([lat, lng]);
+    });
+
+    countBadge.textContent = `${markers.length} punto${markers.length === 1 ? '' : 's'}`;
+    if (bounds.length) map.fitBounds(bounds, { padding: [30, 30] });
+    setStatus('');
+  }
+
+  async function fetchMarkers(params) {
+    const url = new URL(window.location.origin + '/api/map_markers');
+    Object.entries(params || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
+    });
+    try {
+      setStatus('Cargando puntos...');
+      const res = await fetch(url, { credentials: 'same-origin' });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Error al cargar marcadores');
+      renderMarkers(data.markers);
+    } catch (err) {
+      console.error(err);
+      setStatus('Ocurrió un error al cargar los puntos.');
+      renderMarkers([]);
+    }
+  }
+
+  // Carga por defecto: últimos 7 días, sólo activos
+  fetchMarkers({ only_active: '1', days: 7 });
+
+  // -------------------- Búsqueda de FP con sugerencias --------------------
+  let lastQuery = '';
+  fpInput.addEventListener('input', async (e) => {
+    const q = (e.target.value || '').trim();
+    fpHint.textContent = '';
+    if (q.length < 2) { fpDatalist.innerHTML = ''; return; }
+
+    // Evita spammear
+    if (q === lastQuery) return;
+    lastQuery = q;
+
+    try {
+      const resp = await fetch(`/search_fp?fp=${encodeURIComponent(q)}`);
+      const items = await resp.json();
+      if (!Array.isArray(items)) { fpDatalist.innerHTML = ''; return; }
+
+      // El datalist usa el FP como value para facilitar el match exacto
+      fpDatalist.innerHTML = items.map(it => {
+        const label = `${it.fp} — ${it.proyecto} (${it.cliente})`;
+        return `<option value="${it.fp}" label="${label}"></option>`;
+      }).join('');
+      fpHint.textContent = items.length ? `Sugerencias: ${items.length}` : 'Sin coincidencias';
+    } catch (err) {
+      console.warn('Sugerencias FP error:', err);
+      fpDatalist.innerHTML = '';
+      fpHint.textContent = 'Error al obtener sugerencias';
+    }
+  });
+
+  // -------------------- Submit / Limpiar --------------------
+  fpForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fp = (fpInput.value || '').trim();
+    const days = daysSelect.value;
+    const active = onlyActive.checked ? '1' : '0';
+
+    // Búsqueda por FP exacto (si quieres prefijo, agrega match:'prefix')
+    const params = { only_active: active, days: days };
+    if (fp) params.fp = fp;
+
+    fetchMarkers(params);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    fpInput.value = '';
+    daysSelect.value = '7';
+    onlyActive.checked = true;
+    fpDatalist.innerHTML = '';
+    fpHint.textContent = '';
+    fetchMarkers({ only_active: '1', days: 7 });
+  });
+</script>
+{% endblock %}

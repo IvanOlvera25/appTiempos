@@ -1,0 +1,431 @@
+{% extends "layout.html" %}
+{% block title %}Crear Registro - Costos{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">
+                        <i class="bi bi-plus-circle"></i> Crear Nuevo Registro de Tiempo
+                    </h4>
+                    <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Volver
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="createRecordForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+                    <div class="row">
+                        <!-- Empleado -->
+                        <div class="col-md-6 mb-3">
+                            <label for="employee_id" class="form-label">
+                                Empleado <span class="text-danger">*</span>
+                            </label>
+                            <select name="employee_id" id="employee_id" class="form-select" required>
+                                <option value="">Selecciona un empleado</option>
+                                {% for employee in employees %}
+                                <option value="{{ employee.id }}">{{ employee.nompropio }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Proyecto con búsqueda por FP -->
+                        <div class="col-md-6 mb-3">
+                            <label for="fp_search" class="form-label">
+                                Proyecto (buscar por FP) <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <input type="text" id="fp_search" class="form-control"
+                                       placeholder="Escribe el FP para buscar...">
+                                <button type="button" id="search_fp_btn" class="btn btn-outline-secondary">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                            <select name="project_id" id="project_id" class="form-select mt-2" required style="display: none;">
+                                <option value="">Selecciona un proyecto</option>
+                                <!-- Se llenará dinámicamente con los resultados de búsqueda -->
+                            </select>
+
+                            <!-- Opción para proyecto especial -->
+                            <div class="mt-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="use_special_project">
+                                    <label class="form-check-label" for="use_special_project">
+                                        Usar proyecto de "Costos Administrativos"
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="search_results" class="mt-2" style="display: none;">
+                                <!-- Aquí aparecerán los resultados de búsqueda -->
+                            </div>
+
+                            <div id="selected_project_info" class="mt-2" style="display: none;">
+                                <!-- Aquí aparecerá la información del proyecto seleccionado -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <!-- Departamento -->
+                        <div class="col-md-6 mb-3">
+                            <label for="departamento" class="form-label">
+                                Departamento <span class="text-danger">*</span>
+                            </label>
+                            <select name="departamento" id="departamento" class="form-select" required>
+                                <option value="">Selecciona un departamento</option>
+                                <option value="Metal">Metal</option>
+                                <option value="Costura">Costura</option>
+                                <option value="Impresion">Impresión</option>
+                                <option value="Stagging">Stagging</option>
+                                <option value="Montaje">Montaje</option>
+                                <option value="Transporte">Transporte</option>
+
+                            </select>
+                        </div>
+
+                        <!-- Actividad -->
+                        <div class="col-md-6 mb-3">
+                            <label for="actividad" class="form-label">Actividad</label>
+                            <input type="text" name="actividad" id="actividad" class="form-control"
+                                   placeholder="Descripción de la actividad">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <!-- Fecha y hora de inicio -->
+                        <div class="col-md-6 mb-3">
+                            <label for="start_time" class="form-label">
+                                Fecha y Hora de Inicio <span class="text-danger">*</span>
+                                <small class="text-muted">(CDMX)</small>
+                            </label>
+                            <input type="datetime-local" name="start_time" id="start_time"
+                                   class="form-control" required>
+                        </div>
+
+                        <!-- Fecha y hora de fin -->
+                        <div class="col-md-6 mb-3">
+                            <label for="end_time" class="form-label">
+                                Fecha y Hora de Fin
+                                <small class="text-muted">(opcional - CDMX)</small>
+                            </label>
+                            <input type="datetime-local" name="end_time" id="end_time"
+                                   class="form-control">
+                            <div class="form-text">
+                                Deja vacío para crear un registro en progreso
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Información calculada -->
+                    <div class="row">
+                        <div class="col-md-6 mb-3" id="durationInfo" style="display: none;">
+                            <div class="alert alert-info">
+                                <strong>Duración:</strong> <span id="calculatedDuration">0 horas</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <div class="alert alert-light">
+                                <i class="bi bi-info-circle"></i>
+                                <strong>Nota:</strong> Los registros se guardan en UTC y se muestran en hora CDMX.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-end gap-2">
+                                <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-secondary">
+                                    Cancelar
+                                </a>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-check-circle"></i> Crear Registro
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar Select2
+    $('#employee_id, #departamento').select2({
+        theme: 'bootstrap4'
+    });
+
+    // Establecer fecha/hora actual por defecto
+    const now = new Date();
+    const localDateTime = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
+    const dateTimeStr = localDateTime.toISOString().slice(0, 16);
+    document.getElementById('start_time').value = dateTimeStr;
+
+    // Función para buscar proyectos por FP
+    function searchProjectsByFP() {
+        const fp = document.getElementById('fp_search').value.trim();
+        const searchBtn = document.getElementById('search_fp_btn');
+        const searchResults = document.getElementById('search_results');
+        const projectSelect = document.getElementById('project_id');
+
+        if (!fp) {
+            searchResults.style.display = 'none';
+            projectSelect.style.display = 'none';
+            return;
+        }
+
+        // Mostrar estado de carga
+        searchBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        searchBtn.disabled = true;
+
+        fetch(`/search_fp?fp=${encodeURIComponent(fp)}`)
+            .then(response => response.json())
+            .then(data => {
+                // Restaurar botón
+                searchBtn.innerHTML = '<i class="bi bi-search"></i>';
+                searchBtn.disabled = false;
+
+                if (data.error) {
+                    searchResults.innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> ${data.error}
+                        </div>
+                    `;
+                    searchResults.style.display = 'block';
+                    projectSelect.style.display = 'none';
+                    return;
+                }
+
+                if (data.length === 0) {
+                    searchResults.innerHTML = `
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> No se encontraron proyectos con el FP "${fp}"
+                        </div>
+                    `;
+                    searchResults.style.display = 'block';
+                    projectSelect.style.display = 'none';
+                    return;
+                }
+
+                // Limpiar select y agregar opciones
+                projectSelect.innerHTML = '<option value="">Selecciona un proyecto</option>';
+
+                // Crear cards para los resultados
+                let resultsHTML = '<div class="alert alert-success mb-3">';
+                resultsHTML += `<i class="bi bi-check-circle"></i> Se encontraron ${data.length} proyecto(s):`;
+                resultsHTML += '</div>';
+
+                data.forEach(project => {
+                    // Agregar al select usando el project_id interno
+                    const option = document.createElement('option');
+                    option.value = project.project_id;
+                    option.textContent = `FP: ${project.fp} - ${project.proyecto} (${project.cliente})`;
+                    option.dataset.client = project.cliente;
+                    option.dataset.name = project.proyecto;
+                    option.dataset.fp = project.fp;
+                    projectSelect.appendChild(option);
+
+                    // Crear card visual
+                    resultsHTML += `
+                        <div class="card project-result-card mb-2" style="cursor: pointer;"
+                             data-project-id="${project.project_id}" data-fp="${project.fp}"
+                             data-client="${project.cliente}" data-name="${project.proyecto}">
+                            <div class="card-body py-2">
+                                <div class="row align-items-center">
+                                    <div class="col-2">
+                                        <strong class="text-primary">FP: ${project.fp}</strong>
+                                    </div>
+                                    <div class="col-6">
+                                        <span class="fw-medium">${project.proyecto}</span>
+                                    </div>
+                                    <div class="col-4">
+                                        <small class="text-muted">${project.cliente}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                searchResults.innerHTML = resultsHTML;
+                searchResults.style.display = 'block';
+                projectSelect.style.display = 'block';
+
+                // Agregar event listeners a las cards
+                document.querySelectorAll('.project-result-card').forEach(card => {
+                    card.addEventListener('click', function() {
+                        const projectId = this.dataset.projectId;
+                        const fp = this.dataset.fp;
+                        const client = this.dataset.client;
+                        const name = this.dataset.name;
+
+                        // Marcar como seleccionado en el select
+                        projectSelect.value = projectId;
+
+                        // Mostrar información del proyecto seleccionado
+                        document.getElementById('selected_project_info').innerHTML = `
+                            <div class="alert alert-success">
+                                <strong>Proyecto seleccionado:</strong>
+                                FP: ${fp} - ${name} (${client})
+                            </div>
+                        `;
+                        document.getElementById('selected_project_info').style.display = 'block';
+
+                        // Ocultar resultados y desmarcar checkbox
+                        searchResults.style.display = 'none';
+                        document.getElementById('use_special_project').checked = false;
+
+                        // Resaltar la selección
+                        document.querySelectorAll('.project-result-card').forEach(c =>
+                            c.classList.remove('border-primary'));
+                        this.classList.add('border-primary');
+                    });
+
+                    // Hover effects
+                    card.addEventListener('mouseenter', function() {
+                        this.classList.add('bg-light');
+                    });
+                    card.addEventListener('mouseleave', function() {
+                        this.classList.remove('bg-light');
+                    });
+                });
+
+            })
+            .catch(error => {
+                console.error('Error searching projects:', error);
+                searchBtn.innerHTML = '<i class="bi bi-search"></i>';
+                searchBtn.disabled = false;
+
+                searchResults.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> Error al buscar proyectos. Inténtalo de nuevo.
+                    </div>
+                `;
+                searchResults.style.display = 'block';
+            });
+    }
+
+    // Event listeners para búsqueda
+    document.getElementById('search_fp_btn').addEventListener('click', searchProjectsByFP);
+
+    document.getElementById('fp_search').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            searchProjectsByFP();
+        }
+    });
+
+    // Manejo del checkbox para proyecto especial
+    document.getElementById('use_special_project').addEventListener('change', function() {
+        const projectSelect = document.getElementById('project_id');
+        const selectedProjectInfo = document.getElementById('selected_project_info');
+        const searchResults = document.getElementById('search_results');
+
+        if (this.checked) {
+            // Crear opción para proyecto especial y seleccionarla
+            projectSelect.innerHTML = '<option value="0" selected>Costos Administrativos (Proyecto Especial)</option>';
+            projectSelect.style.display = 'block';
+
+            selectedProjectInfo.innerHTML = `
+                <div class="alert alert-info">
+                    <strong>Proyecto seleccionado:</strong> Costos Administrativos (Proyecto Especial)
+                </div>
+            `;
+            selectedProjectInfo.style.display = 'block';
+
+            // Limpiar búsqueda
+            document.getElementById('fp_search').value = '';
+            searchResults.style.display = 'none';
+        } else {
+            // Limpiar selección
+            projectSelect.innerHTML = '<option value="">Selecciona un proyecto</option>';
+            projectSelect.style.display = 'none';
+            selectedProjectInfo.style.display = 'none';
+        }
+    });
+
+    // Calcular duración automáticamente
+    function calculateDuration() {
+        const startTime = document.getElementById('start_time').value;
+        const endTime = document.getElementById('end_time').value;
+        const durationInfo = document.getElementById('durationInfo');
+        const calculatedDuration = document.getElementById('calculatedDuration');
+
+        if (startTime && endTime) {
+            const start = new Date(startTime);
+            const end = new Date(endTime);
+
+            if (end > start) {
+                const diffMs = end - start;
+                const diffHours = diffMs / (1000 * 60 * 60);
+
+                calculatedDuration.textContent = `${diffHours.toFixed(2)} horas`;
+                durationInfo.style.display = 'block';
+            } else {
+                durationInfo.style.display = 'none';
+            }
+        } else {
+            if (startTime && !endTime) {
+                calculatedDuration.textContent = 'En progreso';
+                durationInfo.style.display = 'block';
+            } else {
+                durationInfo.style.display = 'none';
+            }
+        }
+    }
+
+    // Event listeners para cálculo de duración
+    document.getElementById('start_time').addEventListener('change', calculateDuration);
+    document.getElementById('end_time').addEventListener('change', calculateDuration);
+
+    // Validación del formulario
+    document.getElementById('createRecordForm').addEventListener('submit', function(e) {
+        const startTime = document.getElementById('start_time').value;
+        const endTime = document.getElementById('end_time').value;
+        const projectId = document.getElementById('project_id').value;
+
+        // Validar proyecto seleccionado
+        if (!projectId) {
+            e.preventDefault();
+            alert('Debes seleccionar un proyecto o usar el proyecto especial.');
+            return false;
+        }
+
+        // Validar tiempos
+        if (startTime && endTime) {
+            const start = new Date(startTime);
+            const end = new Date(endTime);
+
+            if (end <= start) {
+                e.preventDefault();
+                alert('La hora de fin debe ser posterior a la hora de inicio.');
+                return false;
+            }
+        }
+    });
+
+    // CSS adicional para las cards de resultados
+    const style = document.createElement('style');
+    style.textContent = `
+        .project-result-card {
+            transition: all 0.2s ease;
+        }
+        .project-result-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .project-result-card.border-primary {
+            border-width: 2px !important;
+        }
+    `;
+    document.head.appendChild(style);
+});
+</script>
+{% endblock %}
