@@ -17,6 +17,33 @@ import traceback
 
 main = Blueprint('main', __name__)
 
+AREA_DEPARTMENTS = [
+    "Metal", "Costura", "Impresion", "Stagging",
+    "Montaje", "Transporte", "Administración"
+]
+
+
+def _require_area_manager():
+    if not current_user.is_authenticated:
+        return redirect(url_for('main.login'))
+    if not getattr(current_user, 'is_area_manager', False):
+        flash('Acceso denegado. Esta vista es solo para Jefes de Area.', 'danger')
+        return redirect(url_for('main.home'))
+    if not current_user.area_manager_department:
+        flash('Tu usuario no tiene un área asignada.', 'warning')
+        return redirect(url_for('main.home'))
+    return None
+
+
+def _to_mx(dt):
+    if not dt:
+        return None
+    utc_tz = pytz.UTC
+    cdmx_tz = pytz.timezone('America/Mexico_City')
+    if dt.tzinfo is None:
+        dt = utc_tz.localize(dt)
+    return dt.astimezone(cdmx_tz)
+
 @main.route('/')
 def home():
     # Si el usuario autenticado es empleado, lo brincamos directo
@@ -636,7 +663,12 @@ def get_gantt_data():
         }), 500
 
 @main.route('/admin/add_project', methods=['GET', 'POST'])
+@login_required
 def add_project():
+    if not current_user.has_admin_privileges:
+        flash('Acceso denegado.', 'danger')
+        return redirect(url_for('main.home'))
+
     form = ProjectForm()
     if form.validate_on_submit():
         try:
@@ -753,7 +785,12 @@ def test():
     return "Ruta de prueba accesible."
 
 @main.route('/admin_dashboard')
+@login_required
 def admin_dashboard():
+    if not current_user.has_admin_privileges:
+        flash('Acceso denegado.', 'danger')
+        return redirect(url_for('main.home'))
+
     # 1. Trabajadores Activos por Proyecto
     active_workers_query = db.session.query(
         Project.name,
@@ -1072,7 +1109,11 @@ def finalize_record_admin(record_id):
         return jsonify({'success': False, 'message': 'Error al finalizar el registro'}), 500
 
 @main.route('/toggle_project/<int:project_id>', methods=['POST'])
+@login_required
 def toggle_project(project_id):
+    if not current_user.has_admin_privileges:
+        return jsonify({"error": "Acceso denegado."}), 403
+
     project = Project.query.get_or_404(project_id)
     if project.folio == 0:
         return jsonify({"error": "El proyecto especial no se puede activar ni desactivar."}), 400
@@ -1139,6 +1180,22 @@ def register():
             is_admin = False
             is_project_leader = True
 
+        # ▸ Registrar JEFE DE AREA
+        elif user_type == 'jefe_area':
+            area = (request.form.get('area_manager_department') or '').strip()
+            manager_code = form.verification_code.data
+            if manager_code != current_app.config.get('AREA_MANAGER_CODE', '12345'):
+                flash('Código de Jefe de Area inválido.', 'danger')
+                return redirect(url_for('main.register'))
+            if area not in AREA_DEPARTMENTS:
+                flash('Selecciona un área válida para el Jefe de Area.', 'warning')
+                return redirect(url_for('main.register'))
+            employee_id = None
+            is_admin = False
+            is_project_leader = False
+            is_area_manager = True
+            area_manager_department = area
+
         # ▸ Registrar EMPLEADO
         elif user_type == 'empleado':
             employee_id = request.form.get('employee_name')
@@ -1151,11 +1208,17 @@ def register():
                 return redirect(url_for('main.register'))
             is_admin = False
             is_project_leader = False
+            is_area_manager = False
+            area_manager_department = None
 
         # ▸ Tipo de usuario no elegido
         else:
             flash('Debes elegir el tipo de usuario (Empleado, Administrador o Líder de Proyecto).', 'warning')
             return redirect(url_for('main.register'))
+
+        if user_type in ('administrador', 'lider_proyecto'):
+            is_area_manager = False
+            area_manager_department = None
 
         # ── crear usuario ──
         hashed = generate_password_hash(password, method='pbkdf2:sha256')
@@ -1164,6 +1227,8 @@ def register():
             password         = hashed,
             is_admin         = is_admin,
             is_project_leader = is_project_leader,
+            is_area_manager  = is_area_manager,
+            area_manager_department = area_manager_department,
             employee_id      = employee_id
         )
         db.session.add(new_user)
@@ -1173,7 +1238,7 @@ def register():
         return redirect(url_for('main.login'))
 
     # ───────── GET ─────────
-    return render_template('register.html', form=form, employees=employees)
+    return render_template('register.html', form=form, employees=employees, area_departments=AREA_DEPARTMENTS)
 
 # ─────────────────────────────────────────────────────────────
 # 2) INICIO DE SESIÓN
@@ -1195,6 +1260,8 @@ def login():
             # Redirección según rol
             if user.has_admin_privileges:  # Admin o Líder de Proyecto
                 next_page = url_for('main.admin_dashboard')
+            elif getattr(user, 'is_area_manager', False):
+                next_page = url_for('main.area_status')
             else:
                 # Empleado → tomar su departamento
                 emp = Employee.query.get(user.employee_id)
@@ -1251,9 +1318,131 @@ def _redirect_employee_to_project(emp: Employee, dept_requested: str = None):
             employee_id=emp.id
         ))
 
+
+@main.route('/area/status')
+@login_required
+def area_status():
+    guard = _require_area_manager()
+    if guard:
+        return guard
+
+    area = current_user.area_manager_department
+    active_records = (
+        TimeRecord.query
+        .join(Employee, TimeRecord.employee_id == Employee.id)
+        .join(Project, TimeRecord.project_id == Project.id)
+        .filter(TimeRecord.departamento == area, TimeRecord.end_time.is_(None))
+        .order_by(TimeRecord.start_time.desc())
+        .all()
+    )
+
+    employee_ids = {
+        emp_id for (emp_id,) in
+        db.session.query(Employee.id).filter(Employee.departamento == area).all()
+    }
+    employee_ids.update(record.employee_id for record in active_records)
+
+    employees = (
+        Employee.query
+        .filter(Employee.id.in_(employee_ids))
+        .order_by(Employee.nompropio)
+        .all()
+        if employee_ids else []
+    )
+
+    active_by_employee = {}
+    for record in active_records:
+        record.start_time_mx = _to_mx(record.start_time)
+        active_by_employee.setdefault(record.employee_id, []).append(record)
+
+    return render_template(
+        'area_status.html',
+        area=area,
+        employees=employees,
+        active_by_employee=active_by_employee,
+        now_mx=_to_mx(datetime.utcnow())
+    )
+
+
+@main.route('/area/records')
+@login_required
+def area_records():
+    guard = _require_area_manager()
+    if guard:
+        return guard
+
+    area = current_user.area_manager_department
+    employee_filter = request.args.get('employee_id', type=int)
+    project_filter = request.args.get('project_id', type=int)
+    date_from = request.args.get('date_from', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
+
+    query = (
+        TimeRecord.query
+        .join(Employee, TimeRecord.employee_id == Employee.id)
+        .join(Project, TimeRecord.project_id == Project.id)
+        .filter(TimeRecord.departamento == area)
+    )
+
+    if employee_filter:
+        query = query.filter(TimeRecord.employee_id == employee_filter)
+    if project_filter:
+        query = query.filter(TimeRecord.project_id == project_filter)
+    if date_from:
+        try:
+            start_local = datetime.strptime(date_from, '%Y-%m-%d')
+            start_utc = pytz.timezone('America/Mexico_City').localize(start_local).astimezone(pytz.UTC).replace(tzinfo=None)
+            query = query.filter(TimeRecord.start_time >= start_utc)
+        except ValueError:
+            flash('Fecha de inicio inválida.', 'warning')
+
+    records = (
+        query
+        .order_by(TimeRecord.start_time.desc())
+        .paginate(page=page, per_page=per_page, error_out=False)
+    )
+    for record in records.items:
+        record.start_time_mx = _to_mx(record.start_time)
+        record.end_time_mx = _to_mx(record.end_time)
+
+    employees = (
+        db.session.query(Employee)
+        .join(TimeRecord, TimeRecord.employee_id == Employee.id)
+        .filter(TimeRecord.departamento == area)
+        .distinct()
+        .order_by(Employee.nompropio)
+        .all()
+    )
+    projects = (
+        db.session.query(Project)
+        .join(TimeRecord, TimeRecord.project_id == Project.id)
+        .filter(TimeRecord.departamento == area)
+        .distinct()
+        .order_by(Project.name)
+        .all()
+    )
+
+    return render_template(
+        'area_records.html',
+        area=area,
+        records=records,
+        employees=employees,
+        projects=projects,
+        filters={
+            'employee_id': employee_filter,
+            'project_id': project_filter,
+            'date_from': date_from
+        }
+    )
+
 @main.route('/employees')
 @login_required
 def manage_employees():
+    if not current_user.has_admin_privileges:
+        flash('Acceso denegado.', 'danger')
+        return redirect(url_for('main.home'))
+
     from datetime import datetime, date, time as dtime, timedelta
     from pytz import timezone, UTC
     from sqlalchemy import case, literal
@@ -1306,6 +1495,7 @@ def manage_employees():
     filter_day   = request.args.get('filter_day')   # 'YYYY-MM-DD'
     filter_week  = request.args.get('filter_week')  # 'YYYY-Www'
     filter_month = request.args.get('filter_month') # 'YYYY-MM'
+    records_page = request.args.get('records_page', 1, type=int)
 
     # Variables para rango de fechas (None = sin filtro = todo el historial)
     start = None
@@ -1351,7 +1541,7 @@ def manage_employees():
 
     selected_employee = None
     metrics = {'total': 0, 'projects': {}, 'activities': {}}
-    time_records = []
+    time_records = None
 
     if employee_id:
         selected_employee = Employee.query.get(int(employee_id))
@@ -1366,11 +1556,15 @@ def manage_employees():
                     TimeRecord.start_time < end
                 )
 
-            # Historial de registros
-            time_records = base_query.order_by(TimeRecord.start_time.desc()).limit(100).all()
+            # Historial de registros paginado
+            time_records = (
+                base_query
+                .order_by(TimeRecord.start_time.desc())
+                .paginate(page=records_page, per_page=25, error_out=False)
+            )
 
             # Adjuntar horas convertidas a MX para mostrar en el template
-            for r in time_records:
+            for r in time_records.items:
                 r.start_time_mx = to_mx(r.start_time)  # aware en MX
                 r.end_time_mx   = to_mx(r.end_time)    # aware en MX
 
@@ -1524,6 +1718,9 @@ def api_map_markers():
             )
         )
 
+        if getattr(current_user, 'is_area_manager', False):
+            q = q.filter(TimeRecord.departamento == current_user.area_manager_department)
+
         if only_active:
             q = q.filter(TimeRecord.end_time.is_(None))
 
@@ -1640,13 +1837,18 @@ def capture_photo():
 @main.route('/map')
 @login_required
 def map():
-    records = TimeRecord.query.filter(
+    query = TimeRecord.query.filter(
         TimeRecord.latitude != None,
         TimeRecord.longitude != None,
         TimeRecord.latitude != 0,
         TimeRecord.longitude != 0,
         TimeRecord.end_time == None
-    ).all()
+    )
+
+    if getattr(current_user, 'is_area_manager', False):
+        query = query.filter(TimeRecord.departamento == current_user.area_manager_department)
+
+    records = query.all()
 
     markers = []
     for record in records:

@@ -96,6 +96,8 @@ class User(UserMixin, db.Model):
     password         = db.Column(db.String(255), nullable=False)
     is_admin         = db.Column(db.Boolean, default=False, nullable=False)
     is_project_leader = db.Column(db.Boolean, default=False, nullable=False)
+    is_area_manager  = db.Column(db.Boolean, default=False, nullable=False)
+    area_manager_department = db.Column(db.String(100), nullable=True)
     employee_id      = db.Column(db.Integer, db.ForeignKey('employees.id'), unique=True, nullable=True, index=True)
     created_at       = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -109,7 +111,12 @@ class User(UserMixin, db.Model):
     @property
     def is_employee(self):
         """True si el usuario es un empleado (no admin ni líder) con employee_id asignado."""
-        return not self.is_admin and not self.is_project_leader and self.employee_id is not None
+        return (
+            not self.is_admin
+            and not self.is_project_leader
+            and not self.is_area_manager
+            and self.employee_id is not None
+        )
 
     @property
     def has_admin_privileges(self):

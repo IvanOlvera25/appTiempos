@@ -67,7 +67,7 @@ class RegistrationForm(FlaskForm):
             return False
 
         utype = self.user_type.data
-        if utype not in ('empleado', 'administrador'):
+        if utype not in ('empleado', 'administrador', 'lider_proyecto', 'jefe_area'):
             self.user_type.errors.append('Debes seleccionar el tipo de usuario.')
             return False
 

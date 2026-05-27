@@ -16,7 +16,7 @@
     </div>
   </div>
   <div class="row g-4 justify-content-center">
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="card user-type-card h-100 text-center p-4" data-user-type="empleado">
         <div class="card-body d-flex flex-column justify-content-center">
           <i class="bi bi-person-badge fs-1 mb-3"></i>
@@ -25,7 +25,7 @@
         </div>
       </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="card user-type-card h-100 text-center p-4" data-user-type="lider_proyecto">
         <div class="card-body d-flex flex-column justify-content-center">
           <i class="bi bi-diagram-3 fs-1 mb-3"></i>
@@ -34,7 +34,16 @@
         </div>
       </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
+      <div class="card user-type-card h-100 text-center p-4" data-user-type="jefe_area">
+        <div class="card-body d-flex flex-column justify-content-center">
+          <i class="bi bi-person-workspace fs-1 mb-3"></i>
+          <h5 class="card-title fw-semibold">Jefe de Area</h5>
+          <p class="card-text text-muted mb-0">Supervisa el estatus y registros de su área.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
       <div class="card user-type-card h-100 text-center p-4" data-user-type="administrador">
         <div class="card-body d-flex flex-column justify-content-center">
           <i class="bi bi-shield-lock fs-1 mb-3"></i>
@@ -58,6 +67,15 @@
               {% for emp in employees %}
                 <option value="{{ emp.id }}">{{ emp.nompropio }}</option>
               {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3" id="areaManagerGroup" style="display:none;">
+          <label for="area_manager_department" class="form-label">Area</label>
+          <select class="form-select" id="area_manager_department" name="area_manager_department">
+            <option value="">Selecciona un área</option>
+            {% for dept in area_departments %}
+            <option value="{{ dept }}">{{ dept }}</option>
+            {% endfor %}
           </select>
         </div>
         <!-- Correo / Username -->
@@ -107,15 +125,23 @@
       // Mostrar/ocultar campos según el tipo
       if(type==='empleado'){
         $('#employeeNameGroup').show();
+        $('#areaManagerGroup').hide();
         $('#adminCodeGroup').hide();
       } else if(type==='administrador'){
         $('#employeeNameGroup').hide();
+        $('#areaManagerGroup').hide();
         $('#adminCodeGroup').show();
         $('#codeDescription').text('Ingresa la clave de administrador.');
       } else if(type==='lider_proyecto'){
         $('#employeeNameGroup').hide();
+        $('#areaManagerGroup').hide();
         $('#adminCodeGroup').show();
         $('#codeDescription').text('Ingresa la clave de líder de proyecto.');
+      } else if(type==='jefe_area'){
+        $('#employeeNameGroup').hide();
+        $('#areaManagerGroup').show();
+        $('#adminCodeGroup').show();
+        $('#codeDescription').text('Ingresa la clave de Jefe de Area.');
       }
 
       document.getElementById('registerForm').style.display='block';

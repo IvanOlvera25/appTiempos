@@ -2,6 +2,7 @@
 {% block title %}Gestión de Empleados y Análisis - AD17 Solutions{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <div class="container-fluid py-4">
   <!-- Header -->
   <div class="row mb-4">
@@ -13,9 +14,11 @@
           </h2>
           <p class="text-muted mb-0">Analiza el rendimiento y actividad individual de cada empleado</p>
         </div>
+        {% if current_user.has_admin_privileges %}
         <a href="{{ url_for('main.add_employee') }}" class="btn btn-primary btn-lg">
           <i class="bi bi-person-plus me-2"></i>Nuevo Empleado
         </a>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -96,11 +99,13 @@
               </div>
             </div>
             <div class="col-md-4 text-md-end mt-3 mt-md-0">
+              {% if current_user.has_admin_privileges %}
               <div class="d-flex gap-2 justify-content-md-end">
                 <a href="{{ url_for('main.edit_employee', id=selected_employee.id) }}" class="btn btn-light btn-sm">
                   <i class="bi bi-pencil me-1"></i>Editar
                 </a>
               </div>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -244,10 +249,10 @@
           <h6 class="mb-0 fw-semibold">
             <i class="bi bi-clock-history text-info me-2"></i>Historial de Registros
           </h6>
-          <span class="badge bg-info">{{ time_records|length }} registros</span>
+          <span class="badge bg-info">{{ time_records.total if time_records else 0 }} registros</span>
         </div>
         <div class="card-body p-0">
-          {% if time_records %}
+          {% if time_records and time_records.items %}
           <div class="table-responsive">
             <table class="table table-hover mb-0">
               <thead class="table-light">
@@ -256,12 +261,13 @@
                   <th>Actividad</th>
                   <th>Inicio</th>
                   <th>Fin</th>
-                  <th class="text-end pe-4">Duración</th>
+                  <th>Duración</th>
+                  <th class="text-end pe-4">Ubicación</th>
                 </tr>
               </thead>
               <tbody>
                 {% set dtfmt = '%d/%m/%Y %H:%M' %}
-                {% for record in time_records %}
+                {% for record in time_records.items %}
                 <tr>
                   <td class="ps-4">
                     <span class="fw-medium">{{ record.project.name if record.project else '—' }}</span>
@@ -280,12 +286,25 @@
                     </span>
                     {% endif %}
                   </td>
-                  <td class="text-end pe-4">
+                  <td>
                     {% if record.end_time %}
                     {% set duration = (record.end_time - record.start_time).total_seconds() / 3600 %}
                     <span class="badge bg-light text-dark">{{ "%.2f"|format(duration) }} h</span>
                     {% else %}
                     <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end pe-4">
+                    {% if record.latitude and record.longitude %}
+                    <button type="button" class="btn btn-sm btn-outline-primary js-map-btn"
+                      data-lat="{{ record.latitude }}"
+                      data-lng="{{ record.longitude }}"
+                      data-title="{{ selected_employee.nompropio }}"
+                      data-subtitle="{{ record.project.name if record.project else '' }}">
+                      <i class="bi bi-geo-alt me-1"></i>Mapa
+                    </button>
+                    {% else %}
+                    <span class="text-muted">Sin ubicación</span>
                     {% endif %}
                   </td>
                 </tr>
@@ -300,6 +319,24 @@
           </div>
           {% endif %}
         </div>
+        {% if time_records and time_records.pages > 1 %}
+        <div class="card-footer bg-white">
+          <nav aria-label="Paginación de registros del empleado">
+            <ul class="pagination justify-content-end mb-0">
+              {% set period = request.args.get('period', 'all') %}
+              {% for page_num in time_records.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                {% if page_num %}
+                <li class="page-item {{ 'active' if page_num == time_records.page }}">
+                  <a class="page-link" href="{{ url_for('main.manage_employees', employee_id=selected_employee.id, period=period, filter_day=request.args.get('filter_day', ''), filter_week=request.args.get('filter_week', ''), filter_month=request.args.get('filter_month', ''), records_page=page_num) }}">{{ page_num }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+              {% endfor %}
+            </ul>
+          </nav>
+        </div>
+        {% endif %}
       </div>
 
       {% else %}
@@ -314,6 +351,23 @@
         </div>
       </div>
       {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="recordMapModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="mapTitle">Ubicación del registro</h5>
+          <small class="text-muted" id="mapSubtitle"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="recordMap" style="height:420px;border-radius:8px;"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -413,6 +467,7 @@
 
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     // ========== Buscador de Empleados ==========
@@ -453,6 +508,38 @@
       }
       toggleInputs();
       periodSelect.addEventListener('change', toggleInputs);
+    }
+
+    // ========== Modal de mapa ==========
+    let map;
+    let marker;
+    const modalEl = document.getElementById('recordMapModal');
+    const mapButtons = document.querySelectorAll('.js-map-btn');
+    if (modalEl && mapButtons.length) {
+      const modal = new bootstrap.Modal(modalEl);
+      mapButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const lat = parseFloat(btn.dataset.lat);
+          const lng = parseFloat(btn.dataset.lng);
+          document.getElementById('mapTitle').textContent = btn.dataset.title || 'Ubicación del registro';
+          document.getElementById('mapSubtitle').textContent = btn.dataset.subtitle || '';
+          modal.show();
+
+          setTimeout(() => {
+            if (!map) {
+              map = L.map('recordMap');
+              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap'
+              }).addTo(map);
+            }
+            map.setView([lat, lng], 16);
+            if (marker) marker.remove();
+            marker = L.marker([lat, lng]).addTo(map);
+            map.invalidateSize();
+          }, 250);
+        });
+      });
     }
 
     // ========== Gráficos con Chart.js ==========
