@@ -1,0 +1,359 @@
+{# manage_users.html #}
+{% extends "layout.html" %}
+
+{% block title %}Gestión de Usuarios - AD17 Solutions{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <!-- Encabezado con título y botón de creación -->
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+    <div>
+      <h1 class="h2 text-dark font-weight-bold mb-1">
+        <i class="bi bi-people-fill text-primary"></i> Gestión de Usuarios y Roles
+      </h1>
+      <p class="text-muted mb-0">Administra las cuentas de acceso, roles del sistema y restablece contraseñas.</p>
+    </div>
+    <div class="mt-2 mt-sm-0">
+      <button class="btn btn-primary btn-lg shadow-sm" data-bs-toggle="modal" data-bs-target="#createUserModal">
+        <i class="bi bi-person-plus-fill me-2"></i> Nuevo Usuario
+      </button>
+    </div>
+  </div>
+
+  <!-- Información de Códigos de Registro -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card border-0 shadow-sm bg-light">
+        <div class="card-body py-3 px-4">
+          <div class="row align-items-center">
+            <div class="col-md-3 mb-2 mb-md-0 border-end-md">
+              <span class="text-uppercase text-muted small font-weight-bold d-block">Códigos de Registro</span>
+              <strong class="text-dark">Claves requeridas para auto-registro:</strong>
+            </div>
+            <div class="col-md-3 col-sm-4 mb-2 mb-sm-0">
+              <div class="d-flex align-items-center">
+                <div class="bg-primary-subtle text-primary rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width:36px; height:36px;">
+                  <i class="bi bi-shield-lock-fill"></i>
+                </div>
+                <div>
+                  <span class="text-muted small d-block">Administrador</span>
+                  <code class="text-primary font-weight-bold" style="font-size:1rem;">{{ admin_code }}</code>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3 col-sm-4 mb-2 mb-sm-0">
+              <div class="d-flex align-items-center">
+                <div class="bg-success-subtle text-success rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width:36px; height:36px;">
+                  <i class="bi bi-briefcase-fill"></i>
+                </div>
+                <div>
+                  <span class="text-muted small d-block">Líder de Proyecto</span>
+                  <code class="text-success font-weight-bold" style="font-size:1rem;">{{ leader_code }}</code>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3 col-sm-4">
+              <div class="d-flex align-items-center">
+                <div class="bg-warning-subtle text-warning rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width:36px; height:36px;">
+                  <i class="bi bi-building-fill"></i>
+                </div>
+                <div>
+                  <span class="text-muted small d-block">Jefe de Área</span>
+                  <code class="text-warning font-weight-bold" style="font-size:1rem;">{{ area_manager_code }}</code>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla de Usuarios -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white py-3 border-0">
+      <h5 class="card-title text-dark font-weight-bold mb-0">Usuarios Registrados</h5>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th scope="col" class="ps-4">Usuario / Correo</th>
+            <th scope="col">Nombre Asignado</th>
+            <th scope="col">Rol</th>
+            <th scope="col">Detalle / Área</th>
+            <th scope="col">Fecha de Registro</th>
+            <th scope="col" class="text-end pe-4">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td class="ps-4">
+              <div class="d-flex align-items-center">
+                <div class="avatar-circle me-3 text-white d-flex align-items-center justify-content-center rounded-circle font-weight-bold fs-6" 
+                     style="background-color: {% if u.is_admin %}#dc3545{% elif u.is_project_leader %}#198754{% elif u.is_area_manager %}#ffc107{% else %}#0d6efd{% endif %}; width: 40px; height: 40px;">
+                  {{ u.username[0]|upper }}
+                </div>
+                <div>
+                  <span class="text-dark font-weight-bold d-block">{{ u.username }}</span>
+                  <span class="text-muted small">ID: {{ u.id }}</span>
+                </div>
+              </div>
+            </td>
+            <td>
+              {% if u.employee %}
+                <span class="text-dark">{{ u.employee.nompropio }}</span>
+                <span class="text-muted small d-block">Num: {{ u.employee.n_empleado }}</span>
+              {% else %}
+                <span class="text-muted font-italic">No asignado (Admin/Líder)</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if u.is_admin %}
+                <span class="badge bg-danger rounded-pill px-3 py-2 text-uppercase">Administrador</span>
+              {% elif u.is_project_leader %}
+                <span class="badge bg-success rounded-pill px-3 py-2 text-uppercase">Líder de Proyecto</span>
+              {% elif u.is_area_manager %}
+                <span class="badge bg-warning text-dark rounded-pill px-3 py-2 text-uppercase">Jefe de Área</span>
+              {% else %}
+                <span class="badge bg-primary rounded-pill px-3 py-2 text-uppercase">Empleado</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if u.is_area_manager %}
+                <span class="text-dark font-weight-bold"><i class="bi bi-geo-alt-fill text-warning me-1"></i>{{ u.area_manager_department }}</span>
+              {% elif u.employee %}
+                <span class="text-muted"><i class="bi bi-tag-fill text-muted me-1"></i>{{ u.employee.departamento }}</span>
+              {% else %}
+                <span class="text-muted">-</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="text-muted small">{{ u.created_at.strftime('%d/%m/%Y %H:%M') if u.created_at else 'N/A' }}</span>
+            </td>
+            <td class="text-end pe-4">
+              <button class="btn btn-outline-secondary btn-sm me-1" 
+                      data-bs-toggle="modal" 
+                      data-bs-target="#changePasswordModal" 
+                      data-userid="{{ u.id }}" 
+                      data-username="{{ u.username }}">
+                <i class="bi bi-key-fill"></i> Contraseña
+              </button>
+              
+              {% if u.id != current_user.id %}
+              <button class="btn btn-outline-danger btn-sm" 
+                      data-bs-toggle="modal" 
+                      data-bs-target="#deleteUserModal" 
+                      data-userid="{{ u.id }}" 
+                      data-username="{{ u.username }}">
+                <i class="bi bi-trash-fill"></i> Eliminar
+              </button>
+              {% else %}
+              <button class="btn btn-outline-danger btn-sm" disabled title="No puedes eliminarte a ti mismo">
+                <i class="bi bi-trash-fill"></i> Eliminar
+              </button>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="text-center py-4 text-muted">
+              No hay usuarios registrados en el sistema.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================
+     MODAL: CREAR NUEVO USUARIO
+     ========================================== -->
+<div class="modal fade" id="createUserModal" tabindex="-1" aria-labelledby="createUserModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header bg-primary text-white border-0 py-3">
+        <h5 class="modal-title font-weight-bold" id="createUserModalLabel">
+          <i class="bi bi-person-plus-fill me-2"></i> Crear Nuevo Usuario
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form action="{{ url_for('main.admin_create_user') }}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-body p-4">
+          
+          <div class="mb-3">
+            <label for="new_username" class="form-label font-weight-bold">Usuario / Correo</label>
+            <input type="text" class="form-control" id="new_username" name="username" required placeholder="ejemplo@correo.com">
+          </div>
+
+          <div class="mb-3">
+            <label for="new_password" class="form-label font-weight-bold">Contraseña</label>
+            <input type="password" class="form-control" id="new_password" name="password" required minlength="6" placeholder="Mínimo 6 caracteres">
+          </div>
+
+          <div class="mb-3">
+            <label for="new_user_type" class="form-label font-weight-bold">Rol de Usuario</label>
+            <select class="form-select" id="new_user_type" name="user_type" required>
+              <option value="" disabled selected>Selecciona un rol...</option>
+              <option value="empleado">Empleado</option>
+              <option value="jefe_area">Jefe de Área</option>
+              <option value="lider_proyecto">Líder de Proyecto</option>
+              <option value="administrador">Administrador</option>
+            </select>
+          </div>
+
+          <!-- Campo dinámico: Empleado -->
+          <div class="mb-3 d-none" id="div_employee_select">
+            <label for="new_employee_id" class="form-label font-weight-bold">Vincular con Empleado</label>
+            <select class="form-select" id="new_employee_id" name="employee_id">
+              <option value="" disabled selected>Selecciona un empleado...</option>
+              {% for emp in available_employees %}
+                <option value="{{ emp.id }}">{{ emp.nompropio }} ({{ emp.departamento }} - {{ emp.n_empleado }})</option>
+              {% else %}
+                <option value="" disabled>No hay empleados disponibles sin usuario</option>
+              {% endfor %}
+            </select>
+            <div class="form-text text-muted">Solo se listan los empleados que no tienen un usuario creado.</div>
+          </div>
+
+          <!-- Campo dinámico: Jefe de Área -->
+          <div class="mb-3 d-none" id="div_area_select">
+            <label for="new_area_department" class="form-label font-weight-bold">Departamento Asignado</label>
+            <select class="form-select" id="new_area_department" name="area_manager_department">
+              <option value="" disabled selected>Selecciona un departamento...</option>
+              {% for dept in area_departments %}
+                <option value="{{ dept }}">{{ dept }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+        </div>
+        <div class="modal-footer border-0 bg-light p-3">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary px-4">Crear Usuario</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================
+     MODAL: CAMBIAR CONTRASEÑA
+     ========================================== -->
+<div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header bg-secondary text-white border-0 py-3">
+        <h5 class="modal-title font-weight-bold" id="changePasswordModalLabel">
+          <i class="bi bi-key-fill me-2"></i> Cambiar Contraseña
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form id="changePasswordForm" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-body p-4">
+          <p class="mb-3">Establecer nueva contraseña para el usuario: <strong id="changePasswordUsername"></strong></p>
+          
+          <div class="mb-3">
+            <label for="new_password_field" class="form-label font-weight-bold">Nueva Contraseña</label>
+            <input type="password" class="form-control" id="new_password_field" name="new_password" required minlength="6" placeholder="Mínimo 6 caracteres">
+          </div>
+
+          <div class="mb-3">
+            <label for="auth_password_field" class="form-label font-weight-bold">Contraseña de Autorización Admin</label>
+            <input type="password" class="form-control" id="auth_password_field" name="auth_password" required placeholder="Ingresa contraseña de autorización">
+            <div class="form-text text-muted">Se requiere la clave maestra de administración para realizar este cambio.</div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 bg-light p-3">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-dark px-4">Guardar Contraseña</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ==========================================
+     MODAL: ELIMINAR USUARIO
+     ========================================== -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1" aria-labelledby="deleteUserModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header bg-danger text-white border-0 py-3">
+        <h5 class="modal-title font-weight-bold" id="deleteUserModalLabel">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i> Confirmar Eliminación
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form id="deleteUserForm" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-body p-4">
+          <p class="mb-0">¿Estás seguro de que deseas eliminar permanentemente al usuario <strong id="deleteUsername"></strong>?</p>
+          <p class="text-danger small mt-2 mb-0"><i class="bi bi-info-circle-fill me-1"></i> Esta acción no se puede deshacer y el usuario perderá acceso al sistema de inmediato.</p>
+        </div>
+        <div class="modal-footer border-0 bg-light p-3">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-danger px-4">Eliminar Usuario</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  $(document).ready(function() {
+    // Manejar cambios en el selector de tipo de usuario
+    $('#new_user_type').change(function() {
+      var val = $(this).val();
+      
+      // Ocultar todos por defecto
+      $('#div_employee_select').addClass('d-none');
+      $('#div_area_select').addClass('d-none');
+      
+      // Quitar validación required por defecto
+      $('#new_employee_id').prop('required', false);
+      $('#new_area_department').prop('required', false);
+      
+      if (val === 'empleado') {
+        $('#div_employee_select').removeClass('d-none');
+        $('#new_employee_id').prop('required', true);
+      } else if (val === 'jefe_area') {
+        $('#div_area_select').removeClass('d-none');
+        $('#new_area_department').prop('required', true);
+      }
+    });
+
+    // Cargar datos en el modal de cambiar contraseña
+    var changePasswordModal = document.getElementById('changePasswordModal');
+    changePasswordModal.addEventListener('show.bs.modal', function(event) {
+      var button = event.relatedTarget;
+      var userId = button.getAttribute('data-userid');
+      var username = button.getAttribute('data-username');
+      
+      $('#changePasswordUsername').text(username);
+      $('#changePasswordForm').attr('action', '/admin/users/change_password/' + userId);
+      $('#new_password_field').val('');
+      $('#auth_password_field').val('');
+    });
+
+    // Cargar datos en el modal de eliminar usuario
+    var deleteUserModal = document.getElementById('deleteUserModal');
+    deleteUserModal.addEventListener('show.bs.modal', function(event) {
+      var button = event.relatedTarget;
+      var userId = button.getAttribute('data-userid');
+      var username = button.getAttribute('data-username');
+      
+      $('#deleteUsername').text(username);
+      $('#deleteUserForm').attr('action', '/admin/users/delete/' + userId);
+    });
+  });
+</script>
+{% endblock %}

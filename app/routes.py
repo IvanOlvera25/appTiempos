@@ -3024,3 +3024,173 @@ def delete_activity(activity_id: int):
     except Exception as e:
         db.session.rollback()
         return jsonify(success=False, message=f'Error al eliminar: {e}'), 500
+
+
+# ─────────────────────────────────────────────────────────────
+# GESTIÓN DE USUARIOS Y ROLES (ADMIN)
+# ─────────────────────────────────────────────────────────────
+
+@main.route('/admin/users', methods=['GET'])
+@login_required
+def manage_users():
+    if not current_user.is_admin:
+        flash('Acceso denegado. Se requieren privilegios de administrador.', 'danger')
+        return redirect(url_for('main.home'))
+
+    # Todos los usuarios registrados
+    users = User.query.order_by(User.id.desc()).all()
+
+    # Empleados que NO tienen un usuario asignado
+    available_employees = Employee.query.outerjoin(User).filter(User.id == None).order_by(Employee.nompropio).all()
+
+    # Códigos de registro correspondientes
+    admin_code = current_app.config.get('ADMIN_CODE', '12345')
+    leader_code = '12345'
+    area_manager_code = current_app.config.get('AREA_MANAGER_CODE', '12345')
+
+    return render_template(
+        'manage_users.html',
+        users=users,
+        available_employees=available_employees,
+        admin_code=admin_code,
+        leader_code=leader_code,
+        area_manager_code=area_manager_code,
+        area_departments=AREA_DEPARTMENTS
+    )
+
+
+@main.route('/admin/users/create', methods=['POST'])
+@login_required
+def admin_create_user():
+    if not current_user.is_admin:
+        flash('Acceso denegado.', 'danger')
+        return redirect(url_for('main.home'))
+
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '').strip()
+    user_type = request.form.get('user_type', '').strip()
+
+    if not username or not password or not user_type:
+        flash('Todos los campos son obligatorios.', 'danger')
+        return redirect(url_for('main.manage_users'))
+
+    # Verificar que el usuario no exista
+    if User.query.filter_by(username=username).first():
+        flash('El usuario/correo ya está registrado.', 'danger')
+        return redirect(url_for('main.manage_users'))
+
+    is_admin = False
+    is_project_leader = False
+    is_area_manager = False
+    area_manager_department = None
+    employee_id = None
+
+    if user_type == 'administrador':
+        is_admin = True
+    elif user_type == 'lider_proyecto':
+        is_project_leader = True
+    elif user_type == 'jefe_area':
+        is_area_manager = True
+        area = request.form.get('area_manager_department', '').strip()
+        if area not in AREA_DEPARTMENTS:
+            flash('Selecciona un área válida para el Jefe de Área.', 'danger')
+            return redirect(url_for('main.manage_users'))
+        area_manager_department = area
+    elif user_type == 'empleado':
+        emp_id = request.form.get('employee_id')
+        if not emp_id:
+            flash('Selecciona un empleado de la lista.', 'danger')
+            return redirect(url_for('main.manage_users'))
+        employee_id = int(emp_id)
+        # Verificar que el empleado exista y no tenga ya un usuario
+        employee = Employee.query.get(employee_id)
+        if not employee:
+            flash('Empleado no encontrado.', 'danger')
+            return redirect(url_for('main.manage_users'))
+        if employee.user:
+            flash('Este empleado ya tiene un usuario asignado.', 'danger')
+            return redirect(url_for('main.manage_users'))
+    else:
+        flash('Tipo de usuario inválido.', 'danger')
+        return redirect(url_for('main.manage_users'))
+
+    # Cifrar contraseña
+    hashed = generate_password_hash(password, method='pbkdf2:sha256')
+
+    try:
+        new_user = User(
+            username=username,
+            password=hashed,
+            is_admin=is_admin,
+            is_project_leader=is_project_leader,
+            is_area_manager=is_area_manager,
+            area_manager_department=area_manager_department,
+            employee_id=employee_id
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        flash(f'Usuario {username} creado exitosamente.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error creando usuario: {e}")
+        flash('Error interno al crear el usuario.', 'danger')
+
+    return redirect(url_for('main.manage_users'))
+
+
+@main.route('/admin/users/change_password/<int:user_id>', methods=['POST'])
+@login_required
+def admin_change_password(user_id):
+    if not current_user.is_admin:
+        flash('Acceso denegado.', 'danger')
+        return redirect(url_for('main.home'))
+
+    user = User.query.get_or_404(user_id)
+    new_password = request.form.get('new_password', '').strip()
+    auth_password = request.form.get('auth_password', '').strip()
+
+    # Validar contraseña de autorización administrativa
+    if auth_password != "Arribalaschivas2026":
+        flash('Contraseña de autorización administrativa incorrecta. No se realizaron cambios.', 'danger')
+        return redirect(url_for('main.manage_users'))
+
+    if not new_password or len(new_password) < 6:
+        flash('La nueva contraseña debe tener al menos 6 caracteres.', 'danger')
+        return redirect(url_for('main.manage_users'))
+
+    try:
+        user.password = generate_password_hash(new_password, method='pbkdf2:sha256')
+        db.session.commit()
+        flash(f'Contraseña de {user.username} cambiada exitosamente.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error cambiando contraseña: {e}")
+        flash('Error al actualizar la contraseña.', 'danger')
+
+    return redirect(url_for('main.manage_users'))
+
+
+@main.route('/admin/users/delete/<int:user_id>', methods=['POST'])
+@login_required
+def admin_delete_user(user_id):
+    if not current_user.is_admin:
+        flash('Acceso denegado.', 'danger')
+        return redirect(url_for('main.home'))
+
+    user = User.query.get_or_404(user_id)
+
+    # Evitar auto-eliminación
+    if user.id == current_user.id:
+        flash('No puedes eliminar tu propia cuenta de usuario.', 'danger')
+        return redirect(url_for('main.manage_users'))
+
+    try:
+        db.session.delete(user)
+        db.session.commit()
+        flash(f'Usuario {user.username} eliminado exitosamente.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error eliminando usuario: {e}")
+        flash('Error al eliminar el usuario.', 'danger')
+
+    return redirect(url_for('main.manage_users'))
