@@ -1,18 +1,133 @@
 /* static/css/custom.css */
 
-/* Navbar Personalizado */
+/* ── Navbar ─────────────────────────────────────── */
 .navbar-custom {
-    background-color: #FF8800; /* Naranja */
+    background: linear-gradient(135deg, #FF8800 0%, #e06d00 100%);
+    box-shadow: 0 2px 16px rgba(224, 109, 0, 0.35);
+    padding: 0.6rem 0;
 }
 
-.navbar-custom .navbar-brand,
+.navbar-custom .navbar-brand {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.15rem;
+    letter-spacing: -0.2px;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: opacity 0.2s;
+}
+
+.navbar-custom .navbar-brand:hover {
+    opacity: 0.88;
+    color: #fff;
+}
+
+.navbar-custom .navbar-brand i {
+    font-size: 1.3rem;
+}
+
 .navbar-custom .nav-link {
-    color: #FFFFFF; /* Blanco para el texto */
+    color: rgba(255, 255, 255, 0.92) !important;
+    font-weight: 500;
+    font-size: 0.875rem;
+    padding: 0.4rem 0.7rem !important;
+    border-radius: 0.5rem;
+    transition: background-color 0.18s ease, color 0.18s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
 }
 
 .navbar-custom .nav-link:hover {
-    color: #FFFFFF;
-    opacity: 0.8;
+    color: #fff !important;
+    background-color: rgba(0, 0, 0, 0.14);
+    opacity: 1;
+}
+
+.navbar-custom .nav-link.active-link {
+    color: #fff !important;
+    background-color: rgba(0, 0, 0, 0.2);
+    font-weight: 600;
+}
+
+/* Toggler */
+.navbar-custom .navbar-toggler {
+    border: 1.5px solid rgba(255, 255, 255, 0.5);
+    padding: 0.3rem 0.55rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s;
+}
+
+.navbar-custom .navbar-toggler:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.navbar-custom .navbar-toggler:focus {
+    box-shadow: none;
+}
+
+.navbar-custom .navbar-toggler i {
+    color: #fff;
+    font-size: 1.25rem;
+}
+
+/* Dropdown admin */
+.navbar-custom .dropdown-menu {
+    background: linear-gradient(160deg, #FF8800 0%, #df6d00 100%);
+    border: none;
+    border-radius: 0.75rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+    padding: 0.4rem;
+    margin-top: 0.4rem;
+    min-width: 14rem;
+}
+
+.navbar-custom .dropdown-item {
+    color: rgba(255, 255, 255, 0.92);
+    font-weight: 500;
+    font-size: 0.875rem;
+    border-radius: 0.45rem;
+    padding: 0.45rem 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    transition: background-color 0.15s;
+}
+
+.navbar-custom .dropdown-item:hover,
+.navbar-custom .dropdown-item:focus {
+    background-color: rgba(0, 0, 0, 0.14);
+    color: #fff;
+}
+
+.navbar-custom .dropdown-divider {
+    border-color: rgba(255, 255, 255, 0.2);
+    margin: 0.3rem 0.5rem;
+}
+
+/* Botón Cerrar Sesión */
+.navbar-custom .nav-link-logout {
+    background-color: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.navbar-custom .nav-link-logout:hover {
+    background-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+/* Separador vertical entre grupos de links */
+.navbar-custom .nav-divider {
+    width: 1px;
+    height: 1.4rem;
+    background: rgba(255, 255, 255, 0.3);
+    align-self: center;
+    margin: 0 0.25rem;
+}
+
+@media (max-width: 991px) {
+    .navbar-custom .nav-divider { display: none; }
+    .navbar-custom .navbar-nav { gap: 0.15rem; padding: 0.5rem 0; }
 }
 
 /* Estilos para Select2 */

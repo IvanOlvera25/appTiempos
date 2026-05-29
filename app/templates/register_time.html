@@ -344,4 +344,10 @@
         });
     });
 </script>
+{% block scripts %}
+<!-- ZXing solo se carga en la página de registro (versión fija para caching) -->
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script>const department = "{{ department }}";</script>
+<script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+{% endblock %}
 {% endblock %}

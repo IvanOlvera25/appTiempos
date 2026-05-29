@@ -16,6 +16,12 @@
   <!-- Título de la página -->
   <title>{% block title %}AD17 Solutions{% endblock %}</title>
 
+  <!-- Preconexiones para reducir latencia CDN -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://code.jquery.com" crossorigin>
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="dns-prefetch" href="https://code.jquery.com">
+
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
@@ -32,28 +38,11 @@
   <!-- Estilos Personalizados -->
   <link href="{{ url_for('static', filename='css/custom.css') }}" rel="stylesheet">
 
-  <!-- Cargar jQuery DE PRIMERO -->
+  <!-- jQuery (debe cargarse síncrono para scripts inline que dependen de él) -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
   <!-- Estilos Inline para Personalizaciones Rápidas -->
   <style>
-    /* Navbar Personalizado */
-    .navbar-custom {
-      background-color: #FF8800;
-      /* Naranja */
-    }
-
-    .navbar-custom .navbar-brand,
-    .navbar-custom .nav-link {
-      color: #FFFFFF;
-      /* Blanco para el texto */
-    }
-
-    .navbar-custom .nav-link:hover {
-      color: #FFFFFF;
-      opacity: 0.8;
-    }
-
     /* Estilos para Select2 */
     .select2-container--bootstrap4 .select2-selection--single {
       height: calc(1.5em + .75rem + 2px);
@@ -351,79 +340,154 @@
 </head>
 
 <body>
-  <nav class="navbar navbar-expand-lg navbar-custom">
-    <div class="container-fluid">
-      <a class="navbar-brand" href="{{ url_for('main.home') }}">AD17 Solutions</a>
+  <nav class="navbar navbar-expand-lg navbar-custom sticky-top">
+    <div class="container">
+      <a class="navbar-brand" href="{{ url_for('main.home') }}">
+        <i class="bi bi-buildings-fill"></i>AD17 Solutions
+      </a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
         aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon" style="filter: invert(1);"></span>
+        <i class="bi bi-list"></i>
       </button>
-      <!-- Actualiza la sección del navbar en layout.html -->
+
       <div class="collapse navbar-collapse" id="navbarNav">
-        <ul class="navbar-nav ms-auto">
+        <ul class="navbar-nav ms-auto align-items-lg-center" style="gap:0.2rem;">
+
+          <!-- Inicio -->
           <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.home') }}">Inicio</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.map') }}">Mapa</a>
-          </li>
-          {% if current_user.is_authenticated and current_user.has_admin_privileges %}
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.manage_employees') }}">Empleados</a>
-          </li>
-          {% endif %}
-          {% if current_user.is_authenticated and current_user.has_admin_privileges %}
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.admin_dashboard') }}">Dashboard</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.add_project') }}">Agregar Proyecto</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.project_page') }}">Proyectos</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.project_analysis') }}">Análisis Proyectos</a>
-          </li>
-          {% endif %}
-          {% if current_user.is_authenticated and current_user.is_area_manager %}
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.area_status') }}">Mi Area</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.area_records') }}">Registros de Area</a>
-          </li>
-          {% endif %}
-          {% if current_user.is_authenticated and current_user.is_admin %}
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.costs_dashboard') }}">
-              <i class="bi bi-currency-dollar"></i> Costos
+            <a class="nav-link {% if request.endpoint == 'main.home' %}active-link{% endif %}"
+               href="{{ url_for('main.home') }}">
+              <i class="bi bi-house-door"></i>Inicio
             </a>
           </li>
+
+          <!-- Mapa -->
           <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.manage_users') }}">
-              <i class="bi bi-people-fill"></i> Usuarios
+            <a class="nav-link {% if request.endpoint == 'main.map' %}active-link{% endif %}"
+               href="{{ url_for('main.map') }}">
+              <i class="bi bi-map"></i>Mapa
             </a>
           </li>
-          {% endif %}
+
           {% if current_user.is_authenticated %}
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.logout') }}">Cerrar Sesión</a>
-          </li>
-          {% else %}
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.login') }}">Iniciar Sesión</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.register') }}">Registrar</a>
+          <!-- Separador visual -->
+          <li class="nav-divider d-none d-lg-flex"></li>
+          {% endif %}
+
+          <!-- Menú Admin / Supervisor -->
+          {% if current_user.is_authenticated and current_user.has_admin_privileges %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button"
+               data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-speedometer2"></i>Administración
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'main.admin_dashboard' %}active-link{% endif %}"
+                   href="{{ url_for('main.admin_dashboard') }}">
+                  <i class="bi bi-bar-chart-line"></i>Dashboard
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'main.manage_employees' %}active-link{% endif %}"
+                   href="{{ url_for('main.manage_employees') }}">
+                  <i class="bi bi-people"></i>Empleados
+                </a>
+              </li>
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'main.add_project' %}active-link{% endif %}"
+                   href="{{ url_for('main.add_project') }}">
+                  <i class="bi bi-plus-circle"></i>Agregar Proyecto
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'main.project_page' %}active-link{% endif %}"
+                   href="{{ url_for('main.project_page') }}">
+                  <i class="bi bi-kanban"></i>Proyectos
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'main.project_analysis' %}active-link{% endif %}"
+                   href="{{ url_for('main.project_analysis') }}">
+                  <i class="bi bi-graph-up"></i>Análisis Proyectos
+                </a>
+              </li>
+              {% if current_user.is_admin %}
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'main.costs_dashboard' %}active-link{% endif %}"
+                   href="{{ url_for('main.costs_dashboard') }}">
+                  <i class="bi bi-currency-dollar"></i>Costos
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'main.manage_users' %}active-link{% endif %}"
+                   href="{{ url_for('main.manage_users') }}">
+                  <i class="bi bi-person-gear"></i>Usuarios
+                </a>
+              </li>
+              {% endif %}
+            </ul>
           </li>
           {% endif %}
 
-          {% if current_user.is_authenticated and not current_user.has_admin_privileges and not current_user.is_area_manager %}
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('main.my_dashboard') }}">Mi Panel</a>
+          <!-- Menú Gerente de Área -->
+          {% if current_user.is_authenticated and current_user.is_area_manager %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button"
+               data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-diagram-3"></i>Mi Área
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'main.area_status' %}active-link{% endif %}"
+                   href="{{ url_for('main.area_status') }}">
+                  <i class="bi bi-activity"></i>Estado del Área
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'main.area_records' %}active-link{% endif %}"
+                   href="{{ url_for('main.area_records') }}">
+                  <i class="bi bi-clock-history"></i>Registros de Área
+                </a>
+              </li>
+            </ul>
           </li>
           {% endif %}
+
+          <!-- Panel del empleado regular -->
+          {% if current_user.is_authenticated and not current_user.has_admin_privileges and not current_user.is_area_manager %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'main.my_dashboard' %}active-link{% endif %}"
+               href="{{ url_for('main.my_dashboard') }}">
+              <i class="bi bi-person-circle"></i>Mi Panel
+            </a>
+          </li>
+          {% endif %}
+
+          <!-- Auth links -->
+          {% if current_user.is_authenticated %}
+          <li class="nav-item">
+            <a class="nav-link nav-link-logout" href="{{ url_for('main.logout') }}">
+              <i class="bi bi-box-arrow-right"></i>Salir
+            </a>
+          </li>
+          {% else %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'main.login' %}active-link{% endif %}"
+               href="{{ url_for('main.login') }}">
+              <i class="bi bi-box-arrow-in-right"></i>Iniciar Sesión
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'main.register' %}active-link{% endif %}"
+               href="{{ url_for('main.register') }}">
+              <i class="bi bi-person-plus"></i>Registrar
+            </a>
+          </li>
+          {% endif %}
+
         </ul>
       </div>
     </div>
@@ -451,9 +515,6 @@
 
   <!-- Select2 JS -->
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-
-  <!-- ZXing JS (para el escaneo de QR) -->
-  <script src="https://unpkg.com/@zxing/library@latest"></script>
 
   <!-- ═══════════════════════════════════════════════════════════
        PROFESSIONAL LOADER OVERLAY
@@ -539,6 +600,20 @@
     if (typeof $ !== 'undefined') {
       $(function () { AD17Loader.init(); });
     }
+
+    // Sombra dinámica en la navbar al hacer scroll
+    (function () {
+      const nav = document.querySelector('.navbar-custom');
+      if (!nav) return;
+      function onScroll() {
+        if (window.scrollY > 10) {
+          nav.style.boxShadow = '0 4px 28px rgba(0,0,0,0.22)';
+        } else {
+          nav.style.boxShadow = '0 2px 16px rgba(224,109,0,0.35)';
+        }
+      }
+      window.addEventListener('scroll', onScroll, { passive: true });
+    })();
   </script>
 
   <!-- Bloque para scripts adicionales -->
