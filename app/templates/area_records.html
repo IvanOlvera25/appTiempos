@@ -29,7 +29,7 @@
         </div>
         <div class="col-md-3">
           <label class="form-label fw-semibold small">Proyecto</label>
-          <select name="project_id" class="form-select">
+          <select name="project_id" class="form-select" id="projectFilterSelect">
             <option value="">Todos</option>
             {% for project in projects %}
             <option value="{{ project.id }}" {% if filters.project_id == project.id %}selected{% endif %}>
@@ -165,6 +165,15 @@
     let marker;
     const modalEl = document.getElementById('recordMapModal');
     const modal = new bootstrap.Modal(modalEl);
+
+    // Inicializar Select2 para el filtro de proyectos
+    if (typeof $ !== 'undefined' && $.fn.select2) {
+      $('#projectFilterSelect').select2({
+        theme: 'bootstrap4',
+        placeholder: 'Todos',
+        allowClear: true
+      });
+    }
 
     document.querySelectorAll('.js-map-btn').forEach(btn => {
       btn.addEventListener('click', () => {

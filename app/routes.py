@@ -90,6 +90,7 @@ def register_employee():
                 Employee.id == unique_employees_subquery.c.min_id
             )
         )
+        .filter(Employee.active == True)
         .order_by(Employee.nompropio)
         .all()
     )
@@ -144,6 +145,12 @@ def register_project():
         employee_id = request.args.get('employee_id', '')
         if not employee_id and current_user.is_authenticated and getattr(current_user, 'is_employee', False):
             employee_id = current_user.employee_id
+
+        if employee_id:
+            emp = Employee.query.get(int(employee_id))
+            if not emp or not emp.active:
+                flash('Empleado no encontrado o deshabilitado.', 'danger')
+                return redirect(url_for('main.register_employee', department=department))
 
         # Asegurarse de que el proyecto especial exista (folio=0)
         special_project = Project.query.filter_by(folio=0).first()
@@ -203,7 +210,7 @@ def register_project():
 
         # Formulario
         form = RegisterTimeForm()
-        employees = Employee.query.all()
+        employees = Employee.query.filter_by(active=True).all()
         form.employee_id.choices = [(emp.id, f"{emp.nombre} {emp.apellido_paterno}") for emp in employees]
         form.project_id.choices = [(proj.id, proj.name) for proj in projects]
 
@@ -221,7 +228,7 @@ def register_project():
     # ───────── POST ─────────
     department = request.args.get('department', '')  # conservar filtro
     # Reasignamos las choices para evitar errores en validación
-    employees = Employee.query.all()
+    employees = Employee.query.filter_by(active=True).all()
     projects = Project.query.filter_by(active=True).all()
     form = RegisterTimeForm()
     form.employee_id.choices = [(emp.id, f"{emp.nombre} {emp.apellido_paterno}") for emp in employees]
@@ -318,8 +325,8 @@ def register_project_imp():
         return redirect(url_for('main.register_employee', department=department))
 
     selected_employee = Employee.query.get(int(employee_id))
-    if not selected_employee:
-        flash('Empleado no encontrado.', 'danger')
+    if not selected_employee or not selected_employee.active:
+        flash('Empleado no encontrado o deshabilitado.', 'danger')
         return redirect(url_for('main.register_employee', department=department))
 
     # asegurar proyecto folio=0
@@ -1128,6 +1135,8 @@ def toggle_project(project_id):
 def get_employee(qr_code):
     employee = Employee.query.filter_by(n_empleado=qr_code).first()
     if employee:
+        if not employee.active:
+            return jsonify({'error': 'Empleado deshabilitado'}), 400
         return jsonify({
             'id': employee.id,
             'nombre_completo': f"{employee.nombre} {employee.apellido_paterno} {employee.apellido_materno}",
@@ -1146,7 +1155,7 @@ def get_employee(qr_code):
 def register():
     from .models import Employee, User
 
-    employees = Employee.query.order_by(Employee.nompropio).all()
+    employees = Employee.query.filter_by(active=True).order_by(Employee.nompropio).all()
     form = RegistrationForm()
 
     # ───────── POST ─────────
@@ -1331,20 +1340,20 @@ def area_status():
         TimeRecord.query
         .join(Employee, TimeRecord.employee_id == Employee.id)
         .join(Project, TimeRecord.project_id == Project.id)
-        .filter(TimeRecord.departamento == area, TimeRecord.end_time.is_(None))
+        .filter(TimeRecord.departamento == area, TimeRecord.end_time.is_(None), Employee.active == True)
         .order_by(TimeRecord.start_time.desc())
         .all()
     )
 
     employee_ids = {
         emp_id for (emp_id,) in
-        db.session.query(Employee.id).filter(Employee.departamento == area).all()
+        db.session.query(Employee.id).filter(Employee.departamento == area, Employee.active == True).all()
     }
     employee_ids.update(record.employee_id for record in active_records)
 
     employees = (
         Employee.query
-        .filter(Employee.id.in_(employee_ids))
+        .filter(Employee.id.in_(employee_ids), Employee.active == True)
         .order_by(Employee.nompropio)
         .all()
         if employee_ids else []
@@ -1419,7 +1428,7 @@ def area_records():
         .join(TimeRecord, TimeRecord.project_id == Project.id)
         .filter(TimeRecord.departamento == area)
         .distinct()
-        .order_by(Project.name)
+        .order_by(Project.folio.desc())
         .all()
     )
 
@@ -1796,6 +1805,19 @@ def delete_employee(id):
         flash(f'Error al eliminar: {str(e)}', 'danger')
 
     return redirect(url_for('main.manage_employees'))
+
+@main.route('/employee/toggle_active/<int:id>', methods=['POST'])
+@login_required
+def toggle_employee_active(id):
+    if not current_user.is_admin:
+        flash('Acceso denegado. Se requieren privilegios de administrador.', 'danger')
+        return redirect(url_for('main.home'))
+    employee = Employee.query.get_or_404(id)
+    employee.active = not employee.active
+    db.session.commit()
+    status_str = 'habilitado' if employee.active else 'deshabilitado'
+    flash(f"Empleado '{employee.nompropio}' ha sido {status_str} exitosamente.", 'success')
+    return redirect(url_for('main.edit_employee', id=id))
 
 @main.route('/capture_photo', methods=['POST'])
 @csrf.exempt
@@ -2567,6 +2589,12 @@ def create_time_record():
                 flash('Todos los campos obligatorios deben ser completados.', 'danger')
                 return redirect(url_for('main.create_time_record'))
 
+            # Validar que el empleado esté activo
+            emp = Employee.query.get(employee_id)
+            if not emp or not emp.active:
+                flash('El empleado seleccionado está deshabilitado.', 'danger')
+                return redirect(url_for('main.create_time_record'))
+
             # Convertir fechas (restar 6 horas para convertir CDMX a UTC)
             start_time_cdmx = datetime.strptime(start_time, '%Y-%m-%dT%H:%M')
             start_time_utc = start_time_cdmx + timedelta(hours=6)  # CDMX a UTC
@@ -2622,6 +2650,7 @@ def create_time_record():
                 Employee.id == unique_employees_subquery.c.min_id
             )
         )
+        .filter(Employee.active == True)
         .order_by(Employee.nompropio)
         .all()
     )
@@ -2669,6 +2698,12 @@ def edit_time_record(record_id):
             # Validaciones
             if not all([employee_id, project_id, start_time, departamento]):
                 flash('Todos los campos obligatorios deben ser completados.', 'danger')
+                return redirect(url_for('main.edit_time_record', record_id=record_id))
+
+            # Validar que el empleado esté activo o sea el mismo del registro original
+            emp = Employee.query.get(employee_id)
+            if not emp or (not emp.active and employee_id != record.employee_id):
+                flash('El empleado seleccionado está deshabilitado.', 'danger')
                 return redirect(url_for('main.edit_time_record', record_id=record_id))
 
             # Convertir fechas de CDMX a UTC
@@ -2724,6 +2759,7 @@ def edit_time_record(record_id):
                 Employee.id == unique_employees_subquery.c.min_id
             )
         )
+        .filter(db.or_(Employee.active == True, Employee.id == record.employee_id))
         .order_by(Employee.nompropio)
         .all()
     )
@@ -2733,7 +2769,7 @@ def edit_time_record(record_id):
     return render_template('costs/edit.html', record=record, employees=employees, projects=projects)
 
 # FUNCIÓN HELPER: Para reutilizar en múltiples lugares
-def get_unique_employees():
+def get_unique_employees(active_only=False):
     """
     Función helper para obtener empleados únicos por nompropio.
     Útil para reutilizar en múltiples vistas.
@@ -2747,7 +2783,7 @@ def get_unique_employees():
         .subquery()
     )
 
-    return (
+    q = (
         db.session.query(Employee)
         .join(
             unique_employees_subquery,
@@ -2756,9 +2792,10 @@ def get_unique_employees():
                 Employee.id == unique_employees_subquery.c.min_id
             )
         )
-        .order_by(Employee.nompropio)
-        .all()
     )
+    if active_only:
+        q = q.filter(Employee.active == True)
+    return q.order_by(Employee.nompropio).all()
 
 @main.route('/costs/delete/<int:record_id>', methods=['POST'])
 @login_required
@@ -3041,7 +3078,7 @@ def manage_users():
     users = User.query.order_by(User.id.desc()).all()
 
     # Empleados que NO tienen un usuario asignado
-    available_employees = Employee.query.outerjoin(User).filter(User.id == None).order_by(Employee.nompropio).all()
+    available_employees = Employee.query.outerjoin(User).filter(User.id == None, Employee.active == True).order_by(Employee.nompropio).all()
 
     # Códigos de registro correspondientes
     admin_code = current_app.config.get('ADMIN_CODE', '12345')

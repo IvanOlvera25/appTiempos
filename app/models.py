@@ -19,6 +19,7 @@ class Employee(db.Model):
     departamento     = db.Column(db.String(100), nullable=False, server_default=text("'N/A'"))
     puesto           = db.Column(db.String(100), nullable=False)
     qr_code          = db.Column(db.String(100), unique=True, nullable=False)
+    active           = db.Column(db.Boolean, default=True, nullable=False, server_default=text("1"))
 
     # 1-N con TimeRecord
     records = db.relationship(
