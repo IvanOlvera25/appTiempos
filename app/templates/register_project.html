@@ -81,7 +81,7 @@
             <label class="form-label">Seleccionar Proyecto</label>
             <div class="row">
                 {% for project in projects %}
-                <div class="col-md-4 mb-4">
+                <div class="col-12 col-sm-6 col-md-4 mb-4">
                     <div class="card h-100 project-card shadow-sm
                         {% if project.id in active_activities %}active-record{% endif %}"
                         data-project-id="{{ project.id }}" data-folio="{{ project.folio }}">
@@ -113,7 +113,7 @@
             <label class="form-label">Seleccionar Actividad</label>
             <div class="row">
                 {% for act in activities %}
-                <div class="col-md-4 mb-3">
+                <div class="col-12 col-sm-6 col-md-4 mb-3">
                     <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn"
                         data-activity="{{ act }}">
                         {{ act }}

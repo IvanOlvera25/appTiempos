@@ -65,7 +65,7 @@
                 {{ form.project_id(class="d-none", id="project_id_hidden") }}
                 <div class="row">
                     {% for project in projects %}
-                        <div class="col-md-4 mb-4">
+                        <div class="col-12 col-sm-6 col-md-4 mb-4">
                             <div class="card h-100 project-card shadow-sm" data-project-id="{{ project.id }}" data-folio="{{ project.folio }}">
                                 <div class="card-body">
                                     <h5 class="card-title"><strong>FP:</strong> {{ project.folio if project.folio is not none else 'N/A' }}</h5>
@@ -87,7 +87,7 @@
                 <label class="form-label">Seleccionar Actividad</label>
                 <div class="row">
                     {% for act in activities %}
-                        <div class="col-md-4 mb-3">
+                        <div class="col-12 col-sm-6 col-md-4 mb-3">
                             <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="{{ act }}">
                                 {{ act }}
                             </button>

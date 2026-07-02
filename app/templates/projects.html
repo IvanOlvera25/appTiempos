@@ -22,6 +22,25 @@
 </div>
 
 <div class="container">
+  <!-- Barra de Acciones Masivas (flotante/resaltada) -->
+  <div id="bulkActionsBar" class="alert alert-dark shadow-lg border-0 d-none align-items-center justify-content-between p-3 position-sticky top-0 mb-4" style="z-index: 1040; border-radius: 0.75rem; background: #1a1e21; color: white;">
+    <div class="d-flex align-items-center">
+      <i class="bi bi-check2-square fs-4 text-warning me-2"></i>
+      <span class="fw-bold fs-6" id="selectedCountText">0 proyectos seleccionados</span>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      <button type="button" class="btn btn-success font-weight-bold" id="bulkActivateBtn">
+        <i class="bi bi-play-circle me-1"></i> Activar Selección
+      </button>
+      <button type="button" class="btn btn-warning font-weight-bold text-dark" id="bulkDeactivateBtn">
+        <i class="bi bi-pause-circle me-1"></i> Desactivar Selección
+      </button>
+      <button type="button" class="btn btn-outline-light btn-sm ms-2" id="clearSelectionBtn">
+        Deseleccionar todo
+      </button>
+    </div>
+  </div>
+
   <!-- Estadísticas Rápidas -->
   <div class="row mb-4">
     <div class="col-md-3 mb-3">
@@ -99,9 +118,12 @@
 
       <!-- Tabla -->
       <div class="table-responsive">
-        <table class="table table-hover">
+        <table class="table table-hover align-middle">
           <thead style="background-color: #f8f9fa;">
             <tr>
+              <th style="width: 45px;" class="text-center">
+                <input type="checkbox" class="form-check-input select-all-table" data-table="activeProjectsTable" title="Seleccionar todos los activos visibles">
+              </th>
               <th>Folio</th>
               <th>Nombre del Proyecto</th>
               <th>Cliente</th>
@@ -113,6 +135,11 @@
             {% set active_projects = all_projects | selectattr('active') | list %}
             {% for proj in active_projects | sort(attribute='folio') %}
               <tr data-folio="{{ proj.folio }}" data-name="{{ proj.name }}" data-client="{{ proj.client }}">
+                <td class="text-center">
+                  {% if proj.folio != 0 %}
+                    <input type="checkbox" class="form-check-input project-checkbox" value="{{ proj.id }}">
+                  {% endif %}
+                </td>
                 <td>
                   <span class="badge bg-primary" style="font-size: 0.9rem; padding: 0.5rem 1rem;">{{ proj.folio }}</span>
                 </td>
@@ -192,9 +219,12 @@
 
       <!-- Tabla -->
       <div class="table-responsive">
-        <table class="table table-hover">
+        <table class="table table-hover align-middle">
           <thead style="background-color: #f8f9fa;">
             <tr>
+              <th style="width: 45px;" class="text-center">
+                <input type="checkbox" class="form-check-input select-all-table" data-table="allProjectsTable" title="Seleccionar todos los proyectos visibles">
+              </th>
               <th>Folio</th>
               <th>Nombre del Proyecto</th>
               <th>Cliente</th>
@@ -209,6 +239,11 @@
                   data-folio="{{ proj.folio }}"
                   data-name="{{ proj.name }}"
                   data-client="{{ proj.client }}">
+                <td class="text-center">
+                  {% if proj.folio != 0 %}
+                    <input type="checkbox" class="form-check-input project-checkbox" value="{{ proj.id }}">
+                  {% endif %}
+                </td>
                 <td>
                   <span class="badge bg-primary" style="font-size: 0.9rem; padding: 0.5rem 1rem;">{{ proj.folio }}</span>
                 </td>
@@ -495,6 +530,102 @@ $(document).ready(function() {
     // Animación para las cards
     $('.card').each(function(index) {
         $(this).css('opacity', '0').delay(index * 100).animate({opacity: 1}, 500);
+    });
+
+    // ═══════════════════════════════════════════════════════════
+    // SELECCIÓN MASIVA Y ACCIONES EN LOTE
+    // ═══════════════════════════════════════════════════════════
+    function updateBulkActionsUI() {
+        const checkedBoxes = $('.project-checkbox:checked');
+        const count = checkedBoxes.length;
+
+        if (count > 0) {
+            $('#selectedCountText').text(`${count} proyecto(s) seleccionado(s)`);
+            $('#bulkActionsBar').removeClass('d-none').addClass('d-flex');
+        } else {
+            $('#bulkActionsBar').addClass('d-none').removeClass('d-flex');
+            $('.select-all-table').prop('checked', false);
+        }
+    }
+
+    // Checkbox individual
+    $(document).on('change', '.project-checkbox', function() {
+        updateBulkActionsUI();
+    });
+
+    // Checkbox Seleccionar Todos por tabla
+    $(document).on('change', '.select-all-table', function() {
+        const tableId = $(this).data('table');
+        const isChecked = $(this).is(':checked');
+
+        $(`#${tableId} tr:visible .project-checkbox`).prop('checked', isChecked);
+        updateBulkActionsUI();
+    });
+
+    // Deseleccionar todo
+    $('#clearSelectionBtn').on('click', function() {
+        $('.project-checkbox').prop('checked', false);
+        $('.select-all-table').prop('checked', false);
+        updateBulkActionsUI();
+    });
+
+    // Ejecutar Acción Masiva (Activar / Desactivar)
+    function executeBulkToggle(action) {
+        const selectedIds = $('.project-checkbox:checked').map(function() {
+            return parseInt($(this).val());
+        }).get();
+
+        if (selectedIds.length === 0) {
+            showToast('Selecciona al menos un proyecto.', 'warning');
+            return;
+        }
+
+        const actionText = action === 'activate' ? 'activar' : 'desactivar';
+        if (!confirm(`¿Estás seguro de que deseas ${actionText} ${selectedIds.length} proyecto(s)?`)) {
+            return;
+        }
+
+        if (window.AD17Loader) {
+            AD17Loader.show(
+                action === 'activate' ? 'Activando proyectos...' : 'Desactivando proyectos...',
+                `Procesando ${selectedIds.length} proyecto(s)`
+            );
+        }
+
+        $.ajax({
+            url: "{{ url_for('main.bulk_toggle_projects') }}",
+            method: 'POST',
+            contentType: 'application/json',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            data: JSON.stringify({
+                project_ids: selectedIds,
+                action: action
+            }),
+            success: function(response) {
+                if (window.AD17Loader) AD17Loader.hide();
+                if (response.success) {
+                    showToast(response.message, 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast(response.error || 'Error al procesar la solicitud.', 'danger');
+                }
+            },
+            error: function(xhr) {
+                if (window.AD17Loader) AD17Loader.hide();
+                const err = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : 'Error de conexión al servidor';
+                showToast(err, 'danger');
+            }
+        });
+    }
+
+    $('#bulkActivateBtn').on('click', function() {
+        executeBulkToggle('activate');
+    });
+
+    $('#bulkDeactivateBtn').on('click', function() {
+        executeBulkToggle('deactivate');
     });
 });
 </script>

@@ -1131,6 +1131,34 @@ def toggle_project(project_id):
     message = f"El proyecto '{project.name}' ha sido {'activado' if project.active else 'desactivado'}."
     return jsonify({"success": True, "active": project.active, "message": message})
 
+@main.route('/projects/bulk_toggle', methods=['POST'])
+@login_required
+def bulk_toggle_projects():
+    if not current_user.has_admin_privileges:
+        return jsonify({"error": "Acceso denegado."}), 403
+
+    data = request.get_json() or {}
+    project_ids = data.get('project_ids', [])
+    action = data.get('action')  # 'activate' | 'deactivate'
+
+    if not project_ids or action not in ('activate', 'deactivate'):
+        return jsonify({"error": "Parámetros inválidos."}), 400
+
+    target_active = (action == 'activate')
+    projects = Project.query.filter(Project.id.in_(project_ids), Project.folio != 0).all()
+    updated_count = 0
+
+    for project in projects:
+        if project.active != target_active:
+            project.active = target_active
+            updated_count += 1
+
+    db.session.commit()
+
+    verb = "activado" if target_active else "desactivado"
+    message = f"Se han {verb}s {updated_count} proyecto(s) correctamente."
+    return jsonify({"success": True, "updated_count": updated_count, "message": message})
+
 @main.route('/get_employee/<qr_code>', methods=['GET'])
 def get_employee(qr_code):
     employee = Employee.query.filter_by(n_empleado=qr_code).first()
@@ -1172,7 +1200,7 @@ def register():
         # ▸ Registrar ADMIN
         if user_type == 'administrador':
             admin_code = form.verification_code.data
-            if admin_code != current_app.config.get('ADMIN_CODE', '12345'):
+            if admin_code != current_app.config.get('ADMIN_CODE', 'HI35C3'):
                 flash('Código de administrador inválido.', 'danger')
                 return redirect(url_for('main.register'))
             employee_id = None
@@ -1182,7 +1210,7 @@ def register():
         # ▸ Registrar LÍDER DE PROYECTO
         elif user_type == 'lider_proyecto':
             leader_code = form.verification_code.data
-            if leader_code != '12345':  # Código específico para líderes
+            if leader_code != current_app.config.get('LEADER_CODE', 'LP92B4'):  # Código específico para líderes
                 flash('Código de líder de proyecto inválido.', 'danger')
                 return redirect(url_for('main.register'))
             employee_id = None
@@ -1193,7 +1221,7 @@ def register():
         elif user_type == 'jefe_area':
             area = (request.form.get('area_manager_department') or '').strip()
             manager_code = form.verification_code.data
-            if manager_code != current_app.config.get('AREA_MANAGER_CODE', '12345'):
+            if manager_code != current_app.config.get('AREA_MANAGER_CODE', 'AR845C'):
                 flash('Código de Jefe de Area inválido.', 'danger')
                 return redirect(url_for('main.register'))
             if area not in AREA_DEPARTMENTS:
@@ -2244,133 +2272,107 @@ def project_analysis():
 @main.route('/my_dashboard')
 @login_required
 def my_dashboard():
-    # Solo usuarios empleados
-    if current_user.has_admin_privileges or not current_user.employee_id:  # Cambio aquí
-        flash('Panel disponible solo para empleados.', 'warning')
+    # Panel personal disponible para usuarios autenticados con un empleado asignado
+    if not current_user.employee_id:
+        flash('Panel disponible solo para usuarios con perfil de empleado asignado.', 'warning')
         return redirect(url_for('main.home'))
 
     employee = Employee.query.get_or_404(current_user.employee_id)
 
-    # ── 1. Rango de fechas ────────────────────────────────────────────────
-    period       = request.args.get('period', 'day')
-    filter_day   = request.args.get('filter_day')
-    filter_week  = request.args.get('filter_week')
-    filter_month = request.args.get('filter_month')
+    # ── 1. Filtros ────────────────────────────────────────────────────────
+    project_filter = request.args.get('project_id', type=int)
+    department_filter = request.args.get('department', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = 25
 
-    today0 = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-
-    if period == 'day':
-        start = datetime.strptime(filter_day, '%Y-%m-%d') if filter_day else today0
-        start = start.replace(hour=0, minute=0, second=0, microsecond=0)
-        end   = start + timedelta(days=1)
-
-    elif period == 'week':
-        if filter_week:
-            y, w = [int(x) for x in filter_week.split('-W')]
-            start = datetime.fromisocalendar(y, w, 1)              # lunes
-        else:
-            start = today0 - timedelta(days=today0.weekday())       # lunes actual
-        end = start + timedelta(weeks=1)
-
-    elif period == 'month':
-        if filter_month:
-            y, m = [int(x) for x in filter_month.split('-')]
-        else:
-            y, m = today0.year, today0.month
-        start = datetime(y, m, 1)
-        end   = datetime(y + (m // 12), (m % 12) + 1, 1)            # 1.º día sig. mes
-
-    else:                                   # fallback: día actual
-        period = 'day'
-        start  = today0
-        end    = start + timedelta(days=1)
-
-    # ── 2. Historial del periodo ───────────────────────────────────────────
-    time_records = (
+    query = (
         TimeRecord.query
-        .filter(TimeRecord.employee_id == employee.id,
-                TimeRecord.start_time >= start,
-                TimeRecord.start_time < end)
+        .join(Project, TimeRecord.project_id == Project.id)
+        .filter(TimeRecord.employee_id == employee.id)
+    )
+
+    if project_filter:
+        query = query.filter(TimeRecord.project_id == project_filter)
+    if department_filter:
+        query = query.filter(TimeRecord.departamento == department_filter)
+
+    if date_from:
+        try:
+            start_local = datetime.strptime(date_from, '%Y-%m-%d')
+            start_utc = pytz.timezone('America/Mexico_City').localize(start_local).astimezone(pytz.UTC).replace(tzinfo=None)
+            query = query.filter(TimeRecord.start_time >= start_utc)
+        except ValueError:
+            flash('Fecha de inicio inválida.', 'warning')
+
+    if date_to:
+        try:
+            end_local = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+            end_utc = pytz.timezone('America/Mexico_City').localize(end_local).astimezone(pytz.UTC).replace(tzinfo=None)
+            query = query.filter(TimeRecord.start_time < end_utc)
+        except ValueError:
+            flash('Fecha fin inválida.', 'warning')
+
+    # ── 2. Consulta Paginada ────────────────────────────────────────────────
+    records = (
+        query
         .order_by(TimeRecord.start_time.desc())
+        .paginate(page=page, per_page=per_page, error_out=False)
+    )
+
+    for record in records.items:
+        record.start_time_mx = _to_mx(record.start_time)
+        record.end_time_mx = _to_mx(record.end_time)
+
+    # ── 3. Cálculo de Totales ───────────────────────────────────────────────
+    filtered_records_all = query.all()
+    total_seconds = 0
+    active_count = 0
+    for r in filtered_records_all:
+        if r.end_time and r.start_time:
+            total_seconds += (r.end_time - r.start_time).total_seconds()
+        elif not r.end_time:
+            active_count += 1
+
+    total_hours = round(total_seconds / 3600, 2)
+
+    # Listas para los dropdowns de filtrado del empleado
+    employee_projects = (
+        db.session.query(Project)
+        .join(TimeRecord, TimeRecord.project_id == Project.id)
+        .filter(TimeRecord.employee_id == employee.id)
+        .distinct()
+        .order_by(Project.name)
         .all()
     )
 
-    # ── 3. Métricas globales ───────────────────────────────────────────────
-    # 3a. Horas totales
-    total_secs = db.session.query(
-        func.sum(
-            func.timestampdiff(text('SECOND'),
-                               TimeRecord.start_time,
-                               TimeRecord.end_time)
-        )
-    ).filter(
-        TimeRecord.employee_id == employee.id,
-        TimeRecord.end_time.isnot(None),
-        TimeRecord.start_time >= start,
-        TimeRecord.start_time < end
-    ).scalar() or 0
-    total_hours = round(float(total_secs) / 3600, 2)
-
-    # 3b. Horas por proyecto
-    proj_rows = (
-        db.session.query(
-            Project.name,
-            func.sum(
-                func.timestampdiff(text('SECOND'),
-                                   TimeRecord.start_time,
-                                   TimeRecord.end_time)
-            )
-        )
-        .join(Project, Project.id == TimeRecord.project_id)
-        .filter(
-            TimeRecord.employee_id == employee.id,
-            TimeRecord.end_time.isnot(None),
-            TimeRecord.start_time >= start,
-            TimeRecord.start_time < end
-        )
-        .group_by(Project.name)
+    employee_departments = [
+        dept for (dept,) in
+        db.session.query(TimeRecord.departamento)
+        .filter(TimeRecord.employee_id == employee.id)
+        .distinct()
+        .order_by(TimeRecord.departamento)
         .all()
-    )
-    hours_by_project = {
-        pname: round(float(secs or 0) / 3600, 2)
-        for pname, secs in proj_rows
-    }
+        if dept
+    ]
 
-    # 3c. Horas por actividad
-    act_rows = (
-        db.session.query(
-            TimeRecord.actividad,
-            func.sum(
-                func.timestampdiff(text('SECOND'),
-                                   TimeRecord.start_time,
-                                   TimeRecord.end_time)
-            )
-        )
-        .filter(
-            TimeRecord.employee_id == employee.id,
-            TimeRecord.end_time.isnot(None),
-            TimeRecord.start_time >= start,
-            TimeRecord.start_time < end
-        )
-        .group_by(TimeRecord.actividad)
-        .all()
-    )
-    hours_by_activity = {
-        (act or 'Sin especificar'): round(float(secs or 0) / 3600, 2)
-        for act, secs in act_rows
+    filters = {
+        'project_id': project_filter,
+        'department': department_filter,
+        'date_from': date_from,
+        'date_to': date_to
     }
 
     return render_template(
         'employee_dashboard.html',
-        employee           = employee,
-        period             = period,
-        start_date         = start,
-        end_date           = end,
-        total_hours        = total_hours,
-        hours_by_project   = hours_by_project,
-        hours_by_activity  = hours_by_activity,
-        time_records       = time_records,
-        timedelta = timedelta
+        employee=employee,
+        records=records,
+        total_hours=total_hours,
+        active_count=active_count,
+        employee_projects=employee_projects,
+        employee_departments=employee_departments,
+        filters=filters
     )
 @main.route('/costs')
 @login_required
@@ -3081,9 +3083,9 @@ def manage_users():
     available_employees = Employee.query.outerjoin(User).filter(User.id == None, Employee.active == True).order_by(Employee.nompropio).all()
 
     # Códigos de registro correspondientes
-    admin_code = current_app.config.get('ADMIN_CODE', '12345')
-    leader_code = '12345'
-    area_manager_code = current_app.config.get('AREA_MANAGER_CODE', '12345')
+    admin_code = current_app.config.get('ADMIN_CODE', 'HI35C3')
+    leader_code = current_app.config.get('LEADER_CODE', 'LP92B4')
+    area_manager_code = current_app.config.get('AREA_MANAGER_CODE', 'AR845C')
 
     return render_template(
         'manage_users.html',

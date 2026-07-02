@@ -386,7 +386,7 @@
           <!-- Costos — directo en navbar (solo admin) -->
           {% if current_user.is_admin %}
           <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'main.costs_dashboard' %}active-link{% endif %}"
+            <a class="nav-link {% if request.endpoint in ['main.costs_dashboard', 'main.create_cost', 'main.edit_cost'] %}active-link{% endif %}"
                href="{{ url_for('main.costs_dashboard') }}">
               <i class="bi bi-currency-dollar"></i>Costos
             </a>
@@ -395,7 +395,7 @@
 
           <!-- Dropdown Administración -->
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.endpoint in ['main.admin_dashboard', 'main.add_project', 'main.project_page', 'main.project_analysis', 'main.manage_users'] %}active-link{% endif %}"
+            <a class="nav-link dropdown-toggle {% if request.endpoint in ['main.admin_dashboard', 'main.add_project', 'main.project_page', 'main.edit_project', 'main.project_analysis', 'main.manage_users'] %}active-link{% endif %}"
                href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-speedometer2"></i>Administración
             </a>
@@ -414,7 +414,7 @@
                 </a>
               </li>
               <li>
-                <a class="dropdown-item {% if request.endpoint == 'main.project_page' %}active-link{% endif %}"
+                <a class="dropdown-item {% if request.endpoint in ['main.project_page', 'main.edit_project'] %}active-link{% endif %}"
                    href="{{ url_for('main.project_page') }}">
                   <i class="bi bi-kanban"></i>Proyectos
                 </a>
@@ -441,7 +441,7 @@
           <!-- Menú Gerente de Área -->
           {% if current_user.is_authenticated and current_user.is_area_manager %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" role="button"
+            <a class="nav-link dropdown-toggle {% if request.endpoint in ['main.area_status', 'main.area_records'] %}active-link{% endif %}" href="#" role="button"
                data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-diagram-3"></i>Mi Área
             </a>
