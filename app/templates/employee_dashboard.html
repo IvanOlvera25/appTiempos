@@ -2,8 +2,6 @@
 {% block title %}Mi Panel - Registros Personales - AD17 Solutions{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-
 <div class="container-fluid py-4">
   <!-- Encabezado Principal -->
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
@@ -82,8 +80,7 @@
               <th>Actividad</th>
               <th>Inicio</th>
               <th>Fin</th>
-              <th>Duración</th>
-              <th class="text-end pe-4">Ubicación</th>
+              <th class="pe-4">Duración</th>
             </tr>
           </thead>
           <tbody>
@@ -115,25 +112,12 @@
                   <span class="badge bg-warning text-dark"><i class="bi bi-record-fill text-danger me-1"></i>Activo</span>
                 {% endif %}
               </td>
-              <td>
+              <td class="pe-4">
                 {% if record.end_time %}
                   {% set duration = (record.end_time - record.start_time).total_seconds() / 3600 %}
                   <strong class="text-primary">{{ "%.2f"|format(duration) }} h</strong>
                 {% else %}
                   <span class="text-muted">—</span>
-                {% endif %}
-              </td>
-              <td class="text-end pe-4">
-                {% if record.latitude and record.longitude %}
-                <button type="button" class="btn btn-sm btn-outline-primary js-map-btn"
-                  data-lat="{{ record.latitude }}"
-                  data-lng="{{ record.longitude }}"
-                  data-title="{{ record.project.name if record.project else 'Registro' }}"
-                  data-subtitle="Área: {{ record.departamento }} | Inicio: {{ record.start_time_mx.strftime('%d/%m/%Y %H:%M') if record.start_time_mx else '' }}">
-                  <i class="bi bi-geo-alt me-1"></i>Mapa
-                </button>
-                {% else %}
-                <span class="text-muted small"><i class="bi bi-geo"></i> Sin mapa</span>
                 {% endif %}
               </td>
             </tr>
@@ -170,70 +154,4 @@
   </div>
 </div>
 
-<!-- Modal de Mapa de Registro -->
-<div class="modal fade" id="recordMapModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <div>
-          <h5 class="modal-title" id="mapTitle">Ubicación del registro</h5>
-          <small class="text-muted" id="mapSubtitle"></small>
-        </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-      </div>
-      <div class="modal-body">
-        <div id="recordMap" style="height:420px;border-radius:8px;"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    let map;
-    let marker;
-    const modalEl = document.getElementById('recordMapModal');
-    const modal = new bootstrap.Modal(modalEl);
-
-    // Inicializar Select2 para filtro de proyectos si jQuery está presente
-    if (typeof $ !== 'undefined' && $.fn.select2) {
-      $('#projectFilterSelect').select2({
-        theme: 'bootstrap4',
-        placeholder: 'Todos los Proyectos',
-        allowClear: true
-      });
-    }
-
-    document.querySelectorAll('.js-map-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const lat = parseFloat(btn.dataset.lat);
-        const lng = parseFloat(btn.dataset.lng);
-        const title = btn.dataset.title || 'Ubicación de Registro';
-        const subtitle = btn.dataset.subtitle || '';
-
-        document.getElementById('mapTitle').textContent = title;
-        document.getElementById('mapSubtitle').textContent = subtitle;
-
-        modal.show();
-
-        setTimeout(() => {
-          if (!map) {
-            map = L.map('recordMap').setView([lat, lng], 16);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              maxZoom: 19,
-              attribution: '&copy; OpenStreetMap'
-            }).addTo(map);
-            marker = L.marker([lat, lng]).addTo(map);
-          } else {
-            map.setView([lat, lng], 16);
-            marker.setLatLng([lat, lng]);
-          }
-          marker.bindPopup(`<b>${title}</b><br>${subtitle}`).openPopup();
-          map.invalidateSize();
-        }, 300);
-      });
-    });
-  });
-</script>
 {% endblock %}

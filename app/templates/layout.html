@@ -361,13 +361,15 @@
             </a>
           </li>
 
-          <!-- Mapa -->
+          <!-- Mapa (No visible para perfiles de empleado) -->
+          {% if not (current_user.is_authenticated and current_user.is_employee) %}
           <li class="nav-item">
             <a class="nav-link {% if request.endpoint == 'main.map' %}active-link{% endif %}"
                href="{{ url_for('main.map') }}">
               <i class="bi bi-map"></i>Mapa
             </a>
           </li>
+          {% endif %}
 
           {% if current_user.is_authenticated %}
           <!-- Separador visual -->

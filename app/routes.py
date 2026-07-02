@@ -1887,6 +1887,9 @@ def capture_photo():
 @main.route('/map')
 @login_required
 def map():
+    if current_user.is_employee:
+        flash('Acceso denegado. La vista de mapa no está disponible para perfiles de empleado.', 'warning')
+        return redirect(url_for('main.my_dashboard'))
     query = TimeRecord.query.filter(
         TimeRecord.latitude != None,
         TimeRecord.longitude != None,
