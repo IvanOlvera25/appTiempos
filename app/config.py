@@ -9,6 +9,15 @@ class Config:
     SQLALCHEMY_DATABASE_URI = "mysql+pymysql://IvanUriel:iuOp20!!25@ad17solutions.dscloud.me:3307/AD17_Pruebas"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # ---- Base remota de Adicionales (AD17_Adicionales) ----
+    # La app solo consulta esta base; el usuario configurado no requiere permisos
+    # de escritura. Las variables de entorno permiten apuntar a otro servidor.
+    ADICIONALES_DB_HOST     = os.environ.get("ADICIONALES_DB_HOST") or "ad17solutions.dscloud.me"
+    ADICIONALES_DB_PORT     = int(os.environ.get("ADICIONALES_DB_PORT") or 3307)
+    ADICIONALES_DB_USER     = os.environ.get("ADICIONALES_DB_USER") or "IvanUriel"
+    ADICIONALES_DB_PASSWORD = os.environ.get("ADICIONALES_DB_PASSWORD") or "iuOp20!!25"
+    ADICIONALES_DB_NAME     = os.environ.get("ADICIONALES_DB_NAME") or "AD17_Adicionales"
+
     # Configuración de cookies de sesión
     SESSION_COOKIE_SECURE = True  # En producción usa True, desarrollo False
     SESSION_COOKIE_HTTPONLY = True

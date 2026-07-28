@@ -385,8 +385,16 @@
             </a>
           </li>
 
-          <!-- Costos — directo en navbar (solo admin) -->
+          <!-- Adicionales — directo en navbar (solo admin) -->
           {% if current_user.is_admin %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'main.adicionales_admin' %}active-link{% endif %}"
+               href="{{ url_for('main.adicionales_admin') }}">
+              <i class="bi bi-calendar2-plus"></i>Adicionales
+            </a>
+          </li>
+
+          <!-- Costos — directo en navbar (solo admin) -->
           <li class="nav-item">
             <a class="nav-link {% if request.endpoint in ['main.costs_dashboard', 'main.create_cost', 'main.edit_cost'] %}active-link{% endif %}"
                href="{{ url_for('main.costs_dashboard') }}">
@@ -472,6 +480,14 @@
               <i class="bi bi-person-circle"></i>Mi Panel
             </a>
           </li>
+          {% if current_user.employee_id %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'main.my_adicionales' %}active-link{% endif %}"
+               href="{{ url_for('main.my_adicionales') }}">
+              <i class="bi bi-calendar2-plus"></i>Mis Adicionales
+            </a>
+          </li>
+          {% endif %}
           {% endif %}
 
           <!-- Auth links -->

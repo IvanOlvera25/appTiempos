@@ -1,0 +1,449 @@
+{% extends "layout.html" %}
+{% block title %}Adicionales - AD17 Solutions{% endblock %}
+
+{% block content %}
+<div class="adm-wrap">
+
+  <!-- Encabezado -->
+  <div class="mb-3">
+    <h2 class="fw-bold mb-1">Adicionales</h2>
+    <p class="text-muted mb-0">Calendario de adicionales autorizados de todo el personal</p>
+  </div>
+
+  {% if load_error %}
+  <div class="alert alert-danger d-flex align-items-start gap-2">
+    <i class="bi bi-exclamation-octagon-fill mt-1"></i><div>{{ load_error }}</div>
+  </div>
+  {% endif %}
+
+  <!-- Filtros -->
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-body py-3">
+      <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-4">
+          <label class="form-label fw-semibold small mb-1">Empleado</label>
+          <select class="form-select" id="filtroEmpleado">
+            <option value="">Todos los empleados</option>
+            {% for e in empleados %}
+            <option value="{{ e.rh_id }}" {% if filtros.rh_id == e.rh_id %}selected{% endif %}>{{ e.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label fw-semibold small mb-1">Área</label>
+          <select class="form-select" id="filtroArea">
+            <option value="">Todas</option>
+            {% for a in areas %}
+            <option value="{{ a.id }}" {% if filtros.area == a.id %}selected{% endif %}>{{ a.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label fw-semibold small mb-1">Estatus</label>
+          <select class="form-select" id="filtroEstatus">
+            <option value="">Todos</option>
+            <option value="PENDIENTE" {% if filtros.estatus == 'PENDIENTE' %}selected{% endif %}>Por pagar</option>
+            <option value="PAGADO" {% if filtros.estatus == 'PAGADO' %}selected{% endif %}>Pagados</option>
+            <option value="CANCELADO" {% if filtros.estatus == 'CANCELADO' %}selected{% endif %}>Cancelados</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-2">
+          <button class="btn btn-outline-secondary w-100" id="limpiarFiltros">
+            <i class="bi bi-eraser me-1"></i>Limpiar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resumen del mes -->
+  <div class="adm-summary">
+    <div class="adm-chip">
+      <span class="adm-chip-value" id="sumCantidad">0</span>
+      <span class="adm-chip-label">Adicionales</span>
+    </div>
+    <div class="adm-chip">
+      <span class="adm-chip-value" id="sumEmpleados">0</span>
+      <span class="adm-chip-label">Empleados</span>
+    </div>
+    <div class="adm-chip">
+      <span class="adm-chip-value" id="sumCosto">$0</span>
+      <span class="adm-chip-label">Costo del mes</span>
+    </div>
+    <div class="adm-chip">
+      <span class="adm-chip-value text-warning" id="sumPendiente">$0</span>
+      <span class="adm-chip-label">Por pagar</span>
+    </div>
+  </div>
+
+  <!-- Calendario -->
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+      <div class="adm-monthbar">
+        <button type="button" class="adm-navbtn" id="prevMonth" aria-label="Mes anterior">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <div class="text-center flex-fill">
+          <div class="adm-monthlabel" id="monthLabel">—</div>
+          <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" id="todayBtn">Ir al mes actual</button>
+        </div>
+        <button type="button" class="adm-navbtn" id="nextMonth" aria-label="Mes siguiente">
+          <i class="bi bi-chevron-right"></i>
+        </button>
+      </div>
+
+      <div class="adm-weekdays">
+        <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+      </div>
+      <div class="adm-grid" id="calendarGrid"></div>
+
+      <div class="adm-legend">
+        <span><i class="adm-dot adm-dot-pend"></i>Por pagar</span>
+        <span><i class="adm-dot adm-dot-pag"></i>Pagado</span>
+        <span><i class="adm-dot adm-dot-can"></i>Cancelado</span>
+        <span class="ms-auto"><i class="bi bi-hand-index-thumb me-1"></i>Toca un día para ver el detalle</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Listado del mes -->
+  <div class="card shadow-sm border-0">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+      <h6 class="mb-0 fw-semibold">Detalle del mes</h6>
+      <span class="badge bg-info px-3 py-2" id="conteoRegistros">0 registros</span>
+    </div>
+    <div class="card-body p-0" id="listaMes"></div>
+  </div>
+</div>
+
+<!-- Modal de detalle del día -->
+<div class="modal fade" id="dayModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="dayModalTitle">Detalle del día</h5>
+          <small class="text-muted" id="dayModalSub"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body" id="dayModalBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .adm-wrap { max-width: 1100px; margin: 0 auto; padding-bottom: 2rem; }
+
+  .adm-summary {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; margin-bottom: 1rem;
+  }
+  @media (min-width: 768px) { .adm-summary { grid-template-columns: repeat(4, 1fr); } }
+  .adm-chip {
+    background: #fff; border: 1px solid #eceff3; border-radius: 14px;
+    padding: .75rem .5rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.05);
+  }
+  .adm-chip-value { display: block; font-weight: 700; font-size: 1.15rem; line-height: 1.2; }
+  .adm-chip-label { display: block; font-size: .72rem; color: #6c757d; margin-top: .15rem; }
+
+  .adm-monthbar { display: flex; align-items: center; gap: .5rem; margin-bottom: .85rem; }
+  .adm-monthlabel { font-weight: 700; font-size: 1.1rem; text-transform: capitalize; }
+  .adm-navbtn {
+    width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid #e3e6ea;
+    background: #f8f9fa; color: #495057; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+  }
+  .adm-navbtn:active { background: #FF8800; border-color: #FF8800; color: #fff; }
+
+  .adm-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+  .adm-weekdays span {
+    text-align: center; font-size: .7rem; font-weight: 700; color: #adb5bd; text-transform: uppercase;
+  }
+
+  .adm-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .adm-day {
+    position: relative; min-height: 56px; aspect-ratio: 1 / 1;
+    border: 1px solid #f0f2f5; border-radius: 12px; background: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 2px; font-size: .85rem; color: #495057; overflow: hidden;
+  }
+  @media (min-width: 768px) { .adm-day { aspect-ratio: auto; min-height: 84px; justify-content: flex-start; padding: .35rem; } }
+  .adm-day.is-empty { border-color: transparent; background: transparent; }
+  .adm-day.is-today { border-color: #FF8800; border-width: 2px; }
+  .adm-day.has-data { cursor: pointer; }
+  .adm-day.has-data.pend { background: #fff4e6; border-color: #ffd8a8; }
+  .adm-day.has-data.pag  { background: #e9f9ef; border-color: #b7e4c7; }
+  .adm-day.has-data.can  { background: #f1f3f5; border-color: #dee2e6; }
+  .adm-day.has-data:active { transform: scale(.97); }
+  .adm-day-num { font-weight: 700; line-height: 1; align-self: center; }
+  @media (min-width: 768px) { .adm-day-num { align-self: flex-start; } }
+  .adm-badge {
+    margin-top: 3px; min-width: 20px; padding: 1px 6px; border-radius: 999px;
+    font-size: .68rem; font-weight: 700; color: #fff; line-height: 1.4;
+  }
+  .adm-day.pend .adm-badge { background: #FF8800; }
+  .adm-day.pag  .adm-badge { background: #2f9e5f; }
+  .adm-day.can  .adm-badge { background: #868e96; }
+  .adm-day-monto { font-size: .62rem; color: #6c757d; margin-top: 2px; display: none; }
+  @media (min-width: 768px) { .adm-day-monto { display: block; } }
+
+  .adm-legend {
+    display: flex; flex-wrap: wrap; gap: .75rem; margin-top: .85rem; padding-top: .75rem;
+    border-top: 1px solid #f1f3f5; font-size: .75rem; color: #6c757d;
+  }
+  .adm-legend span { display: inline-flex; align-items: center; gap: .3rem; }
+  .adm-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .adm-dot-pend { background: #FF8800; }
+  .adm-dot-pag { background: #2f9e5f; }
+  .adm-dot-can { background: #868e96; }
+
+  /* Registros */
+  .adm-reg { border-top: 1px solid #f1f3f5; padding: .75rem 1rem; }
+  .adm-reg:first-child { border-top: none; }
+  .adm-reg-top { display: flex; justify-content: space-between; align-items: start; gap: .75rem; }
+  .adm-reg-name { font-weight: 600; }
+  .adm-reg-meta { font-size: .75rem; color: #868e96; }
+  .adm-reg-cost { font-weight: 700; white-space: nowrap; }
+  .adm-reg-note { font-size: .8rem; color: #495057; margin-top: .25rem; }
+
+  .adm-status {
+    display: inline-block; font-size: .68rem; font-weight: 700; padding: .15rem .5rem;
+    border-radius: 999px; text-transform: uppercase; white-space: nowrap;
+  }
+  .adm-status.pend { background: #ffe8cc; color: #b35a00; }
+  .adm-status.pag  { background: #d3f9d8; color: #1f7a3f; }
+  .adm-status.can  { background: #e9ecef; color: #495057; }
+
+  .adm-empty { text-align: center; color: #adb5bd; padding: 2rem 1rem; }
+  .adm-empty i { font-size: 2.2rem; display: block; margin-bottom: .5rem; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const TODAY = "{{ today }}";
+  const URL_DATA = "{{ url_for('main.adicionales_data') }}";
+
+  const MESES = ['enero','febrero','marzo','abril','mayo','junio',
+                 'julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const MESES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 2 });
+  const num = (n) => (Math.round(n * 100) / 100).toString();
+
+  const estado = {
+    year: {{ year }},
+    month: {{ month }},
+    registros: {{ registros|tojson }},
+    rh_id: "{{ filtros.rh_id or '' }}",
+    area: "{{ filtros.area or '' }}",
+    estatus: "{{ filtros.estatus or '' }}"
+  };
+
+  const grid = document.getElementById('calendarGrid');
+  const monthLabel = document.getElementById('monthLabel');
+  const listaMes = document.getElementById('listaMes');
+  const dayModal = new bootstrap.Modal(document.getElementById('dayModal'));
+  const [ty, tm] = TODAY.split('-').map(Number);
+
+  let porDia = {};
+
+  const claseEstatus = (e) => e === 'PAGADO' ? 'pag' : (e === 'CANCELADO' ? 'can' : 'pend');
+  const textoEstatus = (e) => e === 'PAGADO' ? 'Pagado' : (e === 'CANCELADO' ? 'Cancelado' : 'Por pagar');
+
+  function estatusDelDia(items) {
+    const vivos = items.filter(a => a.estatus !== 'CANCELADO');
+    if (!vivos.length) return 'CANCELADO';
+    return vivos.every(a => a.estatus === 'PAGADO') ? 'PAGADO' : 'PENDIENTE';
+  }
+
+  function fechaLarga(f) {
+    const [y, m, d] = f.split('-').map(Number);
+    const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+    return `${dias[new Date(y, m - 1, d).getDay()]} ${d} de ${MESES[m - 1]} de ${y}`;
+  }
+  function fechaCorta(f) {
+    if (!f) return '—';
+    const [y, m, d] = f.split('-');
+    return `${Number(d)} ${MESES_CORTO[Number(m) - 1]} ${y}`;
+  }
+
+  function agrupar() {
+    porDia = {};
+    estado.registros.forEach(a => { (porDia[a.fecha] = porDia[a.fecha] || []).push(a); });
+  }
+
+  function render() {
+    agrupar();
+    const y = estado.year, m = estado.month - 1;
+    monthLabel.textContent = `${MESES[m]} ${y}`;
+
+    const primerDia = (new Date(y, m, 1).getDay() + 6) % 7;
+    const diasMes = new Date(y, m + 1, 0).getDate();
+
+    let html = '';
+    for (let i = 0; i < primerDia; i++) html += '<div class="adm-day is-empty"></div>';
+
+    for (let d = 1; d <= diasMes; d++) {
+      const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const items = porDia[key] || [];
+      const clases = ['adm-day'];
+      if (key === TODAY) clases.push('is-today');
+      let extra = '';
+      if (items.length) {
+        const cantidad = items.reduce((s, a) => s + a.cantidad, 0);
+        const costo = items.reduce((s, a) => s + (a.estatus === 'CANCELADO' ? 0 : a.costo), 0);
+        clases.push('has-data', claseEstatus(estatusDelDia(items)));
+        extra = `<span class="adm-badge">${num(cantidad)}</span>
+                 <span class="adm-day-monto">${items.length} emp · ${money.format(costo)}</span>`;
+      }
+      html += `<div class="${clases.join(' ')}" data-fecha="${key}" ${items.length ? 'role="button" tabindex="0"' : ''}>
+                 <span class="adm-day-num">${d}</span>${extra}
+               </div>`;
+    }
+    grid.innerHTML = html;
+
+    renderResumen();
+    renderLista();
+  }
+
+  function renderResumen() {
+    const vivos = estado.registros.filter(a => a.estatus !== 'CANCELADO');
+    const cantidad = vivos.reduce((s, a) => s + a.cantidad, 0);
+    const costo = vivos.reduce((s, a) => s + a.costo, 0);
+    const pendiente = vivos.filter(a => a.estatus === 'PENDIENTE').reduce((s, a) => s + a.costo, 0);
+    const empleados = new Set(vivos.map(a => a.rh_id)).size;
+
+    document.getElementById('sumCantidad').textContent = num(cantidad);
+    document.getElementById('sumEmpleados').textContent = empleados;
+    document.getElementById('sumCosto').textContent = money.format(costo);
+    document.getElementById('sumPendiente').textContent = money.format(pendiente);
+    document.getElementById('conteoRegistros').textContent =
+      `${estado.registros.length} registro${estado.registros.length === 1 ? '' : 's'}`;
+  }
+
+  function tarjetaRegistro(a, conFecha) {
+    const cls = claseEstatus(a.estatus);
+    const fps = (a.proyectos || []).map(p => `FP ${p.fp}${p.porcentaje < 100 ? ' (' + num(p.porcentaje) + '%)' : ''}`).join(' · ');
+    return `<div class="adm-reg">
+      <div class="adm-reg-top">
+        <div>
+          <div class="adm-reg-name">${a.empleado}</div>
+          <div class="adm-reg-meta">
+            ${conFecha ? fechaCorta(a.fecha) + ' · ' : ''}${a.area} · ${a.tipo} ·
+            ${num(a.cantidad)} × ${money.format(a.costo_unit)}
+          </div>
+        </div>
+        <div class="text-end">
+          <div class="adm-reg-cost">${money.format(a.costo)}</div>
+          <span class="adm-status ${cls}">${textoEstatus(a.estatus)}</span>
+        </div>
+      </div>
+      ${a.nota ? `<div class="adm-reg-note">${a.nota}</div>` : ''}
+      <div class="adm-reg-meta mt-1">
+        ${fps ? fps + ' · ' : ''}Pago: ${fechaCorta(a.fecha_pago)}
+      </div>
+    </div>`;
+  }
+
+  function renderLista() {
+    if (!estado.registros.length) {
+      listaMes.innerHTML = `<div class="adm-empty">
+          <i class="bi bi-calendar2-x"></i>No hay adicionales en este mes con los filtros seleccionados.
+        </div>`;
+      return;
+    }
+    listaMes.innerHTML = estado.registros.map(a => tarjetaRegistro(a, true)).join('');
+  }
+
+  function abrirDia(fecha) {
+    const items = porDia[fecha] || [];
+    if (!items.length) return;
+    const vivos = items.filter(a => a.estatus !== 'CANCELADO');
+    const total = vivos.reduce((s, a) => s + a.costo, 0);
+    const cantidad = vivos.reduce((s, a) => s + a.cantidad, 0);
+
+    document.getElementById('dayModalTitle').textContent =
+      `${items.length} registro${items.length === 1 ? '' : 's'} · ${num(cantidad)} adicionales`;
+    document.getElementById('dayModalSub').textContent = `${fechaLarga(fecha)} — ${money.format(total)}`;
+    document.getElementById('dayModalBody').innerHTML = items.map(a => tarjetaRegistro(a, false)).join('');
+    dayModal.show();
+  }
+
+  // ── Carga de datos ─────────────────────────────────────────────────────
+  async function cargar() {
+    const params = new URLSearchParams({ year: estado.year, month: estado.month });
+    if (estado.rh_id) params.set('rh_id', estado.rh_id);
+    if (estado.area) params.set('area', estado.area);
+    if (estado.estatus) params.set('estatus', estado.estatus);
+
+    grid.style.opacity = .4;
+    try {
+      const resp = await fetch(`${URL_DATA}?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
+      if (!resp.ok) throw new Error('respuesta ' + resp.status);
+      const data = await resp.json();
+      estado.registros = data.registros || [];
+      history.replaceState(null, '', `?${params.toString()}`);
+      render();
+    } catch (e) {
+      listaMes.innerHTML = `<div class="adm-empty"><i class="bi bi-wifi-off"></i>
+        No fue posible cargar los adicionales. Intenta de nuevo.</div>`;
+    } finally {
+      grid.style.opacity = 1;
+    }
+  }
+
+  function moverMes(delta) {
+    const d = new Date(estado.year, estado.month - 1 + delta, 1);
+    estado.year = d.getFullYear();
+    estado.month = d.getMonth() + 1;
+    cargar();
+  }
+
+  // ── Eventos ────────────────────────────────────────────────────────────
+  document.getElementById('prevMonth').addEventListener('click', () => moverMes(-1));
+  document.getElementById('nextMonth').addEventListener('click', () => moverMes(1));
+  document.getElementById('todayBtn').addEventListener('click', () => {
+    estado.year = ty; estado.month = tm; cargar();
+  });
+
+  document.getElementById('filtroEmpleado').addEventListener('change', (e) => { estado.rh_id = e.target.value; cargar(); });
+  document.getElementById('filtroArea').addEventListener('change', (e) => { estado.area = e.target.value; cargar(); });
+  document.getElementById('filtroEstatus').addEventListener('change', (e) => { estado.estatus = e.target.value; cargar(); });
+  document.getElementById('limpiarFiltros').addEventListener('click', () => {
+    estado.rh_id = estado.area = estado.estatus = '';
+    document.getElementById('filtroEmpleado').value = '';
+    document.getElementById('filtroArea').value = '';
+    document.getElementById('filtroEstatus').value = '';
+    cargar();
+  });
+
+  grid.addEventListener('click', (e) => {
+    const celda = e.target.closest('.adm-day.has-data');
+    if (celda) abrirDia(celda.dataset.fecha);
+  });
+  grid.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const celda = e.target.closest('.adm-day.has-data');
+    if (celda) { e.preventDefault(); abrirDia(celda.dataset.fecha); }
+  });
+
+  // Swipe entre meses (celular)
+  let x0 = null, y0 = null;
+  grid.addEventListener('touchstart', (e) => {
+    x0 = e.changedTouches[0].clientX; y0 = e.changedTouches[0].clientY;
+  }, { passive: true });
+  grid.addEventListener('touchend', (e) => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) moverMes(dx < 0 ? 1 : -1);
+    x0 = y0 = null;
+  }, { passive: true });
+
+  render();
+})();
+</script>
+{% endblock %}

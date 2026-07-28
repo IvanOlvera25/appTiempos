@@ -2377,6 +2377,316 @@ def my_dashboard():
         employee_departments=employee_departments,
         filters=filters
     )
+
+# =========================================================================
+# Adicionales del empleado (BD remota AD17_Adicionales)
+# =========================================================================
+def _adicionales_conn():
+    """Conexión a la BD remota de adicionales (credenciales configurables)."""
+    cfg = current_app.config
+    return pymysql.connect(
+        host=cfg.get('ADICIONALES_DB_HOST', 'ad17solutions.dscloud.me'),
+        port=int(cfg.get('ADICIONALES_DB_PORT', 3307)),
+        user=cfg.get('ADICIONALES_DB_USER', 'IvanUriel'),
+        password=cfg.get('ADICIONALES_DB_PASSWORD', 'iuOp20!!25'),
+        database=cfg.get('ADICIONALES_DB_NAME', 'AD17_Adicionales'),
+        charset='utf8mb4',
+        cursorclass=pymysql.cursors.DictCursor,
+        connect_timeout=10,
+        read_timeout=25
+    )
+
+
+def _fetch_adicionales_empleado(rh_id):
+    """Ejecuta sp_adicionales_empleado en la BD remota AD17_Adicionales."""
+    conn = _adicionales_conn()
+    try:
+        cursor = conn.cursor()
+        cursor.callproc('sp_adicionales_empleado', (rh_id,))
+        rows = cursor.fetchall() or []
+        # Los SP dejan result sets pendientes; se drenan para liberar la conexión
+        while cursor.nextset():
+            pass
+        cursor.close()
+        return rows
+    finally:
+        conn.close()
+
+
+def _serialize_adicional(row):
+    """Normaliza una fila del SP al formato que consume el calendario."""
+    def _fecha(valor):
+        if not valor:
+            return None
+        if hasattr(valor, 'strftime'):
+            return valor.strftime('%Y-%m-%d')
+        return str(valor)[:10]
+
+    def _num(valor):
+        try:
+            return float(valor)
+        except (TypeError, ValueError):
+            return 0.0
+
+    return {
+        'id': row.get('regID'),
+        'fecha': _fecha(row.get('fecha')),
+        'fecha_pago': _fecha(row.get('fecha_pago')),
+        'cantidad': _num(row.get('cantidad')),
+        'costo': _num(row.get('costo')),
+        'estatus': (row.get('estatus_pago') or 'PENDIENTE').strip().upper()
+    }
+
+
+@main.route('/mis-adicionales')
+@login_required
+def my_adicionales():
+    """Calendario mensual de adicionales autorizados — vista pensada para celular."""
+    if not current_user.employee_id:
+        flash('Vista disponible solo para usuarios con perfil de empleado asignado.', 'warning')
+        return redirect(url_for('main.home'))
+
+    employee = Employee.query.get_or_404(current_user.employee_id)
+
+    # El SP recibe el rhID, que corresponde al n_empleado de la base local
+    try:
+        rh_id = int(str(employee.n_empleado).strip())
+    except (TypeError, ValueError):
+        rh_id = None
+
+    adicionales = []
+    load_error = None
+
+    if rh_id is None:
+        load_error = 'Tu número de empleado no es válido para consultar adicionales.'
+    else:
+        try:
+            adicionales = [_serialize_adicional(r) for r in _fetch_adicionales_empleado(rh_id)]
+        except Exception as e:
+            current_app.logger.error("my_adicionales: error consultando AD17_Adicionales: %s", e)
+            load_error = 'No fue posible consultar tus adicionales en este momento. Intenta de nuevo más tarde.'
+
+    adicionales = sorted((a for a in adicionales if a['fecha']), key=lambda a: a['fecha'])
+
+    hoy_mx = datetime.now(timezone('America/Mexico_City')).date()
+
+    return render_template(
+        'employee_adicionales.html',
+        employee=employee,
+        adicionales=adicionales,
+        load_error=load_error,
+        today=hoy_mx.strftime('%Y-%m-%d')
+    )
+
+
+# -------------------------------------------------------------------------
+# Calendario global de adicionales (consulta para administradores)
+# -------------------------------------------------------------------------
+# Subconsulta reutilizable con el último registro de datos de cada empleado
+_SQL_NOMBRES_RH = """
+    (SELECT rhID, nombre, paterno, materno FROM AD17_RH.Datos
+      WHERE regID IN (SELECT MAX(regID) FROM AD17_RH.Datos GROUP BY rhID))
+"""
+
+
+def _estatus_adicional(row):
+    if not row.get('estatus_validacion'):
+        return 'CANCELADO'
+    return 'PAGADO' if row.get('pagado') else 'PENDIENTE'
+
+
+def _serialize_adicional_admin(row):
+    """Normaliza una fila de la tabla adicionales para el calendario administrativo."""
+    def _fecha(valor):
+        if not valor:
+            return None
+        return valor.strftime('%Y-%m-%d') if hasattr(valor, 'strftime') else str(valor)[:10]
+
+    def _num(valor):
+        try:
+            return float(valor)
+        except (TypeError, ValueError):
+            return 0.0
+
+    return {
+        'id': row.get('regID'),
+        'rh_id': row.get('rhID'),
+        'empleado': (row.get('empleado') or '').strip() or 'RH %s' % row.get('rhID'),
+        'fecha': _fecha(row.get('fecha')),
+        'fecha_pago': _fecha(row.get('fecha_pago')),
+        'tipo': row.get('tipo') or 'TIEMPO',
+        'area_id': row.get('area'),
+        'area': row.get('area_nombre') or '—',
+        'cantidad': _num(row.get('cantidad')),
+        'costo_unit': _num(row.get('costo_unit')),
+        'costo': _num(row.get('costo')),
+        'nota': row.get('nota') or '',
+        'estatus': _estatus_adicional(row),
+        'proyectos': []
+    }
+
+
+def _adicionales_catalogos():
+    """Empleados vigentes (con su costo de adicional) y catálogo de áreas."""
+    conn = _adicionales_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id AS rh_id, nomPropio AS nombre, id_area AS area_id,
+                       titulo_area AS area, adicional AS costo_unit
+                  FROM AD17_RH.empleados_activos
+                 ORDER BY nomPropio
+            """)
+            empleados = [{
+                'rh_id': r['rh_id'],
+                'nombre': (r['nombre'] or '').strip() or 'RH %s' % r['rh_id'],
+                'area_id': r['area_id'],
+                'area': r['area'] or '',
+                'costo_unit': float(r['costo_unit'] or 0)
+            } for r in cur.fetchall()]
+
+            cur.execute("SELECT regID AS id, area FROM AD17_General.Areas ORDER BY area")
+            areas = [{'id': r['id'], 'nombre': r['area']} for r in cur.fetchall()]
+    finally:
+        conn.close()
+    return empleados, areas
+
+
+def _adicionales_rango(desde, hasta, area=None, rh_id=None, estatus=None):
+    """Adicionales (con empleado, área y proyectos) dentro de un rango de fechas."""
+    sql = """
+        SELECT a.regID, a.rhID, a.fecha, a.tipo, a.area, a.cantidad, a.nota,
+               a.costo_unit, a.costo, a.fecha_pago, a.estatus_validacion, a.pagado,
+               ar.area AS area_nombre,
+               TRIM(CONCAT(COALESCE(d.nombre,''),' ',COALESCE(d.paterno,''),' ',COALESCE(d.materno,''))) AS empleado
+          FROM adicionales a
+          LEFT JOIN AD17_General.Areas ar ON ar.regID = a.area
+          LEFT JOIN %s AS d ON d.rhID = a.rhID
+         WHERE a.fecha BETWEEN %%s AND %%s
+    """ % _SQL_NOMBRES_RH
+    params = [desde, hasta]
+
+    if area:
+        sql += " AND a.area = %s"
+        params.append(area)
+    if rh_id:
+        sql += " AND a.rhID = %s"
+        params.append(rh_id)
+    if estatus == 'PENDIENTE':
+        sql += " AND a.estatus_validacion = 1 AND a.pagado = 0"
+    elif estatus == 'PAGADO':
+        sql += " AND a.estatus_validacion = 1 AND a.pagado = 1"
+    elif estatus == 'CANCELADO':
+        sql += " AND a.estatus_validacion = 0"
+
+    sql += " ORDER BY a.fecha, empleado"
+
+    conn = _adicionales_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            registros = [_serialize_adicional_admin(r) for r in cur.fetchall()]
+
+            if registros:
+                ids = [r['id'] for r in registros]
+                marcadores = ','.join(['%s'] * len(ids))
+                cur.execute(
+                    "SELECT adID, fp, porcentaje FROM ad_proyecto WHERE adID IN (%s) ORDER BY porcentaje DESC" % marcadores,
+                    ids
+                )
+                por_adicional = {}
+                for p in cur.fetchall():
+                    por_adicional.setdefault(p['adID'], []).append({
+                        'fp': p['fp'],
+                        'porcentaje': round(float(p['porcentaje'] or 0) * 100, 2)
+                    })
+                for r in registros:
+                    r['proyectos'] = por_adicional.get(r['id'], [])
+    finally:
+        conn.close()
+    return registros
+
+
+def _bloquear_si_no_admin():
+    if not current_user.is_admin:
+        flash('Acceso denegado. Solo administradores pueden consultar los adicionales.', 'danger')
+        return redirect(url_for('main.home'))
+    return None
+
+
+def _mes_solicitado():
+    """Año y mes de la vista (por querystring, con el mes actual como default)."""
+    hoy = datetime.now(timezone('America/Mexico_City')).date()
+    year = request.args.get('year', type=int) or hoy.year
+    month = request.args.get('month', type=int) or hoy.month
+    if not 1 <= month <= 12:
+        month = hoy.month
+    return year, month
+
+
+def _filtros_adicionales():
+    return {
+        'area': request.args.get('area', type=int),
+        'rh_id': request.args.get('rh_id', type=int),
+        'estatus': (request.args.get('estatus') or '').strip().upper() or None
+    }
+
+
+@main.route('/adicionales')
+@login_required
+def adicionales_admin():
+    """Calendario global de adicionales de todos los empleados (solo administradores)."""
+    bloqueo = _bloquear_si_no_admin()
+    if bloqueo:
+        return bloqueo
+
+    year, month = _mes_solicitado()
+    filtros = _filtros_adicionales()
+    desde = datetime(year, month, 1).date()
+    hasta = (desde + relativedelta(months=1)) - timedelta(days=1)
+
+    registros, empleados, areas, error = [], [], [], None
+    try:
+        registros = _adicionales_rango(desde, hasta, **filtros)
+        empleados, areas = _adicionales_catalogos()
+    except Exception as e:
+        current_app.logger.error("adicionales_admin: %s", e)
+        error = 'No fue posible consultar la base de adicionales en este momento.'
+
+    hoy = datetime.now(timezone('America/Mexico_City')).date()
+
+    return render_template(
+        'adicionales_admin.html',
+        registros=registros,
+        empleados=empleados,
+        areas=areas,
+        filtros=filtros,
+        year=year,
+        month=month,
+        today=hoy.strftime('%Y-%m-%d'),
+        load_error=error
+    )
+
+
+@main.route('/adicionales/data')
+@login_required
+def adicionales_data():
+    """Datos de un mes para la navegación del calendario administrativo."""
+    if not current_user.is_admin:
+        return jsonify({'error': 'No autorizado'}), 403
+
+    year, month = _mes_solicitado()
+    desde = datetime(year, month, 1).date()
+    hasta = (desde + relativedelta(months=1)) - timedelta(days=1)
+    try:
+        registros = _adicionales_rango(desde, hasta, **_filtros_adicionales())
+    except Exception as e:
+        current_app.logger.error("adicionales_data: %s", e)
+        return jsonify({'error': 'No fue posible consultar los adicionales.'}), 500
+
+    return jsonify({'year': year, 'month': month, 'registros': registros})
+
+
 @main.route('/costs')
 @login_required
 def costs_dashboard():

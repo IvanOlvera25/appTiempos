@@ -14,11 +14,18 @@
           </h2>
           <p class="text-muted mb-0">Analiza el rendimiento y actividad individual de cada empleado</p>
         </div>
-        {% if current_user.has_admin_privileges %}
-        <a href="{{ url_for('main.add_employee') }}" class="btn btn-primary btn-lg">
-          <i class="bi bi-person-plus me-2"></i>Nuevo Empleado
-        </a>
-        {% endif %}
+        <div class="d-flex gap-2 flex-wrap">
+          {% if current_user.is_admin %}
+          <a href="{{ url_for('main.adicionales_admin') }}" class="btn btn-outline-primary btn-lg">
+            <i class="bi bi-calendar2-plus me-2"></i>Adicionales
+          </a>
+          {% endif %}
+          {% if current_user.has_admin_privileges %}
+          <a href="{{ url_for('main.add_employee') }}" class="btn btn-primary btn-lg">
+            <i class="bi bi-person-plus me-2"></i>Nuevo Empleado
+          </a>
+          {% endif %}
+        </div>
       </div>
     </div>
   </div>

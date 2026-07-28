@@ -1,0 +1,491 @@
+{% extends "layout.html" %}
+{% block title %}Mis Adicionales - AD17 Solutions{% endblock %}
+
+{% block content %}
+<div class="adic-wrap">
+
+  <!-- Encabezado -->
+  <div class="adic-header">
+    <div>
+      <h2 class="adic-title">Mis Adicionales</h2>
+      <p class="adic-subtitle">{{ employee.nompropio }} · Nº {{ employee.n_empleado }}</p>
+    </div>
+  </div>
+
+  {% if load_error %}
+  <div class="alert alert-warning d-flex align-items-start gap-2">
+    <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+    <div>{{ load_error }}</div>
+  </div>
+  {% endif %}
+
+  <!-- Resumen del mes -->
+  <div class="adic-summary">
+    <div class="adic-chip">
+      <span class="adic-chip-value" id="sumCantidad">0</span>
+      <span class="adic-chip-label">Adicionales</span>
+    </div>
+    <div class="adic-chip">
+      <span class="adic-chip-value" id="sumCosto">$0</span>
+      <span class="adic-chip-label">Total del mes</span>
+    </div>
+    <div class="adic-chip">
+      <span class="adic-chip-value" id="sumPendiente">$0</span>
+      <span class="adic-chip-label">Por pagar</span>
+    </div>
+  </div>
+
+  <!-- Calendario -->
+  <div class="adic-card">
+    <div class="adic-monthbar">
+      <button type="button" class="adic-navbtn" id="prevMonth" aria-label="Mes anterior">
+        <i class="bi bi-chevron-left"></i>
+      </button>
+      <div class="adic-monthlabel" id="monthLabel">—</div>
+      <button type="button" class="adic-navbtn" id="nextMonth" aria-label="Mes siguiente">
+        <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
+
+    <div class="adic-weekdays">
+      <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+    </div>
+
+    <div class="adic-grid" id="calendarGrid"></div>
+
+    <div class="adic-legend">
+      <span><i class="adic-dot adic-dot-pend"></i>Por pagar</span>
+      <span><i class="adic-dot adic-dot-pag"></i>Pagado</span>
+      <span class="adic-legend-hint"><i class="bi bi-hand-index-thumb"></i>Toca un día para ver el detalle</span>
+    </div>
+  </div>
+
+  <!-- Listado del mes -->
+  <div class="adic-card">
+    <div class="adic-listhead">
+      <h6 class="mb-0 fw-semibold">Detalle del mes</h6>
+      <button type="button" class="adic-todaybtn" id="todayBtn">
+        <i class="bi bi-calendar-event me-1"></i>Hoy
+      </button>
+    </div>
+    <div id="monthList"></div>
+  </div>
+</div>
+
+<!-- Modal de detalle del día -->
+<div class="modal fade" id="dayModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable adic-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="dayModalTitle">Detalle</h5>
+          <small class="text-muted" id="dayModalSub"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body" id="dayModalBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .adic-wrap { max-width: 720px; margin: 0 auto; padding-bottom: 2rem; }
+
+  .adic-header { margin-bottom: 1rem; }
+  .adic-title { font-weight: 700; font-size: 1.5rem; margin-bottom: .15rem; }
+  .adic-subtitle { color: #6c757d; font-size: .9rem; margin: 0; }
+
+  /* Resumen */
+  .adic-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .5rem;
+    margin-bottom: 1rem;
+  }
+  .adic-chip {
+    background: #fff;
+    border: 1px solid #eceff3;
+    border-radius: 14px;
+    padding: .7rem .4rem;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+  }
+  .adic-chip-value { display: block; font-weight: 700; font-size: 1.1rem; color: #212529; line-height: 1.2; }
+  .adic-chip-label { display: block; font-size: .7rem; color: #6c757d; margin-top: .15rem; }
+
+  /* Tarjetas */
+  .adic-card {
+    background: #fff;
+    border: 1px solid #eceff3;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    padding: .85rem;
+    margin-bottom: 1rem;
+  }
+
+  /* Barra de mes */
+  .adic-monthbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: .75rem;
+  }
+  .adic-monthlabel {
+    font-weight: 700; font-size: 1.05rem; text-transform: capitalize; text-align: center; flex: 1;
+  }
+  .adic-navbtn {
+    width: 44px; height: 44px; flex: 0 0 44px;
+    border: 1px solid #e3e6ea; background: #f8f9fa; color: #495057;
+    border-radius: 12px; font-size: 1.1rem; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .adic-navbtn:active { background: #FF8800; border-color: #FF8800; color: #fff; }
+
+  /* Encabezado de días */
+  .adic-weekdays {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    gap: 4px; margin-bottom: 4px;
+  }
+  .adic-weekdays span {
+    text-align: center; font-size: .7rem; font-weight: 700;
+    color: #adb5bd; text-transform: uppercase; padding: .2rem 0;
+  }
+
+  /* Rejilla */
+  .adic-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+
+  .adic-day {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    min-height: 44px;
+    border: 1px solid #f0f2f5;
+    border-radius: 12px;
+    background: #fff;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 2px;
+    font-size: .85rem; color: #495057;
+  }
+  .adic-day.is-empty { border-color: transparent; background: transparent; }
+  .adic-day.is-out { color: #ced4da; }
+  .adic-day.is-today { border-color: #FF8800; border-width: 2px; font-weight: 700; }
+
+  .adic-day-num { line-height: 1; }
+
+  .adic-day.has-data { cursor: pointer; font-weight: 700; color: #212529; }
+  .adic-day.has-data.pend { background: #fff4e6; border-color: #ffd8a8; }
+  .adic-day.has-data.pag  { background: #e9f9ef; border-color: #b7e4c7; }
+  .adic-day.has-data:active { transform: scale(.95); }
+
+  .adic-badge {
+    margin-top: 3px;
+    min-width: 20px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    font-size: .68rem;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.4;
+  }
+  .adic-day.pend .adic-badge { background: #FF8800; }
+  .adic-day.pag  .adic-badge { background: #2f9e5f; }
+
+  /* Leyenda */
+  .adic-legend {
+    display: flex; flex-wrap: wrap; gap: .75rem;
+    margin-top: .85rem; padding-top: .75rem;
+    border-top: 1px solid #f1f3f5;
+    font-size: .75rem; color: #6c757d;
+  }
+  .adic-legend span { display: inline-flex; align-items: center; gap: .3rem; }
+  .adic-legend-hint { margin-left: auto; }
+  .adic-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .adic-dot-pend { background: #FF8800; }
+  .adic-dot-pag { background: #2f9e5f; }
+
+  /* Listado */
+  .adic-listhead {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: .6rem;
+  }
+  .adic-todaybtn {
+    border: 1px solid #e3e6ea; background: #f8f9fa; color: #495057;
+    border-radius: 10px; padding: .35rem .7rem; font-size: .8rem; font-weight: 600;
+  }
+  .adic-item {
+    display: flex; align-items: center; gap: .7rem;
+    padding: .65rem .2rem;
+    border-top: 1px solid #f1f3f5;
+  }
+  .adic-item:first-child { border-top: none; }
+  .adic-item-date {
+    flex: 0 0 46px; text-align: center;
+    background: #f8f9fa; border-radius: 10px; padding: .3rem 0;
+  }
+  .adic-item-day { display: block; font-weight: 700; font-size: 1rem; line-height: 1; }
+  .adic-item-mon { display: block; font-size: .62rem; text-transform: uppercase; color: #868e96; }
+  .adic-item-main { flex: 1; min-width: 0; }
+  .adic-item-title { font-weight: 600; font-size: .9rem; }
+  .adic-item-sub { font-size: .75rem; color: #868e96; }
+  .adic-item-amount { font-weight: 700; font-size: .9rem; white-space: nowrap; }
+
+  .adic-empty { text-align: center; color: #adb5bd; padding: 1.5rem .5rem; }
+  .adic-empty i { font-size: 2rem; display: block; margin-bottom: .5rem; }
+
+  /* Modal */
+  .adic-detail {
+    border: 1px solid #f0f2f5; border-radius: 12px;
+    padding: .75rem; margin-bottom: .6rem; background: #fcfcfd;
+  }
+  .adic-detail-top {
+    display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+    margin-bottom: .5rem;
+  }
+  .adic-detail-qty { font-weight: 700; font-size: 1rem; }
+  .adic-detail-cost { font-weight: 700; font-size: 1.05rem; color: #212529; }
+  .adic-detail-row {
+    display: flex; justify-content: space-between; gap: .5rem;
+    font-size: .82rem; padding: .18rem 0; color: #495057;
+  }
+  .adic-detail-row span:first-child { color: #868e96; }
+  .adic-total {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: .75rem; border-radius: 12px; background: #fff4e6;
+    font-weight: 700;
+  }
+  .adic-status {
+    font-size: .7rem; font-weight: 700; padding: .15rem .5rem;
+    border-radius: 999px; text-transform: uppercase;
+  }
+  .adic-status.pend { background: #ffe8cc; color: #b35a00; }
+  .adic-status.pag  { background: #d3f9d8; color: #1f7a3f; }
+
+  @media (max-width: 380px) {
+    .adic-day { font-size: .78rem; }
+    .adic-badge { font-size: .62rem; }
+    .adic-chip-value { font-size: .95rem; }
+  }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const ADICIONALES = {{ adicionales|tojson }};
+  const TODAY = "{{ today }}";
+
+  const MESES = ['enero','febrero','marzo','abril','mayo','junio',
+                 'julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const MESES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+  const money = new Intl.NumberFormat('es-MX', {
+    style: 'currency', currency: 'MXN', minimumFractionDigits: 0, maximumFractionDigits: 2
+  });
+  const num = (n) => (Math.round(n * 100) / 100).toString();
+
+  // Agrupar por fecha (YYYY-MM-DD)
+  const porDia = {};
+  ADICIONALES.forEach(a => {
+    (porDia[a.fecha] = porDia[a.fecha] || []).push(a);
+  });
+
+  const grid = document.getElementById('calendarGrid');
+  const monthLabel = document.getElementById('monthLabel');
+  const monthList = document.getElementById('monthList');
+  const modalEl = document.getElementById('dayModal');
+  const dayModal = new bootstrap.Modal(modalEl);
+
+  // Mes inicial: el más reciente con adicionales; si no hay, el mes actual
+  const [ty, tm, td] = TODAY.split('-').map(Number);
+  let cursor;
+  const fechas = Object.keys(porDia).sort();
+  if (fechas.length) {
+    const ult = fechas[fechas.length - 1].split('-').map(Number);
+    cursor = new Date(ult[0], ult[1] - 1, 1);
+  } else {
+    cursor = new Date(ty, tm - 1, 1);
+  }
+
+  const iso = (y, m, d) =>
+    `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+  const esPagado = (items) => items.length > 0 && items.every(a => a.estatus === 'PAGADO');
+
+  function fechaLarga(fechaIso) {
+    const [y, m, d] = fechaIso.split('-').map(Number);
+    const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+    const dow = new Date(y, m - 1, d).getDay();
+    return `${dias[dow]} ${d} de ${MESES[m - 1]} de ${y}`;
+  }
+
+  function render() {
+    const y = cursor.getFullYear();
+    const m = cursor.getMonth();
+    monthLabel.textContent = `${MESES[m]} ${y}`;
+
+    // Lunes = 0
+    const primerDia = (new Date(y, m, 1).getDay() + 6) % 7;
+    const diasMes = new Date(y, m + 1, 0).getDate();
+
+    let html = '';
+    for (let i = 0; i < primerDia; i++) html += '<div class="adic-day is-empty"></div>';
+
+    for (let d = 1; d <= diasMes; d++) {
+      const key = iso(y, m, d);
+      const items = porDia[key] || [];
+      const clases = ['adic-day'];
+      if (key === TODAY) clases.push('is-today');
+
+      let badge = '';
+      if (items.length) {
+        const total = items.reduce((s, a) => s + a.cantidad, 0);
+        clases.push('has-data', esPagado(items) ? 'pag' : 'pend');
+        badge = `<span class="adic-badge">${num(total)}</span>`;
+      }
+      html += `<div class="${clases.join(' ')}" data-fecha="${key}" ${items.length ? 'role="button" tabindex="0"' : ''}>
+                 <span class="adic-day-num">${d}</span>${badge}
+               </div>`;
+    }
+    grid.innerHTML = html;
+
+    renderResumen(y, m);
+    renderLista(y, m);
+  }
+
+  function itemsDelMes(y, m) {
+    const pref = `${y}-${String(m + 1).padStart(2, '0')}-`;
+    return ADICIONALES.filter(a => a.fecha.startsWith(pref));
+  }
+
+  function renderResumen(y, m) {
+    const items = itemsDelMes(y, m);
+    const cantidad = items.reduce((s, a) => s + a.cantidad, 0);
+    const costo = items.reduce((s, a) => s + a.costo, 0);
+    const pendiente = items.filter(a => a.estatus !== 'PAGADO').reduce((s, a) => s + a.costo, 0);
+
+    document.getElementById('sumCantidad').textContent = num(cantidad);
+    document.getElementById('sumCosto').textContent = money.format(costo);
+    document.getElementById('sumPendiente').textContent = money.format(pendiente);
+  }
+
+  function renderLista(y, m) {
+    const items = itemsDelMes(y, m).slice().sort((a, b) => a.fecha.localeCompare(b.fecha));
+    if (!items.length) {
+      monthList.innerHTML = `<div class="adic-empty">
+          <i class="bi bi-calendar2-x"></i>
+          No tienes adicionales autorizados en este mes.
+        </div>`;
+      return;
+    }
+    monthList.innerHTML = items.map(a => {
+      const [, mm, dd] = a.fecha.split('-');
+      const pagado = a.estatus === 'PAGADO';
+      return `<div class="adic-item" role="button" data-fecha="${a.fecha}">
+        <div class="adic-item-date">
+          <span class="adic-item-day">${Number(dd)}</span>
+          <span class="adic-item-mon">${MESES_CORTO[Number(mm) - 1]}</span>
+        </div>
+        <div class="adic-item-main">
+          <div class="adic-item-title">${num(a.cantidad)} adicional${a.cantidad === 1 ? '' : 'es'}</div>
+          <div class="adic-item-sub">
+            <span class="adic-status ${pagado ? 'pag' : 'pend'}">${pagado ? 'Pagado' : 'Por pagar'}</span>
+            ${a.fecha_pago ? ' · Pago: ' + fechaCorta(a.fecha_pago) : ''}
+          </div>
+        </div>
+        <div class="adic-item-amount">${money.format(a.costo)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function fechaCorta(fechaIso) {
+    const [y, m, d] = fechaIso.split('-');
+    return `${Number(d)} ${MESES_CORTO[Number(m) - 1]} ${y}`;
+  }
+
+  function abrirDia(fecha) {
+    const items = porDia[fecha];
+    if (!items || !items.length) return;
+
+    document.getElementById('dayModalTitle').textContent = `${items.length} registro${items.length === 1 ? '' : 's'}`;
+    document.getElementById('dayModalSub').textContent = fechaLarga(fecha);
+
+    const totalCant = items.reduce((s, a) => s + a.cantidad, 0);
+    const totalCosto = items.reduce((s, a) => s + a.costo, 0);
+
+    const detalles = items.map(a => {
+      const pagado = a.estatus === 'PAGADO';
+      return `<div class="adic-detail">
+        <div class="adic-detail-top">
+          <span class="adic-detail-qty">${num(a.cantidad)} adicional${a.cantidad === 1 ? '' : 'es'}</span>
+          <span class="adic-detail-cost">${money.format(a.costo)}</span>
+        </div>
+        <div class="adic-detail-row">
+          <span>Costo unitario</span>
+          <span>${a.cantidad ? money.format(a.costo / a.cantidad) : '—'}</span>
+        </div>
+        <div class="adic-detail-row">
+          <span>Fecha de pago</span>
+          <span>${a.fecha_pago ? fechaCorta(a.fecha_pago) : 'Por definir'}</span>
+        </div>
+        <div class="adic-detail-row">
+          <span>Estatus</span>
+          <span class="adic-status ${pagado ? 'pag' : 'pend'}">${pagado ? 'Pagado' : 'Por pagar'}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('dayModalBody').innerHTML = detalles + `
+      <div class="adic-total">
+        <span>Total del día (${num(totalCant)})</span>
+        <span>${money.format(totalCosto)}</span>
+      </div>`;
+
+    dayModal.show();
+  }
+
+  // ── Eventos ────────────────────────────────────────────────────────────
+  document.getElementById('prevMonth').addEventListener('click', () => {
+    cursor.setMonth(cursor.getMonth() - 1); render();
+  });
+  document.getElementById('nextMonth').addEventListener('click', () => {
+    cursor.setMonth(cursor.getMonth() + 1); render();
+  });
+  document.getElementById('todayBtn').addEventListener('click', () => {
+    cursor = new Date(ty, tm - 1, 1); render();
+  });
+
+  grid.addEventListener('click', (e) => {
+    const celda = e.target.closest('.adic-day.has-data');
+    if (celda) abrirDia(celda.dataset.fecha);
+  });
+  grid.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const celda = e.target.closest('.adic-day.has-data');
+    if (celda) { e.preventDefault(); abrirDia(celda.dataset.fecha); }
+  });
+  monthList.addEventListener('click', (e) => {
+    const item = e.target.closest('.adic-item');
+    if (item) abrirDia(item.dataset.fecha);
+  });
+
+  // Swipe horizontal para cambiar de mes (celular)
+  let x0 = null, y0 = null;
+  grid.addEventListener('touchstart', (e) => {
+    x0 = e.changedTouches[0].clientX; y0 = e.changedTouches[0].clientY;
+  }, { passive: true });
+  grid.addEventListener('touchend', (e) => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    const dy = e.changedTouches[0].clientY - y0;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+      cursor.setMonth(cursor.getMonth() + (dx < 0 ? 1 : -1));
+      render();
+    }
+    x0 = y0 = null;
+  }, { passive: true });
+
+  render();
+})();
+</script>
+{% endblock %}
