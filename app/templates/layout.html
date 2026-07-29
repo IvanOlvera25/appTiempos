@@ -10,11 +10,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <!-- Meta tags opcionales -->
-  <meta name="description" content="Sistema de Registro de Tiempos - AD17 Solutions">
-  <meta name="author" content="Tu Nombre o Empresa">
+  <meta name="description" content="Sistema de Gestión Operativa">
 
   <!-- Título de la página -->
-  <title>{% block title %}AD17 Solutions{% endblock %}</title>
+  <title>{% block title %}Sistema de Gestión Operativa{% endblock %}</title>
 
   <!-- Preconexiones para reducir latencia CDN -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
@@ -343,7 +342,7 @@
   <nav class="navbar navbar-expand-lg navbar-custom sticky-top">
     <div class="container">
       <a class="navbar-brand" href="{{ url_for('main.home') }}">
-        <i class="bi bi-buildings-fill"></i>AD17 Solutions
+        <i class="bi bi-buildings-fill"></i>Sistema de Gestión Operativa
       </a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
         aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -385,8 +384,7 @@
             </a>
           </li>
 
-          <!-- Adicionales — directo en navbar (solo admin) -->
-          {% if current_user.is_admin %}
+          <!-- Adicionales — admin y líderes de proyecto -->
           <li class="nav-item">
             <a class="nav-link {% if request.endpoint == 'main.adicionales_admin' %}active-link{% endif %}"
                href="{{ url_for('main.adicionales_admin') }}">
@@ -395,6 +393,7 @@
           </li>
 
           <!-- Costos — directo en navbar (solo admin) -->
+          {% if current_user.is_admin %}
           <li class="nav-item">
             <a class="nav-link {% if request.endpoint in ['main.costs_dashboard', 'main.create_cost', 'main.edit_cost'] %}active-link{% endif %}"
                href="{{ url_for('main.costs_dashboard') }}">
@@ -466,6 +465,12 @@
                 <a class="dropdown-item {% if request.endpoint == 'main.area_records' %}active-link{% endif %}"
                    href="{{ url_for('main.area_records') }}">
                   <i class="bi bi-clock-history"></i>Registros de Área
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'main.adicionales_admin' %}active-link{% endif %}"
+                   href="{{ url_for('main.adicionales_admin') }}">
+                  <i class="bi bi-calendar2-plus"></i>Adicionales del Área
                 </a>
               </li>
             </ul>

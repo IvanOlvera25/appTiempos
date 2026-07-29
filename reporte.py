@@ -5,7 +5,7 @@
 #!/usr/bin/env python3
 """
 ================================================================================
-REPORTE DE PRODUCTIVIDAD AD17 SOLUTIONS - VERSIÓN 3.1 (EXPORTA PNGs + ZIP)
+REPORTE DE PRODUCTIVIDAD SISTEMA DE GESTIÓN OPERATIVA - VERSIÓN 3.1 (EXPORTA PNGs + ZIP)
 ================================================================================
 - Además del PDF/Excel:
   1) Crea carpeta: Reporte_Productividad_AD17_<timestamp>/
@@ -170,7 +170,7 @@ class ReporteProductividadAD17:
         self._init_export_folders()
 
         print("=" * 70)
-        print("🚀 REPORTE DE PRODUCTIVIDAD AD17 SOLUTIONS")
+        print("🚀 REPORTE DE PRODUCTIVIDAD SISTEMA DE GESTIÓN OPERATIVA")
         print("=" * 70)
         print(f"📅 Período: {self.fecha_inicio.strftime('%d/%m/%Y')} al {self.fecha_fin.strftime('%d/%m/%Y')}")
         dias = (self.fecha_fin - self.fecha_inicio).days + 1
@@ -662,7 +662,7 @@ class ReporteProductividadAD17:
         header = plt.Rectangle((0, 0.85), 1, 0.15, transform=fig.transFigure,
                                facecolor=COLORS['primary'], edgecolor='none')
         fig.patches.append(header)
-        fig.text(0.5, 0.91, 'AD17 SOLUTIONS', fontsize=32, fontweight='bold',
+        fig.text(0.5, 0.91, 'SISTEMA DE GESTIÓN OPERATIVA', fontsize=32, fontweight='bold',
                 ha='center', color='white')
 
         fig.text(0.5, 0.72, 'REPORTE DE PRODUCTIVIDAD', fontsize=28, fontweight='bold',
@@ -1397,7 +1397,7 @@ Promedios:
 ╚══════════════════════════════════════════════════════════════════════════════╝"""
 
         fig.text(0.5, 0.5, resumen, fontsize=8, ha='center', va='center', fontfamily='monospace')
-        fig.text(0.5, 0.03, f'Generado: {datetime.now().strftime("%d/%m/%Y %H:%M")} - AD17 Solutions',
+        fig.text(0.5, 0.03, f'Generado: {datetime.now().strftime("%d/%m/%Y %H:%M")} - Sistema de Gestión Operativa',
                 fontsize=9, ha='center', color=COLORS['gray'], style='italic')
 
         plt.axis('off')

@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 import pymysql
 from pytz import timezone
 import traceback
+import unicodedata
 
 main = Blueprint('main', __name__)
 
@@ -159,7 +160,7 @@ def register_project():
             special_project = Project(
                 folio=0,
                 delivery_date=None,
-                client='AD17 Solutions',
+                client='Administrativos',
                 name='Costos Administrativos',
                 active=True
             )
@@ -169,7 +170,7 @@ def register_project():
             # Ya existía: si le falta nombre, cliente o está inactivo, lo actualizamos
             needs_update = False
             if not special_project.client or special_project.client.strip() == '':
-                special_project.client = 'AD17 Solutions'
+                special_project.client = 'Administrativos'
                 needs_update = True
             if not special_project.name or special_project.name.strip() == '':
                 special_project.name = 'Costos Administrativos'
@@ -334,7 +335,7 @@ def register_project_imp():
     if not special_project:
         special_project = Project(
             folio=0, delivery_date=None,
-            client='AD17 Solutions',
+            client='Administrativos',
             name='Costos Administrativos',
             active=True
         )
@@ -2552,8 +2553,11 @@ def _adicionales_catalogos():
     return empleados, areas
 
 
-def _adicionales_rango(desde, hasta, area=None, rh_id=None, estatus=None):
-    """Adicionales (con empleado, área y proyectos) dentro de un rango de fechas."""
+def _adicionales_rango(desde, hasta, alcance, area=None, rh_id=None, estatus=None):
+    """
+    Adicionales (con empleado, área y proyectos) dentro de un rango de fechas,
+    limitados y enmascarados según el alcance del usuario.
+    """
     sql = """
         SELECT a.regID, a.rhID, a.fecha, a.tipo, a.area, a.cantidad, a.nota,
                a.costo_unit, a.costo, a.fecha_pago, a.estatus_validacion, a.pagado,
@@ -2565,6 +2569,19 @@ def _adicionales_rango(desde, hasta, area=None, rh_id=None, estatus=None):
          WHERE a.fecha BETWEEN %%s AND %%s
     """ % _SQL_NOMBRES_RH
     params = [desde, hasta]
+
+    # Alcance: los jefes de área solo ven lo de su área y lo propio
+    if not alcance.get('total'):
+        condiciones = []
+        if alcance.get('area_id'):
+            condiciones.append('a.area = %s')
+            params.append(alcance['area_id'])
+        if alcance.get('rh_id'):
+            condiciones.append('a.rhID = %s')
+            params.append(alcance['rh_id'])
+        if not condiciones:
+            return []
+        sql += " AND (%s)" % ' OR '.join(condiciones)
 
     if area:
         sql += " AND a.area = %s"
@@ -2604,12 +2621,81 @@ def _adicionales_rango(desde, hasta, area=None, rh_id=None, estatus=None):
                     r['proyectos'] = por_adicional.get(r['id'], [])
     finally:
         conn.close()
+
+    # El costo de los adicionales ajenos se oculta desde el servidor,
+    # de modo que tampoco viaje en la respuesta JSON
+    if not alcance.get('total'):
+        propio = alcance.get('rh_id')
+        for r in registros:
+            if propio is None or r['rh_id'] != propio:
+                r['costo'] = None
+                r['costo_unit'] = None
+
     return registros
 
 
-def _bloquear_si_no_admin():
-    if not current_user.is_admin:
-        flash('Acceso denegado. Solo administradores pueden consultar los adicionales.', 'danger')
+# Los nombres de área locales no siempre coinciden con los de AD17_General.Areas
+_ALIAS_AREAS = {'stagging': 'staging'}
+
+
+def _clave_area(nombre):
+    """Normaliza un nombre de área para poder compararlo entre bases."""
+    limpio = ''.join(
+        c for c in unicodedata.normalize('NFD', nombre or '')
+        if unicodedata.category(c) != 'Mn'
+    ).strip().lower()
+    return _ALIAS_AREAS.get(limpio, limpio)
+
+
+def _area_id_por_nombre(nombre, areas):
+    clave = _clave_area(nombre)
+    if not clave:
+        return None
+    for a in areas:
+        if _clave_area(a['nombre']) == clave:
+            return a['id']
+    return None
+
+
+def _puede_ver_adicionales():
+    return bool(
+        current_user.is_admin
+        or current_user.is_project_leader
+        or getattr(current_user, 'is_area_manager', False)
+    )
+
+
+def _alcance_adicionales(areas):
+    """
+    Define qué adicionales puede ver el usuario:
+      · Administradores y líderes de proyecto: todo el personal, con costos.
+      · Jefes de área: los de su área (sin costo) y los propios (con costo).
+    """
+    if current_user.is_admin or current_user.is_project_leader:
+        return {'total': True, 'area_id': None, 'rh_id': None, 'area_nombre': None}
+
+    area_id = _area_id_por_nombre(current_user.area_manager_department, areas)
+
+    rh_id = None
+    if current_user.employee_id:
+        empleado = db.session.get(Employee, current_user.employee_id)
+        if empleado:
+            try:
+                rh_id = int(str(empleado.n_empleado).strip())
+            except (TypeError, ValueError):
+                rh_id = None
+
+    return {
+        'total': False,
+        'area_id': area_id,
+        'rh_id': rh_id,
+        'area_nombre': current_user.area_manager_department
+    }
+
+
+def _bloquear_sin_acceso_adicionales():
+    if not _puede_ver_adicionales():
+        flash('Acceso denegado. No tienes permiso para consultar los adicionales.', 'danger')
         return redirect(url_for('main.home'))
     return None
 
@@ -2635,8 +2721,11 @@ def _filtros_adicionales():
 @main.route('/adicionales')
 @login_required
 def adicionales_admin():
-    """Calendario global de adicionales de todos los empleados (solo administradores)."""
-    bloqueo = _bloquear_si_no_admin()
+    """
+    Calendario de adicionales. Administradores y líderes de proyecto ven a todo el
+    personal; los jefes de área ven su área (sin costos) más los propios (con costo).
+    """
+    bloqueo = _bloquear_sin_acceso_adicionales()
     if bloqueo:
         return bloqueo
 
@@ -2646,12 +2735,24 @@ def adicionales_admin():
     hasta = (desde + relativedelta(months=1)) - timedelta(days=1)
 
     registros, empleados, areas, error = [], [], [], None
+    alcance = {'total': True, 'area_id': None, 'rh_id': None, 'area_nombre': None}
     try:
-        registros = _adicionales_rango(desde, hasta, **filtros)
         empleados, areas = _adicionales_catalogos()
+        alcance = _alcance_adicionales(areas)
+        registros = _adicionales_rango(desde, hasta, alcance, **filtros)
     except Exception as e:
         current_app.logger.error("adicionales_admin: %s", e)
         error = 'No fue posible consultar la base de adicionales en este momento.'
+
+    if not alcance['total']:
+        # El listado de empleados se acota a su área (más él mismo)
+        empleados = [
+            e for e in empleados
+            if e['area_id'] == alcance['area_id'] or e['rh_id'] == alcance['rh_id']
+        ]
+        if alcance['area_id'] is None and alcance['rh_id'] is None and not error:
+            error = ('Tu usuario no tiene un área que coincida con el catálogo de adicionales, '
+                     'ni un empleado asignado, por lo que no hay registros que mostrar.')
 
     hoy = datetime.now(timezone('America/Mexico_City')).date()
 
@@ -2661,6 +2762,7 @@ def adicionales_admin():
         empleados=empleados,
         areas=areas,
         filtros=filtros,
+        alcance=alcance,
         year=year,
         month=month,
         today=hoy.strftime('%Y-%m-%d'),
@@ -2671,15 +2773,17 @@ def adicionales_admin():
 @main.route('/adicionales/data')
 @login_required
 def adicionales_data():
-    """Datos de un mes para la navegación del calendario administrativo."""
-    if not current_user.is_admin:
+    """Datos de un mes para la navegación del calendario."""
+    if not _puede_ver_adicionales():
         return jsonify({'error': 'No autorizado'}), 403
 
     year, month = _mes_solicitado()
     desde = datetime(year, month, 1).date()
     hasta = (desde + relativedelta(months=1)) - timedelta(days=1)
     try:
-        registros = _adicionales_rango(desde, hasta, **_filtros_adicionales())
+        _, areas = _adicionales_catalogos()
+        alcance = _alcance_adicionales(areas)
+        registros = _adicionales_rango(desde, hasta, alcance, **_filtros_adicionales())
     except Exception as e:
         current_app.logger.error("adicionales_data: %s", e)
         return jsonify({'error': 'No fue posible consultar los adicionales.'}), 500

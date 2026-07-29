@@ -1,5 +1,5 @@
 {% extends "layout.html" %}
-{% block title %}Adicionales - AD17 Solutions{% endblock %}
+{% block title %}Adicionales - Sistema de Gestión Operativa{% endblock %}
 
 {% block content %}
 <div class="adm-wrap">
@@ -7,8 +7,23 @@
   <!-- Encabezado -->
   <div class="mb-3">
     <h2 class="fw-bold mb-1">Adicionales</h2>
+    {% if alcance.total %}
     <p class="text-muted mb-0">Calendario de adicionales autorizados de todo el personal</p>
+    {% else %}
+    <p class="text-muted mb-0">Adicionales autorizados en tu área{% if alcance.area_nombre %} —
+      <strong>{{ alcance.area_nombre }}</strong>{% endif %}{% if alcance.rh_id %}, más los tuyos de cualquier área{% endif %}</p>
+    {% endif %}
   </div>
+
+  {% if not alcance.total %}
+  <div class="alert alert-info d-flex align-items-start gap-2 py-2">
+    <i class="bi bi-info-circle-fill mt-1"></i>
+    <div class="small">
+      Por política, el costo de los adicionales del resto del personal no se muestra: solo verás la cantidad.
+      {% if alcance.rh_id %}El costo de los tuyos sí aparece.{% endif %}
+    </div>
+  </div>
+  {% endif %}
 
   {% if load_error %}
   <div class="alert alert-danger d-flex align-items-start gap-2">
@@ -29,6 +44,7 @@
             {% endfor %}
           </select>
         </div>
+        {% if alcance.total %}
         <div class="col-6 col-md-3">
           <label class="form-label fw-semibold small mb-1">Área</label>
           <select class="form-select" id="filtroArea">
@@ -38,6 +54,7 @@
             {% endfor %}
           </select>
         </div>
+        {% endif %}
         <div class="col-6 col-md-3">
           <label class="form-label fw-semibold small mb-1">Estatus</label>
           <select class="form-select" id="filtroEstatus">
@@ -68,11 +85,11 @@
     </div>
     <div class="adm-chip">
       <span class="adm-chip-value" id="sumCosto">$0</span>
-      <span class="adm-chip-label">Costo del mes</span>
+      <span class="adm-chip-label">{{ 'Costo del mes' if alcance.total else 'Mi costo del mes' }}</span>
     </div>
     <div class="adm-chip">
       <span class="adm-chip-value text-warning" id="sumPendiente">$0</span>
-      <span class="adm-chip-label">Por pagar</span>
+      <span class="adm-chip-label">{{ 'Por pagar' if alcance.total else 'Mío por pagar' }}</span>
     </div>
   </div>
 
@@ -227,6 +244,10 @@
 (function () {
   const TODAY = "{{ today }}";
   const URL_DATA = "{{ url_for('main.adicionales_data') }}";
+  const ALCANCE_TOTAL = {{ 'true' if alcance.total else 'false' }};
+
+  // El servidor manda costo = null cuando el usuario no puede verlo
+  const conCosto = (a) => a.costo !== null && a.costo !== undefined;
 
   const MESES = ['enero','febrero','marzo','abril','mayo','junio',
                  'julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -295,10 +316,14 @@
       let extra = '';
       if (items.length) {
         const cantidad = items.reduce((s, a) => s + a.cantidad, 0);
-        const costo = items.reduce((s, a) => s + (a.estatus === 'CANCELADO' ? 0 : a.costo), 0);
         clases.push('has-data', claseEstatus(estatusDelDia(items)));
+        let pie = `${items.length} emp`;
+        if (ALCANCE_TOTAL) {
+          const costo = items.reduce((s, a) => s + (a.estatus === 'CANCELADO' ? 0 : a.costo), 0);
+          pie += ` · ${money.format(costo)}`;
+        }
         extra = `<span class="adm-badge">${num(cantidad)}</span>
-                 <span class="adm-day-monto">${items.length} emp · ${money.format(costo)}</span>`;
+                 <span class="adm-day-monto">${pie}</span>`;
       }
       html += `<div class="${clases.join(' ')}" data-fecha="${key}" ${items.length ? 'role="button" tabindex="0"' : ''}>
                  <span class="adm-day-num">${d}</span>${extra}
@@ -313,8 +338,10 @@
   function renderResumen() {
     const vivos = estado.registros.filter(a => a.estatus !== 'CANCELADO');
     const cantidad = vivos.reduce((s, a) => s + a.cantidad, 0);
-    const costo = vivos.reduce((s, a) => s + a.costo, 0);
-    const pendiente = vivos.filter(a => a.estatus === 'PENDIENTE').reduce((s, a) => s + a.costo, 0);
+    // Los montos solo suman lo que el usuario tiene permitido ver
+    const visibles = vivos.filter(conCosto);
+    const costo = visibles.reduce((s, a) => s + a.costo, 0);
+    const pendiente = visibles.filter(a => a.estatus === 'PENDIENTE').reduce((s, a) => s + a.costo, 0);
     const empleados = new Set(vivos.map(a => a.rh_id)).size;
 
     document.getElementById('sumCantidad').textContent = num(cantidad);
@@ -328,17 +355,19 @@
   function tarjetaRegistro(a, conFecha) {
     const cls = claseEstatus(a.estatus);
     const fps = (a.proyectos || []).map(p => `FP ${p.fp}${p.porcentaje < 100 ? ' (' + num(p.porcentaje) + '%)' : ''}`).join(' · ');
+    const detalle = conCosto(a)
+      ? `${num(a.cantidad)} × ${money.format(a.costo_unit)}`
+      : `${num(a.cantidad)} adicional${a.cantidad === 1 ? '' : 'es'}`;
     return `<div class="adm-reg">
       <div class="adm-reg-top">
         <div>
           <div class="adm-reg-name">${a.empleado}</div>
           <div class="adm-reg-meta">
-            ${conFecha ? fechaCorta(a.fecha) + ' · ' : ''}${a.area} · ${a.tipo} ·
-            ${num(a.cantidad)} × ${money.format(a.costo_unit)}
+            ${conFecha ? fechaCorta(a.fecha) + ' · ' : ''}${a.area} · ${a.tipo} · ${detalle}
           </div>
         </div>
         <div class="text-end">
-          <div class="adm-reg-cost">${money.format(a.costo)}</div>
+          ${conCosto(a) ? `<div class="adm-reg-cost">${money.format(a.costo)}</div>` : ''}
           <span class="adm-status ${cls}">${textoEstatus(a.estatus)}</span>
         </div>
       </div>
@@ -363,12 +392,15 @@
     const items = porDia[fecha] || [];
     if (!items.length) return;
     const vivos = items.filter(a => a.estatus !== 'CANCELADO');
-    const total = vivos.reduce((s, a) => s + a.costo, 0);
     const cantidad = vivos.reduce((s, a) => s + a.cantidad, 0);
 
     document.getElementById('dayModalTitle').textContent =
       `${items.length} registro${items.length === 1 ? '' : 's'} · ${num(cantidad)} adicionales`;
-    document.getElementById('dayModalSub').textContent = `${fechaLarga(fecha)} — ${money.format(total)}`;
+    let subtitulo = fechaLarga(fecha);
+    if (ALCANCE_TOTAL) {
+      subtitulo += ` — ${money.format(vivos.reduce((s, a) => s + a.costo, 0))}`;
+    }
+    document.getElementById('dayModalSub').textContent = subtitulo;
     document.getElementById('dayModalBody').innerHTML = items.map(a => tarjetaRegistro(a, false)).join('');
     dayModal.show();
   }
@@ -410,14 +442,17 @@
     estado.year = ty; estado.month = tm; cargar();
   });
 
+  // El filtro de área no existe para los jefes de área (su alcance ya está fijo)
+  const filtroArea = document.getElementById('filtroArea');
   document.getElementById('filtroEmpleado').addEventListener('change', (e) => { estado.rh_id = e.target.value; cargar(); });
-  document.getElementById('filtroArea').addEventListener('change', (e) => { estado.area = e.target.value; cargar(); });
   document.getElementById('filtroEstatus').addEventListener('change', (e) => { estado.estatus = e.target.value; cargar(); });
+  if (filtroArea) filtroArea.addEventListener('change', (e) => { estado.area = e.target.value; cargar(); });
+
   document.getElementById('limpiarFiltros').addEventListener('click', () => {
     estado.rh_id = estado.area = estado.estatus = '';
     document.getElementById('filtroEmpleado').value = '';
-    document.getElementById('filtroArea').value = '';
     document.getElementById('filtroEstatus').value = '';
+    if (filtroArea) filtroArea.value = '';
     cargar();
   });
 

@@ -1,5 +1,5 @@
 {% extends "layout.html" %}
-{% block title %}Gestión de Empleados y Análisis - AD17 Solutions{% endblock %}
+{% block title %}Gestión de Empleados y Análisis - Sistema de Gestión Operativa{% endblock %}
 
 {% block content %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -15,7 +15,7 @@
           <p class="text-muted mb-0">Analiza el rendimiento y actividad individual de cada empleado</p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-          {% if current_user.is_admin %}
+          {% if current_user.has_admin_privileges %}
           <a href="{{ url_for('main.adicionales_admin') }}" class="btn btn-outline-primary btn-lg">
             <i class="bi bi-calendar2-plus me-2"></i>Adicionales
           </a>
