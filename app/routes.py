@@ -3576,8 +3576,16 @@ def manage_users():
     # Todos los usuarios registrados
     users = User.query.order_by(User.id.desc()).all()
 
-    # Empleados que NO tienen un usuario asignado
+    # Empleados que NO tienen un usuario asignado (para dar de alta)
     available_employees = Employee.query.outerjoin(User).filter(User.id == None, Employee.active == True).order_by(Employee.nompropio).all()
+
+    # Al editar hace falta la lista completa, para poder mostrar el vínculo
+    # actual de cada usuario aunque ese empleado ya esté ocupado.
+    all_employees = Employee.query.filter(
+        db.or_(Employee.active == True,
+               Employee.id.in_([u.employee_id for u in users if u.employee_id] or [0]))
+    ).order_by(Employee.nompropio).all()
+    ocupados = {u.employee_id: u.username for u in users if u.employee_id}
 
     # Códigos de registro correspondientes
     admin_code = current_app.config.get('ADMIN_CODE', 'HI35C3')
@@ -3590,6 +3598,8 @@ def manage_users():
         'manage_users.html',
         users=users,
         available_employees=available_employees,
+        all_employees=all_employees,
+        ocupados=ocupados,
         admin_code=admin_code,
         leader_code=leader_code,
         area_manager_code=area_manager_code,
@@ -3696,6 +3706,100 @@ def admin_create_user():
         db.session.rollback()
         current_app.logger.error(f"Error creando usuario: {e}")
         flash('Error interno al crear el usuario.', 'danger')
+
+    return redirect(url_for('main.manage_users'))
+
+
+@main.route('/admin/users/<int:user_id>/update', methods=['POST'])
+@login_required
+def admin_update_user(user_id):
+    """
+    Cambia el perfil de un usuario y el empleado de RH al que está ligado.
+
+    El vínculo con un empleado es lo que le da a la cuenta su saldo de
+    vacaciones y su lugar en el árbol de supervisores, así que hace falta
+    poder asignarlo también a usuarios que ya existían.
+    """
+    if not current_user.is_admin:
+        flash('Acceso denegado.', 'danger')
+        return redirect(url_for('main.home'))
+
+    user = User.query.get_or_404(user_id)
+    user_type = (request.form.get('user_type') or '').strip()
+    vinculo = (request.form.get('employee_id') or '').strip()
+
+    perfiles = {
+        'empleado':       dict(is_admin=False, is_project_leader=False,
+                               is_area_manager=False, is_rh=False, is_ejecutivo=False),
+        'ejecutivo':      dict(is_admin=False, is_project_leader=False,
+                               is_area_manager=False, is_rh=False, is_ejecutivo=True),
+        'jefe_area':      dict(is_admin=False, is_project_leader=False,
+                               is_area_manager=True, is_rh=False, is_ejecutivo=False),
+        'lider_proyecto': dict(is_admin=False, is_project_leader=True,
+                               is_area_manager=False, is_rh=False, is_ejecutivo=False),
+        'rh':             dict(is_admin=False, is_project_leader=False,
+                               is_area_manager=False, is_rh=True, is_ejecutivo=False),
+        'administrador':  dict(is_admin=True, is_project_leader=False,
+                               is_area_manager=False, is_rh=False, is_ejecutivo=False),
+    }
+    if user_type not in perfiles:
+        flash('Tipo de usuario inválido.', 'danger')
+        return redirect(url_for('main.manage_users'))
+
+    # Nadie se quita a sí mismo el rol de administrador: sería quedarse fuera.
+    if user.id == current_user.id and user_type != 'administrador':
+        flash('No puedes quitarte a ti mismo el rol de administrador.', 'danger')
+        return redirect(url_for('main.manage_users'))
+
+    # Y siempre debe quedar al menos un administrador.
+    if user.is_admin and user_type != 'administrador':
+        otros = User.query.filter(User.is_admin.is_(True), User.id != user.id).count()
+        if not otros:
+            flash('Es el único administrador; asigna otro antes de cambiarle el rol.', 'danger')
+            return redirect(url_for('main.manage_users'))
+
+    area = (request.form.get('area_manager_department') or '').strip()
+    if user_type == 'jefe_area':
+        if area not in area_departments():
+            flash('Selecciona un área válida para el Jefe de Área.', 'danger')
+            return redirect(url_for('main.manage_users'))
+    else:
+        area = None
+
+    # Empleado ligado: vacío desliga la cuenta.
+    nuevo_employee_id = None
+    if vinculo:
+        try:
+            emp = Employee.query.get(int(vinculo))
+        except (TypeError, ValueError):
+            emp = None
+        if not emp:
+            flash('El empleado seleccionado no existe.', 'danger')
+            return redirect(url_for('main.manage_users'))
+        if emp.user and emp.user.id != user.id:
+            flash('%s ya está ligado al usuario %s.' % (emp.nompropio, emp.user.username),
+                  'danger')
+            return redirect(url_for('main.manage_users'))
+        nuevo_employee_id = emp.id
+    elif user_type == 'empleado':
+        flash('Un usuario de perfil Empleado debe estar ligado a un empleado.', 'warning')
+        return redirect(url_for('main.manage_users'))
+
+    for campo, valor in perfiles[user_type].items():
+        setattr(user, campo, valor)
+    user.area_manager_department = area
+    user.employee_id = nuevo_employee_id
+
+    try:
+        db.session.commit()
+        flash('Usuario %s actualizado.' % user.username, 'success')
+    except IntegrityError:
+        db.session.rollback()
+        flash('Ese empleado ya está ligado a otro usuario.', 'danger')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error("admin_update_user: %s", e)
+        flash('No se pudo actualizar el usuario.', 'danger')
 
     return redirect(url_for('main.manage_users'))
 

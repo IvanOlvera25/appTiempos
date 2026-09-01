@@ -126,9 +126,12 @@
             <td>
               {% if u.employee %}
                 <span class="text-dark">{{ u.employee.nompropio }}</span>
-                <span class="text-muted small d-block">Num: {{ u.employee.n_empleado }}</span>
+                <span class="text-muted small d-block">rhID: {{ u.employee.n_empleado }}</span>
               {% else %}
-                <span class="text-muted font-italic">No asignado (Admin/Líder)</span>
+                <span class="text-warning small">
+                  <i class="bi bi-exclamation-triangle-fill"></i> Sin empleado ligado
+                </span>
+                <span class="text-muted small d-block">No tiene saldo de vacaciones</span>
               {% endif %}
             </td>
             <td>
@@ -159,6 +162,16 @@
               <span class="text-muted small">{{ u.created_at.strftime('%d/%m/%Y %H:%M') if u.created_at else 'N/A' }}</span>
             </td>
             <td class="text-end pe-4">
+              <button class="btn btn-outline-primary btn-sm me-1"
+                      data-bs-toggle="modal"
+                      data-bs-target="#editUserModal"
+                      data-userid="{{ u.id }}"
+                      data-username="{{ u.username }}"
+                      data-usertype="{% if u.is_admin %}administrador{% elif u.is_rh %}rh{% elif u.is_project_leader %}lider_proyecto{% elif u.is_area_manager %}jefe_area{% elif u.is_ejecutivo %}ejecutivo{% else %}empleado{% endif %}"
+                      data-area="{{ u.area_manager_department or '' }}"
+                      data-employeeid="{{ u.employee_id or '' }}">
+                <i class="bi bi-pencil-fill"></i> Editar
+              </button>
               <button class="btn btn-outline-secondary btn-sm me-1" 
                       data-bs-toggle="modal" 
                       data-bs-target="#changePasswordModal" 
@@ -270,6 +283,64 @@
 </div>
 
 <!-- ==========================================
+     MODAL: EDITAR USUARIO
+     ========================================== -->
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="POST" id="editUserForm" class="modal-content">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pencil-square me-1"></i> Editar <span id="editUsername"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label font-weight-bold">Rol de Usuario</label>
+          <select class="form-select" id="edit_user_type" name="user_type" required>
+            <option value="empleado">Empleado</option>
+            <option value="ejecutivo">Ejecutivo</option>
+            <option value="jefe_area">Jefe de Área</option>
+            <option value="lider_proyecto">Líder de Proyecto</option>
+            <option value="rh">RH</option>
+            <option value="administrador">Administrador</option>
+          </select>
+        </div>
+
+        <div class="mb-3" id="edit_area_wrap">
+          <label class="form-label font-weight-bold">Área asignada</label>
+          <select class="form-select" id="edit_area" name="area_manager_department">
+            <option value="">Selecciona un área...</option>
+            {% for dept in area_departments %}
+              <option value="{{ dept }}">{{ dept }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-0">
+          <label class="form-label font-weight-bold">Empleado de RH ligado</label>
+          <select class="form-select" id="edit_employee_id" name="employee_id">
+            <option value="">— Sin ligar —</option>
+            {% for emp in all_employees %}
+              <option value="{{ emp.id }}">
+                {{ emp.nompropio }} (rhID {{ emp.n_empleado }}){% if ocupados.get(emp.id) %} — ya en uso por {{ ocupados[emp.id] }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">
+            Es lo que le da a la cuenta su saldo de vacaciones y su lugar en el
+            árbol de supervisores de RH. Obligatorio para el perfil Empleado.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 bg-light p-3">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary px-4">Guardar cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ==========================================
      MODAL: CAMBIAR CONTRASEÑA
      ========================================== -->
 <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
@@ -363,6 +434,26 @@
         $('#div_area_select').removeClass('d-none');
         $('#new_area_department').prop('required', true);
       }
+    });
+
+    // Cargar datos en el modal de editar usuario
+    var editUserModal = document.getElementById('editUserModal');
+    editUserModal.addEventListener('show.bs.modal', function(event) {
+      var b = event.relatedTarget;
+      $('#editUsername').text(b.getAttribute('data-username'));
+      $('#editUserForm').attr('action', '/admin/users/' + b.getAttribute('data-userid') + '/update');
+      $('#edit_user_type').val(b.getAttribute('data-usertype'));
+      $('#edit_area').val(b.getAttribute('data-area') || '');
+      $('#edit_employee_id').val(b.getAttribute('data-employeeid') || '');
+      $('#edit_user_type').trigger('change');
+    });
+
+    // El área solo aplica al Jefe de Área
+    $('#edit_user_type').change(function() {
+      var esJefe = $(this).val() === 'jefe_area';
+      $('#edit_area_wrap').toggle(esJefe);
+      $('#edit_area').prop('required', esJefe);
+      $('#edit_employee_id').prop('required', $(this).val() === 'empleado');
     });
 
     // Cargar datos en el modal de cambiar contraseña

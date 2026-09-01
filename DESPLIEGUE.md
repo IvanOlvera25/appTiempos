@@ -153,8 +153,14 @@ Se muestran en *Administración → Usuarios*.
 ## Notas
 
 - Para que una cuenta tenga saldo de vacaciones propio debe estar **ligada a un
-  empleado** (`employee_id`), aunque su perfil no sea "Empleado". Se hace al
-  crear el usuario en *Administración → Usuarios*.
+  empleado** (`employee_id`), aunque su perfil no sea "Empleado". Se hace en
+  *Administración → Usuarios*, con el botón **Editar** de cada renglón (también
+  al dar de alta el usuario). Ahí mismo se cambia el rol.
+
+  Los usuarios sin vínculo salen marcados en amarillo con "Sin empleado ligado".
+  Hay 18 así en producción, entre ellos 9 jefes de área: **hay que ligarlos para
+  que puedan autorizar vacaciones y vean "Mi equipo"**, porque el árbol de
+  supervisión de `AD17_RH.Supervisores` se resuelve por el rhID del empleado.
 - Quién ve el calendario de equipo lo define `AD17_RH.Supervisores`, no el perfil
   de la app.
 - Si `areas_config` llegara a faltar, la app cae en las 7 áreas históricas y deja
