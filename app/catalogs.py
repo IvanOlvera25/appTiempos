@@ -5,7 +5,9 @@ Antes ambos vivian hardcodeados (listas en routes.py, botones en las plantillas)
 Aqui quedan en base de datos para que un administrador pueda dar de alta areas
 nuevas y editar sus actividades sin tocar codigo.
 """
+from flask import current_app
 from sqlalchemy import asc, func
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from . import db
 from .models import AreaConfig, DepartmentActivity
@@ -41,13 +43,33 @@ def ensure_seed_areas():
     db.session.commit()
 
 
+def _areas_de_respaldo():
+    """
+    Las areas historicas, en memoria y sin tocar la base.
+
+    Solo se usan si `areas_config` todavia no existe (falta correr
+    `flask db upgrade`). Sin este respaldo la app se quedaria sin ninguna area y
+    nadie podria registrar tiempos, que es peor que seguir con las de siempre.
+    """
+    return [AreaConfig(id=None, nombre=nombre, flujo=flujo, activa=True, orden=idx)
+            for idx, (nombre, flujo) in enumerate(_AREAS_SEED)]
+
+
 def get_areas(solo_activas=True):
     """Areas configuradas, en el orden en que deben mostrarse."""
-    ensure_seed_areas()
-    q = AreaConfig.query
-    if solo_activas:
-        q = q.filter(AreaConfig.activa.is_(True))
-    return q.order_by(asc(AreaConfig.orden), asc(AreaConfig.nombre)).all()
+    try:
+        ensure_seed_areas()
+        q = AreaConfig.query
+        if solo_activas:
+            q = q.filter(AreaConfig.activa.is_(True))
+        return q.order_by(asc(AreaConfig.orden), asc(AreaConfig.nombre)).all()
+    except (OperationalError, ProgrammingError) as e:
+        db.session.rollback()
+        current_app.logger.error(
+            "areas_config no esta disponible (%s). Se usan las areas historicas; "
+            "corre `flask db upgrade` para poder administrarlas.",
+            str(e).split('\n')[0])
+        return _areas_de_respaldo()
 
 
 def get_area_names(solo_activas=True):
@@ -58,8 +80,13 @@ def get_area(nombre):
     """Area por nombre exacto (el valor guardado en TimeRecord.departamento)."""
     if not nombre:
         return None
-    ensure_seed_areas()
-    return AreaConfig.query.filter_by(nombre=nombre.strip()).first()
+    objetivo = nombre.strip()
+    # Se resuelve sobre get_areas() para heredar su respaldo cuando la tabla
+    # todavia no existe.
+    for area in get_areas(solo_activas=False):
+        if area.nombre == objetivo:
+            return area
+    return None
 
 
 def area_usa_flujo_impresion(nombre):
@@ -208,12 +235,19 @@ def ensure_seed_clasificaciones():
 
 def get_clasificaciones(solo_activas=True):
     from .models import IncidentClassification
-    ensure_seed_clasificaciones()
-    q = IncidentClassification.query
-    if solo_activas:
-        q = q.filter(IncidentClassification.activa.is_(True))
-    return q.order_by(asc(IncidentClassification.orden),
-                      asc(IncidentClassification.nombre)).all()
+    try:
+        ensure_seed_clasificaciones()
+        q = IncidentClassification.query
+        if solo_activas:
+            q = q.filter(IncidentClassification.activa.is_(True))
+        return q.order_by(asc(IncidentClassification.orden),
+                          asc(IncidentClassification.nombre)).all()
+    except (OperationalError, ProgrammingError) as e:
+        db.session.rollback()
+        current_app.logger.error(
+            "incident_classifications no esta disponible (%s); corre "
+            "`flask db upgrade`.", str(e).split('\n')[0])
+        return []
 
 
 def next_clasificacion_order():

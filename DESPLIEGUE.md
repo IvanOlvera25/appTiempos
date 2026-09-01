@@ -25,48 +25,60 @@ SELECT TABLE_NAME, PRIVILEGE_TYPE FROM information_schema.TABLE_PRIVILEGES
  WHERE TABLE_SCHEMA = 'AD17_RH';
 ```
 
-## 2. Respaldo
+## 2. El despliegue va en DOS fases
 
-La migración `c3f81b6e4a72` reescribe `employee_id` en `time_records` y `users`,
-y convierte `employees` en una vista. Respalda antes:
+El código nuevo **no funciona sin migrar**: espera la tabla `areas_config` y las
+columnas `users.is_rh` / `users.is_ejecutivo`. Si haces `git pull` y recargas sin
+correr `flask db upgrade`, la app pierde los botones de área y falla el login.
+
+La cadena está partida a propósito para que puedas dejar la parte destructiva
+para después:
+
+| Fase | Comando | Qué hace |
+|---|---|---|
+| **1 — aditiva** | `flask db upgrade d4e19a7c5b83` | Crea `areas_config` con las 7 áreas de siempre, agrega los perfiles RH/Ejecutivo y las tablas de incidencias. **No toca ningún dato existente.** |
+| **2 — destructiva** | `flask db upgrade` | Convierte `employees` en vista sobre `AD17_RH` y remapea `employee_id` a `rhID`. |
+
+Para volver a operar basta la fase 1. La fase 2 puede esperar al momento que
+elijas.
+
+## 3. Fase 1 (aditiva)
+
+```bash
+git pull
+pip install -r requirements.txt          # no hay dependencias nuevas
+flask db upgrade d4e19a7c5b83
+```
+
+Recarga la web app. Con esto vuelven los botones de área, el login y quedan
+disponibles vacaciones e incidencias, con `employees` intacta como tabla.
+
+## 4. Fase 2 (employees como vista) — cuando decidas
+
+Respalda antes:
 
 ```bash
 mysqldump -h ad17solutions.dscloud.me -P 3307 -u IvanUriel -p \
   AD17_Pruebas > respaldo_$(date +%Y%m%d).sql
 ```
 
-La migración además conserva la tabla original como `employees_legacy`, y
-`flask db downgrade` la restaura junto con los `employee_id` anteriores.
-
-## 3. Verificación previa (solo lectura, no modifica nada)
+Verificación previa, de solo lectura:
 
 ```bash
 python verificarMigracionRH.py
 ```
 
-Sale con 0 si todo cuadra. Revisa que no reporte empleados sin `rhID` válido,
-`n_empleado` repetidos, ni registros o usuarios huérfanos. Si algo falla, la
-migración aborta sola sin tocar datos.
-
-## 4. Actualizar
+Sale con 0 si todo cuadra. Si algo falla, la migración aborta sola sin tocar
+datos. Luego:
 
 ```bash
-git pull
-pip install -r requirements.txt          # no hay dependencias nuevas
 flask db upgrade
 ```
 
-La cadena aplica, en orden:
+La migración conserva la tabla original como `employees_legacy`, y
+`flask db downgrade` la restaura junto con los `employee_id` anteriores.
 
-| Revisión | Qué hace |
-|---|---|
-| `b7a2c9f14d30` | Crea `areas_config`, siembra las 7 áreas y las enlaza con `AD17_General.Areas` |
-| `c3f81b6e4a72` | Convierte `employees` en vista sobre `AD17_RH` y remapea `employee_id` a `rhID` |
-| `d4e19a7c5b83` | Agrega los perfiles RH/Ejecutivo y las tablas de incidencias |
-
-Después, recarga la web app desde el panel de PythonAnywhere.
-
-## 5. Qué cambia al quedar `employees` como vista
+## 5. Qué cambia al terminar la fase 2
 
 - **Ya no se dan de alta ni se editan empleados desde la app.** Todo eso se hace
   en el sistema de RH. Las rutas `/add`, `/employee/edit`, `/employee/delete` y
@@ -99,6 +111,9 @@ Se muestran en *Administración → Usuarios*.
   crear el usuario en *Administración → Usuarios*.
 - Quién ve el calendario de equipo lo define `AD17_RH.Supervisores`, no el perfil
   de la app.
+- Si `areas_config` llegara a faltar, la app cae en las 7 áreas históricas y deja
+  registrar tiempos igual, dejando un error en el log. Es una red de seguridad,
+  no un modo de operación: sin la tabla no se pueden administrar las áreas.
 - `AD17_RH.MediosDias` está vacía en producción, pero el flujo de medio día ya
   se ejerció contra el esquema real (crear, autorizar y bloquear duplicados en
   la misma fecha).

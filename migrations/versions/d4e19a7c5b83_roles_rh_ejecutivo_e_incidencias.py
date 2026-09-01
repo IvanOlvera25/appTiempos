@@ -5,7 +5,7 @@ Vacaciones, MediosDias, Supervisores y sus reglas), que administra el sistema
 de RH. Esta migración solo agrega lo que es propio de la app.
 
 Revision ID: d4e19a7c5b83
-Revises: c3f81b6e4a72
+Revises: b7a2c9f14d30
 Create Date: 2026-09-01 12:00:00
 """
 from alembic import op
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 
 revision = 'd4e19a7c5b83'
-down_revision = 'c3f81b6e4a72'
+down_revision = 'b7a2c9f14d30'
 branch_labels = None
 depends_on = None
 
@@ -69,8 +69,10 @@ def upgrade():
         )
 
     # ── Incidencias consolidadas ─────────────────────────────────────
-    # Sin FK hacia `employees`: a partir de la migración c3f81b6e4a72 es una
-    # vista sobre AD17_RH y una vista no puede ser destino de una llave foránea.
+    # Sin FK hacia `employees`: la migración c3f81b6e4a72 la convierte en vista
+    # sobre AD17_RH, y una vista no puede ser destino de una llave foránea.
+    # Por eso esta migración es puramente aditiva y se puede aplicar aunque esa
+    # otra todavía no se haya corrido.
     if not insp.has_table('incidents'):
         op.create_table(
             'incidents',
