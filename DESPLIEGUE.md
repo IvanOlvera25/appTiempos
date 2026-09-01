@@ -2,21 +2,28 @@
 
 Pasos para actualizar la app en PythonAnywhere después de un `git pull`.
 
-## 1. Permisos pendientes en AD17_RH (bloquea vacaciones)
+## 1. Permisos sobre AD17_RH — LISTO
 
-El usuario `IvanUriel` solo tiene **SELECT** sobre `AD17_RH`. Toda la parte de
-lectura de vacaciones funciona hoy, pero **ninguna escritura funcionará** hasta
-que RH otorgue:
+RH ya otorgó a `IvanUriel` los permisos de escritura a nivel de tabla:
 
-```sql
-GRANT INSERT, UPDATE ON AD17_RH.Vacaciones   TO 'IvanUriel'@'%';
-GRANT INSERT, UPDATE ON AD17_RH.MediosDias   TO 'IvanUriel'@'%';
-GRANT INSERT, UPDATE ON AD17_RH.Supervisores TO 'IvanUriel'@'%';
-FLUSH PRIVILEGES;
+```
+AD17_RH.Vacaciones    SELECT, INSERT, UPDATE
+AD17_RH.MediosDias    SELECT, INSERT, UPDATE
+AD17_RH.Supervisores  SELECT, INSERT, UPDATE
+AD17_RH.ReglasMediosDias  SELECT, INSERT, UPDATE
 ```
 
-Sin esto la app no truena: al intentar guardar muestra un mensaje explicando que
-falta el permiso. Pero no se pueden solicitar ni autorizar vacaciones.
+Verificado contra el servidor: las seis operaciones que usa la app (crear
+solicitud, autorizar, denegar, cancelar, asignar y quitar supervisor) funcionan.
+El flujo completo se probó de punta a punta con `ROLLBACK`, sin dejar rastro.
+
+Nota: son permisos **por tabla**, así que no aparecen en la línea
+`GRANT ... ON \`AD17_RH\`.*`. Para verlos:
+
+```sql
+SELECT TABLE_NAME, PRIVILEGE_TYPE FROM information_schema.TABLE_PRIVILEGES
+ WHERE TABLE_SCHEMA = 'AD17_RH';
+```
 
 ## 2. Respaldo
 
@@ -92,5 +99,6 @@ Se muestran en *Administración → Usuarios*.
   crear el usuario en *Administración → Usuarios*.
 - Quién ve el calendario de equipo lo define `AD17_RH.Supervisores`, no el perfil
   de la app.
-- `AD17_RH.MediosDias` está vacía: el flujo de medio día está escrito contra el
-  esquema real pero nunca se ha ejercido con datos.
+- `AD17_RH.MediosDias` está vacía en producción, pero el flujo de medio día ya
+  se ejerció contra el esquema real (crear, autorizar y bloquear duplicados en
+  la misma fecha).
