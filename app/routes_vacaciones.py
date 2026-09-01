@@ -251,25 +251,36 @@ def equipo():
     anio, mes = _mes_pedido()
     inicio, fin = vac.rango_mes(anio, mes)
 
-    eventos = vac.listar_vacaciones(rh_ids=mis_subordinados, desde=inicio, hasta=fin)
-    # Los pendientes se listan completos, no solo los del mes que se está viendo
-    pendientes = [s for s in vac.listar_vacaciones(rh_ids=mis_subordinados,
-                                                   estatus='PENDIENTE')]
+    # El calendario incluye al propio supervisor: lo que necesita ver es si sus
+    # fechas y las de su gente se empalman.
+    del_calendario = list(mis_subordinados)
+    if rh_id and rh_id not in del_calendario:
+        del_calendario.append(rh_id)
+
+    eventos = vac.listar_vacaciones(rh_ids=del_calendario, desde=inicio, hasta=fin)
+
+    # Los pendientes por responder son SOLO de los subordinados: nadie autoriza
+    # sus propias vacaciones. Se listan completos, no solo los del mes visible.
+    pendientes = vac.listar_vacaciones(rh_ids=mis_subordinados, estatus='PENDIENTE')
     pendientes.sort(key=lambda s: s['fecha'])
 
-    saldos = {}
-    for sub in mis_subordinados:
-        s = vac.saldo_empleado(sub)
+    saldos = []
+    for otro in del_calendario:
+        s = vac.saldo_empleado(otro)
         if s:
-            saldos[sub] = s
+            s['es_propio'] = (otro == rh_id)
+            saldos.append(s)
+    # El propio va primero; el resto por nombre
+    saldos.sort(key=lambda s: (not s['es_propio'], s['nombre']))
 
     return render_template(
         'vacaciones/equipo.html',
         semanas=_semanas_del_mes(anio, mes, eventos),
         nav=_navegacion_mes(anio, mes),
         pendientes=pendientes,
-        saldos=sorted(saldos.values(), key=lambda s: s['nombre']),
+        saldos=saldos,
         total_equipo=len(mis_subordinados),
+        mi_rh_id=rh_id,
         endpoint='vacaciones.equipo'
     )
 

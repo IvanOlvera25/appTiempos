@@ -7,7 +7,10 @@
   <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>
       <h1 class="h4 mb-1">Vacaciones de mi equipo</h1>
-      <p class="text-muted mb-0">{{ total_equipo }} persona(s) a tu cargo</p>
+      <p class="text-muted mb-0">
+        {{ total_equipo }} persona(s) a tu cargo. El calendario incluye también
+        tus propias vacaciones, para que veas los empalmes.
+      </p>
     </div>
     <a href="{{ url_for('vacaciones.mis_vacaciones') }}" class="btn btn-outline-secondary">
       <i class="bi bi-person"></i> Mis vacaciones
@@ -72,7 +75,7 @@
 
   <!-- Saldos del equipo -->
   <div class="card">
-    <div class="card-header"><i class="bi bi-people me-2"></i>Saldos del equipo</div>
+    <div class="card-header"><i class="bi bi-people me-2"></i>Saldos</div>
     <div class="card-body p-0">
       <div class="table-responsive">
         <table class="table table-striped mb-0 align-middle">
@@ -86,8 +89,11 @@
           </thead>
           <tbody>
             {% for s in saldos %}
-            <tr>
-              <td><strong>{{ s.nombre }}</strong></td>
+            <tr class="{% if s.es_propio %}table-primary{% endif %}">
+              <td>
+                <strong>{{ s.nombre }}</strong>
+                {% if s.es_propio %}<span class="badge bg-primary ms-1">Tú</span>{% endif %}
+              </td>
               <td class="small text-muted">{{ s.area }}</td>
               <td class="text-center">{{ s.antiguedad }}</td>
               <td class="text-center">{{ s.num_vacaciones }}</td>
@@ -99,7 +105,7 @@
               <td class="text-center small">{{ s.mediodias_libres }} / {{ s.num_mediodia }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="8" class="text-center text-muted p-4">Sin empleados asignados.</td></tr>
+            <tr><td colspan="8" class="text-center text-muted p-4">Sin datos que mostrar.</td></tr>
             {% endfor %}
           </tbody>
         </table>
