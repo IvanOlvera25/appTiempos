@@ -78,6 +78,52 @@ flask db upgrade
 La migración conserva la tabla original como `employees_legacy`, y
 `flask db downgrade` la restaura junto con los `employee_id` anteriores.
 
+## 4b. Si `flask db` falla en la consola de PythonAnywhere
+
+Síntoma:
+
+```
+ImportError: cannot import name '_app_ctx_stack' from 'flask'
+Error: No such command 'db'.
+```
+
+No es un problema de la migración. La consola está tomando `flask` del
+directorio del usuario (Flask 3.x) pero `flask_sqlalchemy` del sistema
+(2.x, que todavía pide `_app_ctx_stack`, eliminado en Flask 2.3). Se ve en las
+rutas del propio traceback:
+
+```
+flask            -> /home/<usuario>/.local/lib/python3.10/site-packages/
+flask_sqlalchemy -> /usr/local/lib/python3.10/site-packages/
+```
+
+La web app corre en un virtualenv; la consola arranca sin él. **Actívalo antes
+de migrar**, con el mismo que aparece en el campo *Virtualenv* de la pestaña
+*Web*:
+
+```bash
+ls ~/.virtualenvs/                       # ver cuál es
+source ~/.virtualenvs/<nombre>/bin/activate
+cd ~/appTiempos
+python -c "import flask, flask_sqlalchemy; print(flask.__version__, flask_sqlalchemy.__version__)"
+```
+
+Debe imprimir `3.1.0 3.1.1`. Con eso ya corre:
+
+```bash
+FLASK_SKIP_SCHEDULER=1 flask db upgrade d4e19a7c5b83
+```
+
+`FLASK_SKIP_SCHEDULER=1` evita que APScheduler arranque en la consola; no afecta
+a la web app.
+
+Si de verdad no hay virtualenv, instala las dependencias en el directorio del
+usuario para que tapen a las del sistema:
+
+```bash
+pip3.10 install --user -r requirements.txt
+```
+
 ## 5. Qué cambia al terminar la fase 2
 
 - **Ya no se dan de alta ni se editan empleados desde la app.** Todo eso se hace
