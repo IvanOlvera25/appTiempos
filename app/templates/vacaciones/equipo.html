@@ -1,0 +1,110 @@
+{% extends "layout.html" %}
+{% block title %}Vacaciones de mi equipo{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+      <h1 class="h4 mb-1">Vacaciones de mi equipo</h1>
+      <p class="text-muted mb-0">{{ total_equipo }} persona(s) a tu cargo</p>
+    </div>
+    <a href="{{ url_for('vacaciones.mis_vacaciones') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-person"></i> Mis vacaciones
+    </a>
+  </div>
+
+  <!-- Pendientes por responder -->
+  <div class="card mb-4 {% if pendientes %}border-warning{% endif %}">
+    <div class="card-header d-flex align-items-center">
+      <i class="bi bi-hourglass-split me-2"></i>Solicitudes por responder
+      {% if pendientes %}<span class="badge bg-warning text-dark ms-2">{{ pendientes|length }}</span>{% endif %}
+    </div>
+    <div class="card-body p-0">
+      {% if pendientes %}
+      <div class="table-responsive">
+        <table class="table table-striped mb-0 align-middle">
+          <thead class="table-light">
+            <tr><th>Empleado</th><th>Fecha</th><th>Tipo</th><th>Solicitada</th><th class="text-end">Respuesta</th></tr>
+          </thead>
+          <tbody>
+            {% for s in pendientes %}
+            <tr>
+              <td><strong>{{ s.empleado }}</strong><br><span class="small text-muted">{{ s.area }}</span></td>
+              <td>{{ s.fecha.strftime('%d/%m/%Y') }}</td>
+              <td>
+                {% if s.tipo == 'MEDIO_DIA' %}
+                  <span class="badge bg-info text-dark">Medio día ({{ s.momento|lower }})</span>
+                {% else %}
+                  <span class="badge bg-secondary">Día completo</span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">{{ s.fecha_solicitud.strftime('%d/%m/%Y') if s.fecha_solicitud else '—' }}</td>
+              <td class="text-end">
+                <div class="d-inline-flex gap-1">
+                  <form method="POST" action="{{ url_for('vacaciones.responder', tipo=s.tipo, reg_id=s.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="accion" value="autorizar">
+                    <input type="hidden" name="volver" value="{{ request.full_path }}">
+                    <button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Autorizar</button>
+                  </form>
+                  <form method="POST" action="{{ url_for('vacaciones.responder', tipo=s.tipo, reg_id=s.id) }}"
+                        onsubmit="return confirm('¿Denegar la solicitud de {{ s.empleado }} para el {{ s.fecha.strftime('%d/%m/%Y') }}?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="accion" value="denegar">
+                    <input type="hidden" name="volver" value="{{ request.full_path }}">
+                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg"></i> Denegar</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted">No hay solicitudes pendientes.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% include 'vacaciones/_calendario.html' %}
+
+  <!-- Saldos del equipo -->
+  <div class="card">
+    <div class="card-header"><i class="bi bi-people me-2"></i>Saldos del equipo</div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-striped mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Empleado</th><th>Área</th><th class="text-center">Antigüedad</th>
+              <th class="text-center">Del periodo</th><th class="text-center">Tomados</th>
+              <th class="text-center">Pendientes</th><th class="text-center">Disponibles</th>
+              <th class="text-center">Medios días</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in saldos %}
+            <tr>
+              <td><strong>{{ s.nombre }}</strong></td>
+              <td class="small text-muted">{{ s.area }}</td>
+              <td class="text-center">{{ s.antiguedad }}</td>
+              <td class="text-center">{{ s.num_vacaciones }}</td>
+              <td class="text-center">{{ s.vacaciones_tomadas }}</td>
+              <td class="text-center">
+                {% if s.vacaciones_pendientes %}<span class="badge bg-warning text-dark">{{ s.vacaciones_pendientes }}</span>{% else %}0{% endif %}
+              </td>
+              <td class="text-center"><span class="badge bg-primary">{{ s.vacaciones_libres }}</span></td>
+              <td class="text-center small">{{ s.mediodias_libres }} / {{ s.num_mediodia }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="text-center text-muted p-4">Sin empleados asignados.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

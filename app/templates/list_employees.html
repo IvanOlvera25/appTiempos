@@ -26,7 +26,9 @@
           <td>{{ employee.departamento }}</td>
           <td>{{ employee.puesto }}</td>
           <td>
-            <a href="{{ url_for('main.employee_qr', employee_id=employee.id) }}" target="_blank">
+            {# El endpoint main.employee_qr nunca existió y rompía la página;
+               se enlaza directo a la imagen del QR. #}
+            <a href="{{ url_for('static', filename='qr_codes/' ~ employee.qr_code) }}" target="_blank">
               <img src="{{ url_for('static', filename='qr_codes/' ~ employee.qr_code) }}" alt="QR de {{ employee.nompropio }}" width="50">
             </a>
           </td>

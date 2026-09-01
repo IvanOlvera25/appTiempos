@@ -99,12 +99,13 @@
                             </label>
                             <select name="departamento" id="departamento" class="form-select" required>
                                 <option value="">Selecciona un departamento</option>
-                                <option value="Metal" {% if record.departamento == 'Metal' %}selected{% endif %}>Metal</option>
-                                <option value="Costura" {% if record.departamento == 'Costura' %}selected{% endif %}>Costura</option>
-                                <option value="Impresion" {% if record.departamento == 'Impresion' %}selected{% endif %}>Impresión</option>
-                                <option value="Stagging" {% if record.departamento == 'Stagging' %}selected{% endif %}>Stagging</option>
-                                <option value="Montaje" {% if record.departamento == 'Montaje' %}selected{% endif %}>Montaje</option>
-                                <option value="Transporte" {% if record.departamento == 'Transporte' %}selected{% endif %}>Transporte</option>
+                                {% for dept in area_departments %}
+                                <option value="{{ dept }}" {% if record.departamento == dept %}selected{% endif %}>{{ dept }}</option>
+                                {% endfor %}
+                                {# El área histórica del registro puede haberse desactivado #}
+                                {% if record.departamento and record.departamento not in area_departments %}
+                                <option value="{{ record.departamento }}" selected>{{ record.departamento }} (inactiva)</option>
+                                {% endif %}
                             </select>
                         </div>
 

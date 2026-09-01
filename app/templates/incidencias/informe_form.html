@@ -1,0 +1,120 @@
+{% extends "layout.html" %}
+{% block title %}{{ 'Editar informe' if informe else 'Nuevo informe de incidencia' }}{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 900px;">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h4 mb-0">
+      {{ 'Editar informe #%s'|format(informe.id) if informe else 'Nuevo informe de incidencia' }}
+    </h1>
+    <a href="{{ url_for('incidencias.informes') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Volver
+    </a>
+  </div>
+
+  <form method="POST" class="card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="card-body">
+
+      <div class="mb-3">
+        <label class="form-label">Motivo de la incidencia <span class="text-danger">*</span></label>
+        <textarea name="motivo" class="form-control" rows="4" required
+                  placeholder="¿Qué pasó?">{{ informe.motivo if informe else '' }}</textarea>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <label class="form-label">Clasificación</label>
+          <select name="clasificacion_id" class="form-select">
+            <option value="">Sin clasificar</option>
+            {% for c in clasificaciones %}
+            <option value="{{ c.id }}"
+              {% if informe and informe.clasificacion_id == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Tipo de causante <span class="text-danger">*</span></label>
+          <select name="causante_tipo" id="causante_tipo" class="form-select" required>
+            {% set tipo_actual = informe.causante_tipo if informe else 'AREA' %}
+            <option value="AREA"     {% if tipo_actual == 'AREA' %}selected{% endif %}>Área</option>
+            <option value="EMPLEADO" {% if tipo_actual == 'EMPLEADO' %}selected{% endif %}>Empleado</option>
+            <option value="CLIENTE"  {% if tipo_actual == 'CLIENTE' %}selected{% endif %}>Cliente</option>
+            <option value="OTRO"     {% if tipo_actual == 'OTRO' %}selected{% endif %}>Otro</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mb-3" data-causante="AREA">
+        <label class="form-label">Área causante</label>
+        <select name="causante_area" class="form-select">
+          <option value="">Selecciona un área…</option>
+          {% for a in areas %}
+          <option value="{{ a }}" {% if informe and informe.causante_area == a %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-3" data-causante="EMPLEADO">
+        <label class="form-label">Empleado causante</label>
+        <select name="causante_employee_id" class="form-select">
+          <option value="">Selecciona un empleado…</option>
+          {% for e in empleados %}
+          <option value="{{ e.id }}"
+            {% if informe and informe.causante_employee_id == e.id %}selected{% endif %}>{{ e.nompropio }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-3" data-causante="CLIENTE OTRO">
+        <label class="form-label">¿Quién?</label>
+        <input type="text" name="causante_texto" class="form-control" maxlength="200"
+               value="{{ informe.causante_texto or '' if informe else '' }}"
+               placeholder="Nombre del cliente o descripción">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">FP de proyecto(s) afectado(s)</label>
+        <select name="project_ids" class="form-select" multiple size="8">
+          {% for p in proyectos %}
+          <option value="{{ p.id }}" {% if p.id in seleccionados %}selected{% endif %}>
+            {{ p.folio if p.folio is not none else 's/f' }} — {{ p.name }} ({{ p.client }})
+          </option>
+          {% endfor %}
+        </select>
+        <div class="form-text">Ctrl/Cmd + clic para elegir varios.</div>
+      </div>
+
+      <div class="mb-0">
+        <label class="form-label">Repercusión de la incidencia</label>
+        <textarea name="repercusion" class="form-control" rows="3"
+                  placeholder="¿En qué afectó? Retrabajo, retraso, costo…">{{ informe.repercusion or '' if informe else '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="card-footer d-flex justify-content-end gap-2">
+      <a href="{{ url_for('incidencias.informes') }}" class="btn btn-secondary">Cancelar</a>
+      <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar informe</button>
+    </div>
+  </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const selector = document.getElementById('causante_tipo');
+  const bloques = document.querySelectorAll('[data-causante]');
+
+  // Solo se muestra el campo que corresponde al tipo de causante elegido
+  const sincronizar = () => {
+    const actual = selector.value;
+    bloques.forEach(b => {
+      b.hidden = !b.dataset.causante.split(' ').includes(actual);
+    });
+  };
+
+  selector.addEventListener('change', sincronizar);
+  sincronizar();
+});
+</script>
+{% endblock %}

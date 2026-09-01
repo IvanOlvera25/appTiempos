@@ -52,7 +52,7 @@
                 </div>
               </div>
             </div>
-            <div class="col-md-3 col-sm-4">
+            <div class="col-md-3 col-sm-4 mb-2 mb-sm-0">
               <div class="d-flex align-items-center">
                 <div class="bg-warning-subtle text-warning rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width:36px; height:36px;">
                   <i class="bi bi-building-fill"></i>
@@ -60,6 +60,28 @@
                 <div>
                   <span class="text-muted small d-block">Jefe de Área</span>
                   <code class="text-warning font-weight-bold" style="font-size:1rem;">{{ area_manager_code }}</code>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3 col-sm-4 mb-2 mb-sm-0">
+              <div class="d-flex align-items-center">
+                <div class="bg-info-subtle text-info rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width:36px; height:36px;">
+                  <i class="bi bi-people-fill"></i>
+                </div>
+                <div>
+                  <span class="text-muted small d-block">RH</span>
+                  <code class="text-info font-weight-bold" style="font-size:1rem;">{{ rh_code }}</code>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3 col-sm-4">
+              <div class="d-flex align-items-center">
+                <div class="bg-secondary-subtle text-secondary rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width:36px; height:36px;">
+                  <i class="bi bi-briefcase"></i>
+                </div>
+                <div>
+                  <span class="text-muted small d-block">Ejecutivo</span>
+                  <code class="text-secondary font-weight-bold" style="font-size:1rem;">{{ ejecutivo_code }}</code>
                 </div>
               </div>
             </div>
@@ -92,7 +114,7 @@
             <td class="ps-4">
               <div class="d-flex align-items-center">
                 <div class="avatar-circle me-3 text-white d-flex align-items-center justify-content-center rounded-circle font-weight-bold fs-6" 
-                     style="background-color: {% if u.is_admin %}#dc3545{% elif u.is_project_leader %}#198754{% elif u.is_area_manager %}#ffc107{% else %}#0d6efd{% endif %}; width: 40px; height: 40px;">
+                     style="background-color: {% if u.is_admin %}#dc3545{% elif u.is_rh %}#0dcaf0{% elif u.is_project_leader %}#198754{% elif u.is_area_manager %}#ffc107{% elif u.is_ejecutivo %}#6c757d{% else %}#0d6efd{% endif %}; width: 40px; height: 40px;">
                   {{ u.username[0]|upper }}
                 </div>
                 <div>
@@ -112,10 +134,14 @@
             <td>
               {% if u.is_admin %}
                 <span class="badge bg-danger rounded-pill px-3 py-2 text-uppercase">Administrador</span>
+              {% elif u.is_rh %}
+                <span class="badge bg-info text-dark rounded-pill px-3 py-2 text-uppercase">RH</span>
               {% elif u.is_project_leader %}
                 <span class="badge bg-success rounded-pill px-3 py-2 text-uppercase">Líder de Proyecto</span>
               {% elif u.is_area_manager %}
                 <span class="badge bg-warning text-dark rounded-pill px-3 py-2 text-uppercase">Jefe de Área</span>
+              {% elif u.is_ejecutivo %}
+                <span class="badge bg-secondary rounded-pill px-3 py-2 text-uppercase">Ejecutivo</span>
               {% else %}
                 <span class="badge bg-primary rounded-pill px-3 py-2 text-uppercase">Empleado</span>
               {% endif %}
@@ -200,8 +226,10 @@
             <select class="form-select" id="new_user_type" name="user_type" required>
               <option value="" disabled selected>Selecciona un rol...</option>
               <option value="empleado">Empleado</option>
+              <option value="ejecutivo">Ejecutivo</option>
               <option value="jefe_area">Jefe de Área</option>
               <option value="lider_proyecto">Líder de Proyecto</option>
+              <option value="rh">RH</option>
               <option value="administrador">Administrador</option>
             </select>
           </div>
@@ -217,7 +245,7 @@
                 <option value="" disabled>No hay empleados disponibles sin usuario</option>
               {% endfor %}
             </select>
-            <div class="form-text text-muted">Solo se listan los empleados que no tienen un usuario creado.</div>
+            <div class="form-text text-muted" id="employee_help">Solo se listan los empleados que no tienen un usuario creado.</div>
           </div>
 
           <!-- Campo dinámico: Jefe de Área -->
@@ -322,10 +350,16 @@
       $('#new_employee_id').prop('required', false);
       $('#new_area_department').prop('required', false);
       
-      if (val === 'empleado') {
+      // Ligar un empleado es obligatorio solo para el perfil "empleado"; para el
+      // resto es opcional y es lo que le da saldo de vacaciones a esa cuenta.
+      if (val) {
         $('#div_employee_select').removeClass('d-none');
-        $('#new_employee_id').prop('required', true);
-      } else if (val === 'jefe_area') {
+        $('#new_employee_id').prop('required', val === 'empleado');
+        $('#employee_help').text(val === 'empleado'
+          ? 'Solo se listan los empleados que no tienen un usuario creado.'
+          : 'Opcional. Vincúlalo si esta cuenta debe tener saldo de vacaciones propio.');
+      }
+      if (val === 'jefe_area') {
         $('#div_area_select').removeClass('d-none');
         $('#new_area_department').prop('required', true);
       }

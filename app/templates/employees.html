@@ -21,9 +21,11 @@
           </a>
           {% endif %}
           {% if current_user.has_admin_privileges %}
-          <a href="{{ url_for('main.add_employee') }}" class="btn btn-primary btn-lg">
-            <i class="bi bi-person-plus me-2"></i>Nuevo Empleado
-          </a>
+          {# El personal se da de alta en el sistema de RH; aquí solo se consulta. #}
+          <span class="btn btn-outline-secondary btn-lg disabled" tabindex="-1"
+                title="Las altas y cambios de personal se hacen en el sistema de RH (AD17_RH).">
+            <i class="bi bi-info-circle me-2"></i>Personal administrado en RH
+          </span>
           {% endif %}
         </div>
       </div>
@@ -118,9 +120,9 @@
             <div class="col-md-4 text-md-end mt-3 mt-md-0">
               {% if current_user.has_admin_privileges %}
               <div class="d-flex gap-2 justify-content-md-end">
-                <a href="{{ url_for('main.edit_employee', id=selected_employee.id) }}" class="btn btn-light btn-sm">
-                  <i class="bi bi-pencil me-1"></i>Editar
-                </a>
+                <span class="badge bg-light text-dark">
+                  <i class="bi bi-shield-lock me-1"></i>Datos de AD17_RH
+                </span>
               </div>
               {% endif %}
             </div>

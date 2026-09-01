@@ -1,0 +1,123 @@
+{% extends "layout.html" %}
+{% block title %}Incidencia #{{ incidencia.id }}{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 1000px;">
+
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+      <h1 class="h4 mb-1">
+        Incidencia #{{ incidencia.id }}
+        {% if incidencia.estado == 'CERRADA' %}
+          <span class="badge bg-secondary align-middle">Cerrada</span>
+        {% else %}
+          <span class="badge bg-success align-middle">Abierta</span>
+        {% endif %}
+      </h1>
+      <p class="text-muted mb-0">
+        {{ incidencia.created_at.strftime('%d/%m/%Y %H:%M') }} ·
+        {{ incidencia.created_by.username if incidencia.created_by else '—' }}
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      {% if administra %}
+      <a href="{{ url_for('incidencias.editar', incident_id=incidencia.id) }}" class="btn btn-outline-primary">
+        <i class="bi bi-pencil"></i> Editar
+      </a>
+      {% endif %}
+      <a href="{{ url_for('incidencias.lista') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+      </a>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header"><i class="bi bi-card-text me-2"></i>Descripción</div>
+    <div class="card-body">
+      <p class="mb-0" style="white-space: pre-wrap;">{{ incidencia.descripcion }}</p>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="small text-muted">Clasificación</div>
+          <div class="fw-bold">{{ incidencia.clasificacion.nombre if incidencia.clasificacion else 'Sin clasificar' }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="small text-muted">Responsable ({{ incidencia.responsable_tipo|capitalize }})</div>
+          <div class="fw-bold">{{ incidencia.responsable_label }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="small text-muted">Costo</div>
+          <div class="fw-bold fs-5">${{ '{:,.2f}'.format(incidencia.costo or 0) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header"><i class="bi bi-kanban me-2"></i>FP a los que pertenece</div>
+    <div class="card-body">
+      {% for p in incidencia.projects %}
+      <span class="badge bg-secondary me-1">
+        {{ p.project.folio if p.project.folio is not none else 's/f' }} — {{ p.project.name }}
+      </span>
+      {% else %}
+      <span class="text-muted">No se asignaron proyectos.</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <i class="bi bi-clipboard me-2"></i>Informes agrupados
+      <span class="badge bg-info text-dark ms-2">{{ informes|length }}</span>
+    </div>
+    <div class="card-body p-0">
+      {% if informes %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th style="width:70px;">#</th><th>Motivo</th>
+              <th style="width:160px;">Causante</th><th style="width:160px;">Reportó</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in informes %}
+            <tr>
+              <td>
+                <a href="{{ url_for('incidencias.ver_informe', report_id=r.id) }}"
+                   class="fw-bold text-decoration-none">#{{ r.id }}</a>
+              </td>
+              <td class="small">
+                {{ r.motivo|truncate(120) }}
+                <div class="text-muted">{{ r.created_at.strftime('%d/%m/%Y') }}</div>
+              </td>
+              <td class="small">{{ r.causante_label }}</td>
+              <td class="small">
+                {{ r.reporter.username if r.reporter else '—' }}
+                <div class="text-muted">{{ r.reporter.ROLE_LABELS[r.nivel_autor] }}</div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted">Todavía no hay informes vinculados.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

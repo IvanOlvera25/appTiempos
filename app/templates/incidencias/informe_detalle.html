@@ -1,0 +1,110 @@
+{% extends "layout.html" %}
+{% block title %}Informe #{{ informe.id }}{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 900px;">
+
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+      <h1 class="h4 mb-1">
+        Informe de incidencia #{{ informe.id }}
+        {% if informe.invalido %}<span class="badge bg-dark align-middle">Inválido</span>{% endif %}
+      </h1>
+      <p class="text-muted mb-0">
+        {{ informe.created_at.strftime('%d/%m/%Y %H:%M') }} ·
+        {{ informe.reporter.username if informe.reporter else 'Usuario eliminado' }}
+        ({{ informe.reporter.ROLE_LABELS[informe.nivel_autor] }})
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      {% if puede_editar %}
+      <a href="{{ url_for('incidencias.editar_informe', report_id=informe.id) }}" class="btn btn-outline-primary">
+        <i class="bi bi-pencil"></i> Editar
+      </a>
+      {% endif %}
+      <a href="{{ url_for('incidencias.informes') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+      </a>
+    </div>
+  </div>
+
+  {% if informe.invalido and administra %}
+  <div class="alert alert-dark">
+    <i class="bi bi-eye-slash me-2"></i>
+    Este informe está marcado como inválido: solo lo ven Administración y RH.
+  </div>
+  {% endif %}
+
+  <div class="card mb-3">
+    <div class="card-header"><i class="bi bi-card-text me-2"></i>Motivo</div>
+    <div class="card-body">
+      <p class="mb-0" style="white-space: pre-wrap;">{{ informe.motivo }}</p>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="small text-muted">Clasificación</div>
+          <div class="fw-bold">{{ informe.clasificacion.nombre if informe.clasificacion else 'Sin clasificar' }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="small text-muted">Causante ({{ informe.causante_tipo|capitalize }})</div>
+          <div class="fw-bold">{{ informe.causante_label }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header"><i class="bi bi-kanban me-2"></i>FP afectados</div>
+    <div class="card-body">
+      {% for p in informe.projects %}
+      <span class="badge bg-secondary me-1">
+        {{ p.project.folio if p.project.folio is not none else 's/f' }} — {{ p.project.name }}
+      </span>
+      {% else %}
+      <span class="text-muted">No se indicaron proyectos.</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header"><i class="bi bi-exclamation-diamond me-2"></i>Repercusión</div>
+    <div class="card-body">
+      <p class="mb-0" style="white-space: pre-wrap;">{{ informe.repercusion or 'No se describió.' }}</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><i class="bi bi-collection me-2"></i>Incidencia</div>
+    <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+      {% if informe.incident %}
+      <div>
+        Agrupado en la incidencia
+        <a href="{{ url_for('incidencias.ver', incident_id=informe.incident.id) }}">#{{ informe.incident.id }}</a>:
+        {{ informe.incident.descripcion|truncate(90) }}
+      </div>
+      {% else %}
+      <div class="text-muted">Este informe todavía no forma parte de ninguna incidencia.</div>
+      {% endif %}
+
+      {% if administra %}
+      <form method="POST" action="{{ url_for('incidencias.invalidar_informe', report_id=informe.id) }}"
+            onsubmit="return confirm('{{ '¿Marcar como válido de nuevo?' if informe.invalido else '¿Marcar este informe como inválido? Dejará de verse para los demás perfiles.' }}');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm {{ 'btn-outline-success' if informe.invalido else 'btn-outline-dark' }}">
+          <i class="bi {{ 'bi-arrow-counterclockwise' if informe.invalido else 'bi-eye-slash' }}"></i>
+          {{ 'Marcar como válido' if informe.invalido else 'Marcar como inválido' }}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

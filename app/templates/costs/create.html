@@ -78,13 +78,9 @@
                             </label>
                             <select name="departamento" id="departamento" class="form-select" required>
                                 <option value="">Selecciona un departamento</option>
-                                <option value="Metal">Metal</option>
-                                <option value="Costura">Costura</option>
-                                <option value="Impresion">Impresión</option>
-                                <option value="Stagging">Stagging</option>
-                                <option value="Montaje">Montaje</option>
-                                <option value="Transporte">Transporte</option>
-
+                                {% for dept in area_departments %}
+                                <option value="{{ dept }}">{{ dept }}</option>
+                                {% endfor %}
                             </select>
                         </div>
 

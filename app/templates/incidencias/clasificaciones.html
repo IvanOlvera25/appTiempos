@@ -1,0 +1,67 @@
+{% extends "layout.html" %}
+{% block title %}Clasificaciones de incidencia{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 800px;">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h4 mb-1">Clasificaciones de incidencia</h1>
+      <p class="text-muted mb-0">Catálogo que se ofrece al levantar un informe o armar una incidencia.</p>
+    </div>
+    <a href="{{ url_for('incidencias.lista') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Volver
+    </a>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header"><i class="bi bi-plus-circle me-2"></i>Agregar clasificación</div>
+    <div class="card-body">
+      <form method="POST" class="row g-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="col-md-9">
+          <input type="text" name="nombre" class="form-control" maxlength="120" required
+                 placeholder="Ej. Falla de proveedor">
+        </div>
+        <div class="col-md-3">
+          <button class="btn btn-primary w-100"><i class="bi bi-save"></i> Agregar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body p-0">
+      <table class="table table-striped mb-0 align-middle">
+        <thead class="table-light">
+          <tr><th>Clasificación</th><th style="width:110px;">Informes</th>
+              <th style="width:100px;">Activa</th><th style="width:140px;" class="text-end">Acción</th></tr>
+        </thead>
+        <tbody>
+          {% for c in clasificaciones %}
+          <tr>
+            <td>{{ c.nombre }}</td>
+            <td class="text-muted">{{ usos.get(c.id, 0) }}</td>
+            <td>
+              {% if c.activa %}<span class="badge bg-success">Sí</span>
+              {% else %}<span class="badge bg-secondary">No</span>{% endif %}
+            </td>
+            <td class="text-end">
+              <form method="POST" action="{{ url_for('incidencias.toggle_clasificacion', clasificacion_id=c.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm {{ 'btn-outline-warning' if c.activa else 'btn-outline-success' }}">
+                  {{ 'Desactivar' if c.activa else 'Activar' }}
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer small text-muted">
+      Desactivar una clasificación la saca de los formularios nuevos, pero no toca los informes que ya la usan.
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,227 @@
+{% extends "layout.html" %}
+{% block title %}Mis vacaciones{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+      <h1 class="h4 mb-1">Mis vacaciones</h1>
+      <p class="text-muted mb-0">{{ saldo.nombre }} · {{ saldo.area or 'Sin área' }}</p>
+    </div>
+    {% if supervisores %}
+    <div class="text-md-end small text-muted">
+      Autoriza:
+      {% for s in supervisores %}<span class="badge bg-light text-dark">{{ s.nombre }}</span>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Saldos -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+      <div class="card h-100 text-center">
+        <div class="card-body">
+          <div class="display-6 fw-bold text-primary">{{ saldo.vacaciones_libres }}</div>
+          <div class="small text-muted">Días que puedes pedir</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card h-100 text-center">
+        <div class="card-body">
+          <div class="display-6 fw-bold">{{ saldo.num_vacaciones }}</div>
+          <div class="small text-muted">Días del periodo</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card h-100 text-center">
+        <div class="card-body">
+          <div class="display-6 fw-bold text-success">{{ saldo.vacaciones_tomadas }}</div>
+          <div class="small text-muted">Tomados</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card h-100 text-center">
+        <div class="card-body">
+          <div class="display-6 fw-bold text-warning">{{ saldo.vacaciones_pendientes }}</div>
+          <div class="small text-muted">Pendientes de autorizar</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-lg-8">
+      <div class="alert alert-light border mb-0">
+        <div class="row text-center">
+          <div class="col-4">
+            <div class="fw-bold">{{ saldo.antiguedad }} año(s)</div>
+            <div class="small text-muted">Antigüedad</div>
+          </div>
+          <div class="col-4">
+            <div class="fw-bold">{{ saldo.inicio_periodo.strftime('%d/%m/%Y') if saldo.inicio_periodo else '—' }}</div>
+            <div class="small text-muted">Inicio del periodo</div>
+          </div>
+          <div class="col-4">
+            <div class="fw-bold">{{ saldo.proximo_aniversario.strftime('%d/%m/%Y') if saldo.proximo_aniversario else '—' }}</div>
+            <div class="small text-muted">Se reinicia</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-4">
+      <div class="alert alert-light border mb-0 text-center">
+        <div class="fw-bold fs-5">{{ saldo.mediodias_libres }} de {{ saldo.num_mediodia }}</div>
+        <div class="small text-muted">Medios días disponibles</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Solicitar -->
+  <div class="card mb-4">
+    <div class="card-header"><i class="bi bi-calendar-plus me-2"></i>Solicitar</div>
+    <div class="card-body">
+      <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-dias" type="button">Días completos</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-medio" type="button">Medio día</button></li>
+      </ul>
+
+      <div class="tab-content">
+        <div class="tab-pane fade show active" id="tab-dias">
+          <form method="POST" action="{{ url_for('vacaciones.solicitar') }}" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="tipo" value="VACACION">
+            <div class="col-md-3">
+              <label class="form-label">Desde</label>
+              <input type="date" name="desde" class="form-control" min="{{ hoy }}" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Hasta</label>
+              <input type="date" name="hasta" class="form-control" min="{{ hoy }}">
+              <div class="form-text">Déjalo vacío para un solo día.</div>
+            </div>
+            <div class="col-md-3 d-flex align-items-center">
+              <div class="form-check mt-3">
+                <input class="form-check-input" type="checkbox" name="incluir_fines" id="incluir_fines">
+                <label class="form-check-label" for="incluir_fines">Incluir fines de semana</label>
+              </div>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+              <button class="btn btn-primary w-100" {% if saldo.vacaciones_libres < 1 %}disabled{% endif %}>
+                <i class="bi bi-send"></i> Solicitar
+              </button>
+            </div>
+          </form>
+          {% if saldo.vacaciones_libres < 1 %}
+          <div class="alert alert-warning mt-3 mb-0">Ya no te quedan días disponibles en este periodo.</div>
+          {% endif %}
+        </div>
+
+        <div class="tab-pane fade" id="tab-medio">
+          <form method="POST" action="{{ url_for('vacaciones.solicitar') }}" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="tipo" value="MEDIO_DIA">
+            <div class="col-md-4">
+              <label class="form-label">Fecha</label>
+              <input type="date" name="fecha_medio_dia" class="form-control" min="{{ hoy }}" required>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label">¿Qué mitad de la jornada?</label>
+              <select name="momento" class="form-select" required>
+                <option value="INICIAL">Al inicio (entro más tarde)</option>
+                <option value="FINAL" selected>Al final (salgo más temprano)</option>
+              </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+              <button class="btn btn-primary w-100" {% if saldo.mediodias_libres < 1 %}disabled{% endif %}>
+                <i class="bi bi-send"></i> Solicitar
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pendientes -->
+  <div class="card mb-4">
+    <div class="card-header"><i class="bi bi-hourglass-split me-2"></i>Pendientes de autorización</div>
+    <div class="card-body p-0">
+      {% if pendientes %}
+      <div class="table-responsive">
+        <table class="table table-striped mb-0 align-middle">
+          <thead class="table-light">
+            <tr><th>Fecha</th><th>Tipo</th><th>Solicitada</th><th class="text-end">Acción</th></tr>
+          </thead>
+          <tbody>
+            {% for s in pendientes %}
+            <tr>
+              <td>{{ s.fecha.strftime('%d/%m/%Y') }}</td>
+              <td>
+                {% if s.tipo == 'MEDIO_DIA' %}
+                  <span class="badge bg-info text-dark">Medio día ({{ s.momento|lower }})</span>
+                {% else %}
+                  <span class="badge bg-secondary">Día completo</span>
+                {% endif %}
+              </td>
+              <td class="text-muted small">{{ s.fecha_solicitud.strftime('%d/%m/%Y') if s.fecha_solicitud else '—' }}</td>
+              <td class="text-end">
+                <form method="POST" action="{{ url_for('vacaciones.cancelar', tipo=s.tipo, reg_id=s.id) }}"
+                      onsubmit="return confirm('¿Cancelar esta solicitud?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Cancelar</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted">No tienes solicitudes pendientes.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Historial -->
+  <div class="card">
+    <div class="card-header"><i class="bi bi-clock-history me-2"></i>Historial</div>
+    <div class="card-body p-0">
+      {% if historial %}
+      <div class="table-responsive">
+        <table class="table table-striped mb-0 align-middle">
+          <thead class="table-light">
+            <tr><th>Fecha</th><th>Tipo</th><th>Estatus</th><th>Respondió</th><th>Fecha de respuesta</th></tr>
+          </thead>
+          <tbody>
+            {% for s in historial %}
+            <tr>
+              <td>{{ s.fecha.strftime('%d/%m/%Y') }}</td>
+              <td>
+                {% if s.tipo == 'MEDIO_DIA' %}
+                  <span class="badge bg-info text-dark">Medio día</span>
+                {% else %}
+                  <span class="badge bg-secondary">Día completo</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if s.estatus == 'AUTORIZADO' %}<span class="badge bg-success">Autorizado</span>
+                {% else %}<span class="badge bg-danger">Denegado</span>{% endif %}
+              </td>
+              <td class="small">{{ s.autorizador or '—' }}</td>
+              <td class="small text-muted">{{ s.fecha_respuesta.strftime('%d/%m/%Y') if s.fecha_respuesta else '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted">Todavía no hay vacaciones registradas en este periodo.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

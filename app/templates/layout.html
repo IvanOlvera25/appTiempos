@@ -404,7 +404,7 @@
 
           <!-- Dropdown Administración -->
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.endpoint in ['main.admin_dashboard', 'main.add_project', 'main.project_page', 'main.edit_project', 'main.project_analysis', 'main.manage_users'] %}active-link{% endif %}"
+            <a class="nav-link dropdown-toggle {% if request.endpoint in ['main.admin_dashboard', 'main.add_project', 'main.project_page', 'main.edit_project', 'main.project_analysis', 'main.manage_users', 'main.areas_admin', 'main.activities_admin'] %}active-link{% endif %}"
                href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-speedometer2"></i>Administración
             </a>
@@ -436,6 +436,18 @@
               </li>
               {% if current_user.is_admin %}
               <li><hr class="dropdown-divider"></li>
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'main.areas_admin' %}active-link{% endif %}"
+                   href="{{ url_for('main.areas_admin') }}">
+                  <i class="bi bi-diagram-3"></i>Áreas de registro
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'main.activities_admin' %}active-link{% endif %}"
+                   href="{{ url_for('main.activities_admin') }}">
+                  <i class="bi bi-list-task"></i>Actividades
+                </a>
+              </li>
               <li>
                 <a class="dropdown-item {% if request.endpoint == 'main.manage_users' %}active-link{% endif %}"
                    href="{{ url_for('main.manage_users') }}">
@@ -473,6 +485,90 @@
                   <i class="bi bi-calendar2-plus"></i>Adicionales del Área
                 </a>
               </li>
+            </ul>
+          </li>
+          {% endif %}
+
+          <!-- Vacaciones: disponible para cualquier usuario autenticado -->
+          {% if current_user.is_authenticated %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.blueprint == 'vacaciones' %}active-link{% endif %}"
+               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-calendar-heart"></i>Vacaciones
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'vacaciones.mis_vacaciones' %}active-link{% endif %}"
+                   href="{{ url_for('vacaciones.mis_vacaciones') }}">
+                  <i class="bi bi-person-check"></i>Mis vacaciones
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'vacaciones.equipo' %}active-link{% endif %}"
+                   href="{{ url_for('vacaciones.equipo') }}">
+                  <i class="bi bi-people"></i>Mi equipo
+                </a>
+              </li>
+              {% if current_user.is_admin or current_user.is_rh %}
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'vacaciones.admin' %}active-link{% endif %}"
+                   href="{{ url_for('vacaciones.admin') }}">
+                  <i class="bi bi-calendar3"></i>Toda la plantilla
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'vacaciones.supervisores' %}active-link{% endif %}"
+                   href="{{ url_for('vacaciones.supervisores') }}">
+                  <i class="bi bi-diagram-2"></i>Supervisores
+                </a>
+              </li>
+              {% endif %}
+            </ul>
+          </li>
+          {% endif %}
+
+          <!-- Incidencias: todos los perfiles menos "Empleado" -->
+          {% if current_user.is_authenticated and current_user.puede_reportar_incidencias %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if request.blueprint == 'incidencias' %}active-link{% endif %}"
+               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-exclamation-triangle"></i>Incidencias
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'incidencias.informes' %}active-link{% endif %}"
+                   href="{{ url_for('incidencias.informes') }}">
+                  <i class="bi bi-clipboard"></i>Informes
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{{ url_for('incidencias.nuevo_informe') }}">
+                  <i class="bi bi-plus-circle"></i>Nuevo informe
+                </a>
+              </li>
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'incidencias.lista' %}active-link{% endif %}"
+                   href="{{ url_for('incidencias.lista') }}">
+                  <i class="bi bi-collection"></i>Incidencias
+                </a>
+              </li>
+              {% if current_user.administra_incidencias %}
+              <li>
+                <a class="dropdown-item" href="{{ url_for('incidencias.nueva') }}">
+                  <i class="bi bi-plus-square"></i>Nueva incidencia
+                </a>
+              </li>
+              {% endif %}
+              {% if current_user.is_admin %}
+              <li>
+                <a class="dropdown-item {% if request.endpoint == 'incidencias.clasificaciones' %}active-link{% endif %}"
+                   href="{{ url_for('incidencias.clasificaciones') }}">
+                  <i class="bi bi-tags"></i>Clasificaciones
+                </a>
+              </li>
+              {% endif %}
             </ul>
           </li>
           {% endif %}

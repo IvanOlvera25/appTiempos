@@ -67,7 +67,8 @@ class RegistrationForm(FlaskForm):
             return False
 
         utype = self.user_type.data
-        if utype not in ('empleado', 'administrador', 'lider_proyecto', 'jefe_area'):
+        if utype not in ('empleado', 'administrador', 'lider_proyecto',
+                         'jefe_area', 'rh', 'ejecutivo'):
             self.user_type.errors.append('Debes seleccionar el tipo de usuario.')
             return False
 
@@ -83,13 +84,13 @@ class RegistrationForm(FlaskForm):
             # Código admin no requerido
             self.verification_code.data = ''
 
-        # ▸ Administrador
+        # ▸ Resto de perfiles: todos requieren su clave de verificación.
+        #   `employee_name` es opcional aquí y sirve para ligar la cuenta a un
+        #   empleado de RH (necesario para que tenga saldo de vacaciones).
         else:
             if not self.verification_code.data:
-                self.verification_code.errors.append('Debes ingresar la clave de administrador.')
+                self.verification_code.errors.append('Debes ingresar la clave de verificación.')
                 return False
-            # employee_name NO debe estar presente
-            self.employee_name.data = None
 
         return True
 
@@ -150,120 +151,6 @@ class RegisterTimeForm(FlaskForm):
 #  5. Formulario de Empleado
 # ╰─────────────────────────────╯
 
-class EmployeeForm(FlaskForm):
-    # Número de empleado - cambiado a mínimo 3 dígitos
-    n_empleado = StringField(
-        'Número de Empleado',
-        validators=[
-            DataRequired(message="El número de empleado es obligatorio"),
-            Length(min=3, max=10, message="El número debe tener entre 3 y 10 dígitos")
-        ]
-    )
-
-    # Nombre propio (campo que faltaba en tu plantilla)
-    nompropio = StringField(
-        'Nombre Completo',
-        validators=[
-            DataRequired(message="El nombre completo es obligatorio"),
-            Length(min=2, max=100, message="El nombre debe tener entre 2 y 100 caracteres")
-        ]
-    )
-
-    # Nombre
-    nombre = StringField(
-        'Nombre',
-        validators=[
-            DataRequired(message="El nombre es obligatorio"),
-            Length(min=2, max=50, message="El nombre debe tener entre 2 y 50 caracteres")
-        ]
-    )
-
-    # Apellido paterno
-    apellido_paterno = StringField(
-        'Apellido Paterno',
-        validators=[
-            DataRequired(message="El apellido paterno es obligatorio"),
-            Length(min=2, max=50, message="El apellido debe tener entre 2 y 50 caracteres")
-        ]
-    )
-
-    # Apellido materno (opcional)
-    apellido_materno = StringField(
-        'Apellido Materno',
-        validators=[
-            Length(max=50, message="El apellido materno no puede exceder 50 caracteres")
-        ]
-    )
-
-    # Departamento
-    departamento = SelectField('Departamento', choices=[
-        ('Metal', 'Metal'),
-        ('Costura', 'Costura'),
-        ('Impresion', 'Impresión'),
-        ('Stagging', 'Stagging'),
-        ('Montaje', 'Montaje'),
-        ('Transporte', 'Transporte')
-    ], validators=[DataRequired()])
-
-
-    # Puesto
-    puesto = StringField(
-        'Puesto',
-        validators=[
-            DataRequired(message="El puesto es obligatorio"),
-            Length(min=2, max=100, message="El puesto debe tener entre 2 y 100 caracteres")
-        ]
-    )
-
-    # Código QR
-    qr_code = StringField(
-        'Código QR',
-        validators=[
-            DataRequired(message="El código QR es obligatorio"),
-            Length(min=3, max=20, message="El código QR debe tener entre 3 y 20 caracteres")
-        ]
-    )
-
-    submit = SubmitField('Guardar Empleado')
-
-    def __init__(self, *args, **kwargs):
-        # Obtener el empleado actual si estamos editando
-        self.original_employee = kwargs.pop('obj', None)
-        super(EmployeeForm, self).__init__(*args, **kwargs)
-
-    def validate_n_empleado(self, field):
-        """Validar que el número de empleado sea único"""
-        from .models import Employee
-
-        # Si estamos editando y el número no cambió, no validar
-        if (self.original_employee and
-            self.original_employee.n_empleado == field.data):
-            return
-
-        # Verificar que solo contenga dígitos
-        if not field.data.isdigit():
-            raise ValidationError('El número de empleado debe contener solo dígitos.')
-
-        # Verificar que sea único
-        existing = Employee.query.filter_by(n_empleado=field.data).first()
-        if existing:
-            raise ValidationError('Este número de empleado ya existe.')
-
-    def validate_qr_code(self, field):
-        """Validar que el código QR sea único"""
-        from .models import Employee
-
-        # Si estamos editando y el código no cambió, no validar
-        if (self.original_employee and
-            self.original_employee.qr_code == field.data):
-            return
-
-        # Verificar que sea único
-        existing = Employee.query.filter_by(qr_code=field.data).first()
-        if existing:
-            raise ValidationError('Este código QR ya está en uso.')
-
-    def validate_nompropio(self, field):
-        """Validar el formato del nombre completo"""
-        if not field.data.replace(' ', '').replace('-', '').isalpha():
-            raise ValidationError('El nombre solo puede contener letras, espacios y guiones.')
+# Eliminado EmployeeForm: el personal se administra en AD17_RH. La tabla
+# `employees` es una vista de solo lectura, así que la app ya no da de alta ni
+# edita empleados.

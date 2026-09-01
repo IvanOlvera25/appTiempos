@@ -1,0 +1,236 @@
+{% extends "layout.html" %}
+{% block title %}{{ 'Editar incidencia' if incidencia else 'Nueva incidencia' }}{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 1100px;">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h4 mb-0">
+      {{ 'Editar incidencia #%s'|format(incidencia.id) if incidencia else 'Nueva incidencia' }}
+    </h1>
+    <a href="{{ url_for('incidencias.lista') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Volver
+    </a>
+  </div>
+
+  <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-card-text me-2"></i>Descripción de la incidencia</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">Descripción <span class="text-danger">*</span></label>
+          <textarea name="descripcion" class="form-control" rows="4" required
+                    placeholder="La versión de Administración/RH sobre lo que ocurrió">{{ incidencia.descripcion if incidencia else '' }}</textarea>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Clasificación</label>
+            <select name="clasificacion_id" class="form-select">
+              <option value="">Sin clasificar</option>
+              {% for c in clasificaciones %}
+              <option value="{{ c.id }}"
+                {% if incidencia and incidencia.clasificacion_id == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Costo de la incidencia</label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" name="costo" class="form-control" step="0.01" min="0"
+                     value="{{ '%.2f'|format(incidencia.costo or 0) if incidencia else '0.00' }}">
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Estado</label>
+            <select name="estado" class="form-select">
+              {% for e in estados %}
+              <option value="{{ e }}" {% if incidencia and incidencia.estado == e %}selected{% endif %}>
+                {{ e|capitalize }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-person-exclamation me-2"></i>Responsable final</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">Tipo de responsable <span class="text-danger">*</span></label>
+          <select name="responsable_tipo" id="responsable_tipo" class="form-select" required>
+            {% set tipo_actual = incidencia.responsable_tipo if incidencia else 'AREA' %}
+            <option value="CLIENTE"  {% if tipo_actual == 'CLIENTE' %}selected{% endif %}>Cliente</option>
+            <option value="AREA"     {% if tipo_actual == 'AREA' %}selected{% endif %}>Área</option>
+            <option value="EMPLEADO" {% if tipo_actual == 'EMPLEADO' %}selected{% endif %}>Trabajador</option>
+          </select>
+        </div>
+
+        <div class="mb-0" data-responsable="AREA">
+          <label class="form-label">Área responsable</label>
+          <select name="responsable_area" class="form-select">
+            <option value="">Selecciona un área…</option>
+            {% for a in areas %}
+            <option value="{{ a }}"
+              {% if incidencia and incidencia.responsable_area == a %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-0" data-responsable="EMPLEADO">
+          <label class="form-label">Trabajador responsable</label>
+          <select name="responsable_employee_id" class="form-select">
+            <option value="">Selecciona un empleado…</option>
+            {% for e in empleados %}
+            <option value="{{ e.id }}"
+              {% if incidencia and incidencia.responsable_employee_id == e.id %}selected{% endif %}>{{ e.nompropio }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-0" data-responsable="CLIENTE">
+          <label class="form-label">Cliente responsable</label>
+          <input type="text" name="responsable_texto" class="form-control" maxlength="200"
+                 value="{{ incidencia.responsable_texto or '' if incidencia else '' }}"
+                 placeholder="Nombre del cliente">
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-kanban me-2"></i>FP a los que realmente pertenece</div>
+      <div class="card-body">
+        <select name="project_ids" class="form-select" multiple size="8">
+          {% for p in proyectos %}
+          <option value="{{ p.id }}" {% if p.id in seleccionados %}selected{% endif %}>
+            {{ p.folio if p.folio is not none else 's/f' }} — {{ p.name }} ({{ p.client }})
+          </option>
+          {% endfor %}
+        </select>
+        <div class="form-text">Ctrl/Cmd + clic para elegir varios. No tienen que ser los mismos que señalaron los informes.</div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header">
+        <i class="bi bi-link-45deg me-2"></i>Informes de este mismo evento
+      </div>
+      <div class="card-body p-0">
+        {% if informes_disponibles %}
+        <div class="table-responsive" style="max-height: 460px; overflow-y: auto;">
+          <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th style="width:80px;">Vincular</th>
+                <th style="width:80px;">Inválido</th>
+                <th style="width:60px;">#</th>
+                <th>Motivo</th>
+                <th style="width:160px;">Causante</th>
+                <th style="width:150px;">Reportó</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in informes_disponibles %}
+              <tr class="{% if r.invalido %}table-secondary{% endif %}">
+                <td class="text-center">
+                  {# Marca qué informes se mostraron: sin esto no se puede saber
+                     cuáles se DESmarcaron como inválidos. #}
+                  <input type="hidden" name="candidatos" value="{{ r.id }}">
+                  <input class="form-check-input" type="checkbox" name="report_ids" value="{{ r.id }}"
+                         {% if r.id in vinculados %}checked{% endif %}>
+                </td>
+                <td class="text-center">
+                  <input class="form-check-input" type="checkbox" name="invalidos" value="{{ r.id }}"
+                         {% if r.invalido %}checked{% endif %}
+                         title="Marcar como inválido: queda oculto para los demás perfiles">
+                </td>
+                <td class="small text-muted">{{ r.id }}</td>
+                <td class="small">
+                  {{ r.motivo|truncate(110) }}
+                  <div class="text-muted">{{ r.created_at.strftime('%d/%m/%Y') }}</div>
+                </td>
+                <td class="small">{{ r.causante_label }}</td>
+                <td class="small">{{ r.reporter.username if r.reporter else '—' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="p-4 text-center text-muted">No hay informes sin agrupar.</div>
+        {% endif %}
+      </div>
+      <div class="card-footer small text-muted">
+        Un informe marcado como inválido se desvincula de la incidencia y deja de verse
+        para los perfiles que no son Administración ni RH.
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between">
+      {% if incidencia %}
+      <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#delModal">
+        <i class="bi bi-trash3"></i> Eliminar
+      </button>
+      {% else %}<span></span>{% endif %}
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('incidencias.lista') }}" class="btn btn-secondary">Cancelar</a>
+        <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar incidencia</button>
+      </div>
+    </div>
+  </form>
+
+  {% if incidencia %}
+  <div class="modal fade" id="delModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Eliminar incidencia #{{ incidencia.id }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          Los informes vinculados no se borran: quedan sin agrupar y se pueden asignar a otra incidencia.
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <form method="POST" action="{{ url_for('incidencias.eliminar', incident_id=incidencia.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-danger"><i class="bi bi-trash3"></i> Eliminar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const selector = document.getElementById('responsable_tipo');
+  const bloques = document.querySelectorAll('[data-responsable]');
+
+  const sincronizar = () => {
+    bloques.forEach(b => { b.hidden = b.dataset.responsable !== selector.value; });
+  };
+  selector.addEventListener('change', sincronizar);
+  sincronizar();
+
+  // Vincular e invalidar son excluyentes: un informe inválido no forma parte
+  // de la incidencia.
+  document.querySelectorAll('input[name="invalidos"]').forEach(inv => {
+    inv.addEventListener('change', () => {
+      const fila = inv.closest('tr');
+      const vinculo = fila.querySelector('input[name="report_ids"]');
+      if (inv.checked) { vinculo.checked = false; }
+      vinculo.disabled = inv.checked;
+      fila.classList.toggle('table-secondary', inv.checked);
+    });
+    inv.dispatchEvent(new Event('change'));
+  });
+});
+</script>
+{% endblock %}

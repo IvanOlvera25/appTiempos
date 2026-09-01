@@ -1,0 +1,326 @@
+{% extends "layout.html" %}
+{% block title %}Áreas de registro{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+      <h1 class="h4 mb-1">Áreas que registran tiempos</h1>
+      <p class="text-muted mb-0">
+        Cada área activa aparece como botón en la pantalla de inicio y tiene su propio catálogo de actividades.
+      </p>
+    </div>
+    <a href="{{ url_for('main.activities_admin') }}" class="btn btn-outline-primary">
+      <i class="bi bi-list-task"></i> Actividades
+    </a>
+  </div>
+
+  <!-- Alta -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center">
+      <i class="bi bi-plus-circle me-2"></i> Agregar área
+    </div>
+    <div class="card-body">
+      <form method="POST" class="row g-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+        <div class="col-md-4">
+          <label class="form-label">Nombre del área</label>
+          <input type="text" name="nombre" class="form-control" maxlength="100"
+                 placeholder="Ej. Almacén / Diseño / Carpintería" required>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Área en RH</label>
+          <select name="rh_area_id" class="form-select">
+            <option value="">Sin enlazar</option>
+            {% for a in rh_areas %}
+            <option value="{{ a.id }}">{{ a.nombre }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">
+            {% if rh_areas %}
+              Enlaza con el catálogo de AD17_General.Areas.
+            {% else %}
+              No se pudo leer el catálogo de RH; puedes enlazarla después.
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label">Flujo de registro</label>
+          <select name="flujo" class="form-select">
+            <option value="estandar">Estándar — un registro abierto a la vez</option>
+            <option value="impresion">Impresión — varios registros simultáneos</option>
+          </select>
+        </div>
+
+        <div class="col-md-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-save"></i> Guardar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Listado -->
+  <div class="card">
+    <div class="card-header d-flex align-items-center">
+      <i class="bi bi-diagram-3 me-2"></i> Áreas configuradas
+    </div>
+    <div class="card-body p-0">
+      {% if areas %}
+      <div class="table-responsive">
+        <table class="table table-striped mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th style="width:90px;">Orden</th>
+              <th>Área</th>
+              <th style="width:170px;">Flujo</th>
+              <th style="width:130px;">Actividades</th>
+              <th style="width:130px;">Registros</th>
+              <th style="width:100px;">Activa</th>
+              <th style="width:260px;" class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in areas %}
+            <tr>
+              <td class="text-muted">{{ a.orden }}</td>
+              <td>
+                <strong>{{ a.nombre }}</strong>
+                {% if a.rh_area_id %}
+                  <span class="badge bg-light text-dark ms-1">RH #{{ a.rh_area_id }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if a.flujo == 'impresion' %}
+                  <span class="badge bg-info text-dark">Impresión</span>
+                {% else %}
+                  <span class="badge bg-secondary">Estándar</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{{ url_for('main.activities_admin') }}">
+                  {{ conteo_actividades.get(a.nombre, 0) }}
+                </a>
+              </td>
+              <td class="text-muted">{{ conteo_registros.get(a.nombre, 0) }}</td>
+              <td>
+                {% if a.activa %}
+                  <span class="badge bg-success">Sí</span>
+                {% else %}
+                  <span class="badge bg-secondary">No</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <div class="btn-group">
+                  <button class="btn btn-sm btn-outline-primary btn-edit"
+                          data-id="{{ a.id }}"
+                          data-nombre="{{ a.nombre|e }}"
+                          data-flujo="{{ a.flujo }}"
+                          data-rh="{{ a.rh_area_id if a.rh_area_id is not none else '' }}"
+                          data-orden="{{ a.orden }}"
+                          data-activa="{{ 1 if a.activa else 0 }}"
+                          title="Editar">
+                    <i class="bi bi-pencil-square"></i>
+                    <span class="d-none d-lg-inline">Editar</span>
+                  </button>
+                  <button class="btn btn-sm {% if a.activa %}btn-outline-warning{% else %}btn-outline-success{% endif %} btn-toggle"
+                          data-id="{{ a.id }}" title="{% if a.activa %}Desactivar{% else %}Activar{% endif %}">
+                    {% if a.activa %}
+                      <i class="bi bi-pause-circle"></i><span class="d-none d-lg-inline">Desactivar</span>
+                    {% else %}
+                      <i class="bi bi-play-circle"></i><span class="d-none d-lg-inline">Activar</span>
+                    {% endif %}
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger btn-delete"
+                          data-id="{{ a.id }}" data-nombre="{{ a.nombre|e }}" title="Eliminar">
+                    <i class="bi bi-trash3"></i><span class="d-none d-lg-inline">Eliminar</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted">
+        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+        No hay áreas configuradas todavía.
+      </div>
+      {% endif %}
+    </div>
+    <div class="card-footer text-muted small">
+      Cambiar el nombre de un área reetiqueta también sus registros históricos y sus actividades.
+      Un área con registros no se puede eliminar: desactívala para sacarla de la pantalla de inicio
+      sin perder el historial.
+    </div>
+  </div>
+</div>
+
+<!-- Modal editar -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="editForm" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pencil-square me-1"></i> Editar área</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit_id">
+        <div class="mb-3">
+          <label class="form-label">Nombre</label>
+          <input type="text" id="edit_nombre" class="form-control" maxlength="100" required>
+          <div class="form-text">Se actualizarán también los registros históricos de esta área.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Área en RH</label>
+          <select id="edit_rh" class="form-select">
+            <option value="">Sin enlazar</option>
+            {% for a in rh_areas %}
+            <option value="{{ a.id }}">{{ a.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Flujo</label>
+            <select id="edit_flujo" class="form-select">
+              <option value="estandar">Estándar</option>
+              <option value="impresion">Impresión</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Orden</label>
+            <input type="number" id="edit_orden" class="form-control" min="0" step="1" value="0">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Activa</label>
+            <select id="edit_activa" class="form-select">
+              <option value="1">Sí</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" type="submit"><i class="bi bi-save"></i> Guardar cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal eliminar -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-1"></i> Confirmar eliminación</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">¿Eliminar el área <strong id="del_nombre"></strong> y sus actividades? Esta acción no se puede deshacer.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-danger" id="confirmDeleteBtn"><i class="bi bi-trash3"></i> Eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const CSRF_TOKEN = "{{ csrf_token() }}";
+  const UPDATE_BASE = "{{ url_for('main.update_area', area_id=0) }}";
+  const TOGGLE_BASE = "{{ url_for('main.toggle_area', area_id=0) }}";
+  const DELETE_BASE = "{{ url_for('main.delete_area', area_id=0) }}";
+  const buildUrl = (base, id) => base.replace(/\/0(\/|$)/, `/${id}$1`);
+
+  async function post(url, payload) {
+    const r = await fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+      body: JSON.stringify(payload || {})
+    });
+    if (r.redirected) { window.location = r.url; return null; }
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      alert('Respuesta inesperada del servidor.');
+      return null;
+    }
+    return await r.json();
+  }
+
+  const editModal   = new bootstrap.Modal(document.getElementById('editModal'));
+  const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+  let deleteId = null;
+
+  document.addEventListener('click', async (e) => {
+    const editBtn   = e.target.closest('.btn-edit');
+    const toggleBtn = e.target.closest('.btn-toggle');
+    const delBtn    = e.target.closest('.btn-delete');
+
+    if (editBtn) {
+      document.getElementById('edit_id').value     = editBtn.dataset.id;
+      document.getElementById('edit_nombre').value = editBtn.dataset.nombre || '';
+      document.getElementById('edit_rh').value     = editBtn.dataset.rh || '';
+      document.getElementById('edit_flujo').value  = editBtn.dataset.flujo || 'estandar';
+      document.getElementById('edit_orden').value  = editBtn.dataset.orden || '0';
+      document.getElementById('edit_activa').value = editBtn.dataset.activa || '1';
+      editModal.show();
+      return;
+    }
+
+    if (toggleBtn) {
+      toggleBtn.disabled = true;
+      const data = await post(buildUrl(TOGGLE_BASE, toggleBtn.dataset.id));
+      toggleBtn.disabled = false;
+      if (!data) return;
+      if (data.success) location.reload();
+      else alert(data.message || 'No se pudo cambiar el estado.');
+      return;
+    }
+
+    if (delBtn) {
+      deleteId = delBtn.dataset.id;
+      document.getElementById('del_nombre').textContent = delBtn.dataset.nombre || '';
+      deleteModal.show();
+    }
+  });
+
+  document.getElementById('editForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    const data = await post(buildUrl(UPDATE_BASE, document.getElementById('edit_id').value), {
+      nombre: document.getElementById('edit_nombre').value.trim(),
+      rh_area_id: document.getElementById('edit_rh').value,
+      flujo: document.getElementById('edit_flujo').value,
+      orden: parseInt(document.getElementById('edit_orden').value || '0', 10),
+      activa: document.getElementById('edit_activa').value === '1'
+    });
+    btn.disabled = false;
+    if (!data) return;
+    if (data.success) location.reload();
+    else alert(data.message || 'No se pudieron guardar los cambios.');
+  });
+
+  document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('confirmDeleteBtn');
+    btn.disabled = true;
+    const data = await post(buildUrl(DELETE_BASE, deleteId));
+    btn.disabled = false;
+    if (!data) return;
+    if (data.success) location.reload();
+    else alert(data.message || 'No se pudo eliminar el área.');
+  });
+});
+</script>
+{% endblock %}

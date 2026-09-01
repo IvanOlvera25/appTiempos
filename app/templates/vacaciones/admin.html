@@ -1,0 +1,208 @@
+{% extends "layout.html" %}
+{% block title %}Vacaciones — RH{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+      <h1 class="h4 mb-1">Vacaciones — RH</h1>
+      <p class="text-muted mb-0">Revisión de toda la plantilla, captura por cuenta de otros y supervisores.</p>
+    </div>
+    <a href="{{ url_for('vacaciones.supervisores') }}" class="btn btn-outline-primary">
+      <i class="bi bi-diagram-2"></i> Supervisores
+    </a>
+  </div>
+
+  <!-- Pendientes de toda la empresa -->
+  <div class="card mb-4 {% if pendientes %}border-warning{% endif %}">
+    <div class="card-header d-flex align-items-center">
+      <i class="bi bi-hourglass-split me-2"></i>Pendientes en toda la empresa
+      {% if pendientes %}<span class="badge bg-warning text-dark ms-2">{{ pendientes|length }}</span>{% endif %}
+    </div>
+    <div class="card-body p-0">
+      {% if pendientes %}
+      <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+        <table class="table table-striped mb-0 align-middle">
+          <thead class="table-light sticky-top">
+            <tr><th>Empleado</th><th>Área</th><th>Fecha</th><th>Tipo</th><th class="text-end">Respuesta</th></tr>
+          </thead>
+          <tbody>
+            {% for s in pendientes %}
+            <tr>
+              <td><strong>{{ s.empleado }}</strong></td>
+              <td class="small text-muted">{{ s.area }}</td>
+              <td>{{ s.fecha.strftime('%d/%m/%Y') }}</td>
+              <td>
+                {% if s.tipo == 'MEDIO_DIA' %}
+                  <span class="badge bg-info text-dark">Medio día ({{ s.momento|lower }})</span>
+                {% else %}
+                  <span class="badge bg-secondary">Día completo</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <div class="d-inline-flex gap-1">
+                  <form method="POST" action="{{ url_for('vacaciones.responder', tipo=s.tipo, reg_id=s.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="accion" value="autorizar">
+                    <input type="hidden" name="volver" value="{{ request.full_path }}">
+                    <button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i></button>
+                  </form>
+                  <form method="POST" action="{{ url_for('vacaciones.responder', tipo=s.tipo, reg_id=s.id) }}"
+                        onsubmit="return confirm('¿Denegar esta solicitud?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="accion" value="denegar">
+                    <input type="hidden" name="volver" value="{{ request.full_path }}">
+                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg"></i></button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted">No hay solicitudes pendientes.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Captura por cuenta de otro empleado -->
+  <div class="card mb-4">
+    <div class="card-header"><i class="bi bi-calendar-plus me-2"></i>Registrar vacaciones por un empleado</div>
+    <div class="card-body">
+      <p class="text-muted small">
+        Lo que captures aquí queda <strong>autorizado de inmediato</strong> a tu nombre; no pasa por el supervisor.
+      </p>
+      <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#adm-dias" type="button">Días completos</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#adm-medio" type="button">Medio día</button></li>
+      </ul>
+      <div class="tab-content">
+        <div class="tab-pane fade show active" id="adm-dias">
+          <form method="POST" action="{{ url_for('vacaciones.admin_solicitar') }}" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="tipo" value="VACACION">
+            <div class="col-md-4">
+              <label class="form-label">Empleado</label>
+              <select name="rh_id" class="form-select" required>
+                <option value="">Selecciona…</option>
+                {% for e in empleados %}
+                <option value="{{ e.rh_id }}">{{ e.nombre }} — {{ e.area }} ({{ e.vacaciones_disponibles }} disp.)</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Desde</label>
+              <input type="date" name="desde" class="form-control" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Hasta</label>
+              <input type="date" name="hasta" class="form-control">
+            </div>
+            <div class="col-md-2 d-flex align-items-center">
+              <div class="form-check mt-3">
+                <input class="form-check-input" type="checkbox" name="incluir_fines" id="adm_fines">
+                <label class="form-check-label small" for="adm_fines">Fines de semana</label>
+              </div>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+              <button class="btn btn-primary w-100"><i class="bi bi-save"></i> Registrar</button>
+            </div>
+          </form>
+        </div>
+        <div class="tab-pane fade" id="adm-medio">
+          <form method="POST" action="{{ url_for('vacaciones.admin_solicitar') }}" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="tipo" value="MEDIO_DIA">
+            <div class="col-md-5">
+              <label class="form-label">Empleado</label>
+              <select name="rh_id" class="form-select" required>
+                <option value="">Selecciona…</option>
+                {% for e in empleados %}
+                <option value="{{ e.rh_id }}">{{ e.nombre }} — {{ e.area }} ({{ e.mediodias_disponibles }} disp.)</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Fecha</label>
+              <input type="date" name="fecha_medio_dia" class="form-control" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Momento</label>
+              <select name="momento" class="form-select">
+                <option value="INICIAL">Inicio</option>
+                <option value="FINAL" selected>Final</option>
+              </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+              <button class="btn btn-primary w-100"><i class="bi bi-save"></i> Registrar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filtro del calendario -->
+  <form method="GET" class="row g-2 mb-3">
+    <input type="hidden" name="anio" value="{{ nav.anio }}">
+    <input type="hidden" name="mes" value="{{ nav.mes }}">
+    <div class="col-md-3">
+      <select name="estatus" class="form-select" onchange="this.form.submit()">
+        <option value="">Todos los estatus</option>
+        {% for e in estatus_opciones %}
+        <option value="{{ e }}" {% if estatus == e %}selected{% endif %}>{{ e|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+
+  {% set extra_args = {'estatus': estatus} if estatus else {} %}
+  {% include 'vacaciones/_calendario.html' %}
+
+  <!-- Detalle del mes -->
+  <div class="card">
+    <div class="card-header">
+      <i class="bi bi-list-ul me-2"></i>Detalle de {{ nav.titulo }}
+      <span class="badge bg-secondary ms-2">{{ eventos|length }}</span>
+    </div>
+    <div class="card-body p-0">
+      {% if eventos %}
+      <div class="table-responsive">
+        <table class="table table-striped mb-0 align-middle">
+          <thead class="table-light">
+            <tr><th>Fecha</th><th>Empleado</th><th>Área</th><th>Tipo</th><th>Estatus</th><th>Autorizó</th></tr>
+          </thead>
+          <tbody>
+            {% for e in eventos %}
+            <tr>
+              <td>{{ e.fecha.strftime('%d/%m/%Y') }}</td>
+              <td><strong>{{ e.empleado }}</strong></td>
+              <td class="small text-muted">{{ e.area }}</td>
+              <td>
+                {% if e.tipo == 'MEDIO_DIA' %}
+                  <span class="badge bg-info text-dark">Medio día ({{ e.momento|lower }})</span>
+                {% else %}
+                  <span class="badge bg-secondary">Día completo</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if e.estatus == 'AUTORIZADO' %}<span class="badge bg-success">Autorizado</span>
+                {% elif e.estatus == 'PENDIENTE' %}<span class="badge bg-warning text-dark">Pendiente</span>
+                {% else %}<span class="badge bg-danger">Denegado</span>{% endif %}
+              </td>
+              <td class="small">{{ e.autorizador or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted">Sin movimientos en este mes.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends "layout.html" %}
+{% block title %}Incidencias{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+      <h1 class="h4 mb-1">Incidencias</h1>
+      <p class="text-muted mb-0">Eventos consolidados a partir de los informes de incidencia.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('incidencias.informes') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-clipboard"></i> Informes
+      </a>
+      {% if administra %}
+      <a href="{{ url_for('incidencias.clasificaciones') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-tags"></i> Clasificaciones
+      </a>
+      <a href="{{ url_for('incidencias.nueva') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Nueva incidencia
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if administra and incidencias %}
+  <div class="alert alert-light border mb-3">
+    <strong>{{ incidencias|length }}</strong> incidencia(s) ·
+    costo acumulado <strong>${{ '{:,.2f}'.format(total_costo) }}</strong>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-body p-0">
+      {% if incidencias %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th style="width:70px;">#</th>
+              <th>Descripción</th>
+              <th style="width:160px;">Clasificación</th>
+              <th style="width:180px;">Responsable</th>
+              <th style="width:140px;">FP</th>
+              <th style="width:100px;">Informes</th>
+              <th style="width:120px;" class="text-end">Costo</th>
+              <th style="width:110px;">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for i in incidencias %}
+            <tr>
+              <td>
+                <a href="{{ url_for('incidencias.ver', incident_id=i.id) }}"
+                   class="fw-bold text-decoration-none">#{{ i.id }}</a>
+              </td>
+              <td>
+                <a href="{{ url_for('incidencias.ver', incident_id=i.id) }}"
+                   class="text-decoration-none text-body">{{ i.descripcion|truncate(110) }}</a>
+                <div class="small text-muted">{{ i.created_at.strftime('%d/%m/%Y') }}</div>
+              </td>
+              <td class="small">{{ i.clasificacion.nombre if i.clasificacion else '—' }}</td>
+              <td class="small">
+                <span class="badge bg-light text-dark">{{ i.responsable_tipo|capitalize }}</span>
+                {{ i.responsable_label }}
+              </td>
+              <td class="small">
+                {% for p in i.projects %}
+                <span class="badge bg-secondary">{{ p.project.folio if p.project.folio is not none else '—' }}</span>
+                {% else %}<span class="text-muted">—</span>{% endfor %}
+              </td>
+              <td class="text-center">
+                <span class="badge bg-info text-dark">{{ i.reports|length }}</span>
+              </td>
+              <td class="text-end">${{ '{:,.2f}'.format(i.costo or 0) }}</td>
+              <td>
+                {% if i.estado == 'CERRADA' %}
+                  <span class="badge bg-secondary">Cerrada</span>
+                {% else %}
+                  <span class="badge bg-success">Abierta</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-5 text-center text-muted">
+        <i class="bi bi-collection fs-1 d-block mb-2"></i>
+        No hay incidencias registradas.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

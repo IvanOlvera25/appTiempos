@@ -52,12 +52,9 @@
                     <label for="department" class="form-label">Departamento</label>
                     <select name="department" id="department" class="form-select">
                         <option value="">Todos los departamentos</option>
-                        <option value="Metal" {% if filters.department == 'Metal' %}selected{% endif %}>Metal</option>
-                        <option value="Costura" {% if filters.department == 'Costura' %}selected{% endif %}>Costura</option>
-                        <option value="Impresion" {% if filters.department == 'Impresion' %}selected{% endif %}>Impresión</option>
-                        <option value="Stagging" {% if filters.department == 'Stagging' %}selected{% endif %}>Stagging</option>
-                        <option value="Montaje" {% if filters.department == 'Montaje' %}selected{% endif %}>Montaje</option>
-                        <option value="Transporte" {% if filters.department == 'Transporte' %}selected{% endif %}>Transporte</option>
+                        {% for dept in area_departments %}
+                        <option value="{{ dept }}" {% if filters.department == dept %}selected{% endif %}>{{ dept }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="col-md-2">

@@ -1,0 +1,69 @@
+{# Rejilla mensual reutilizable. Espera `semanas`, `nav` y `endpoint`. #}
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <a class="btn btn-sm btn-outline-secondary"
+         href="{{ url_for(endpoint, anio=nav.anio_ant, mes=nav.mes_ant, **extra_args|default({})) }}">
+        <i class="bi bi-chevron-left"></i>
+      </a>
+      <strong class="mx-2">{{ nav.titulo }}</strong>
+      <a class="btn btn-sm btn-outline-secondary"
+         href="{{ url_for(endpoint, anio=nav.anio_sig, mes=nav.mes_sig, **extra_args|default({})) }}">
+        <i class="bi bi-chevron-right"></i>
+      </a>
+    </div>
+    <div class="small text-muted d-flex flex-wrap gap-3">
+      <span><span class="cal-chip cal-autorizado"></span> Autorizado</span>
+      <span><span class="cal-chip cal-pendiente"></span> Pendiente</span>
+      <span><span class="cal-chip cal-denegado"></span> Denegado</span>
+      <span><i class="bi bi-circle-half"></i> Medio día</span>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-bordered mb-0 cal-table">
+        <thead class="table-light">
+          <tr>
+            <th>Lunes</th><th>Martes</th><th>Miércoles</th><th>Jueves</th>
+            <th>Viernes</th><th>Sábado</th><th>Domingo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for semana in semanas %}
+          <tr>
+            {% for dia in semana %}
+            <td class="cal-dia {% if not dia.del_mes %}cal-fuera{% endif %} {% if dia.hoy %}cal-hoy{% endif %}">
+              <div class="cal-num">{{ dia.fecha.day }}</div>
+              {% for e in dia.eventos %}
+              <div class="cal-evento cal-{{ e.estatus|lower }}"
+                   title="{{ e.empleado }} — {{ e.area }} — {{ e.estatus|capitalize }}{% if e.tipo == 'MEDIO_DIA' %} (medio día {{ e.momento|lower }}){% endif %}">
+                {% if e.tipo == 'MEDIO_DIA' %}<i class="bi bi-circle-half"></i>{% endif %}
+                {{ e.empleado.split(' ')[0] }} {{ e.empleado.split(' ')[1] if e.empleado.split(' ')|length > 1 else '' }}
+              </div>
+              {% endfor %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+  .cal-table { table-layout: fixed; }
+  .cal-table th { font-size: .8rem; text-align: center; }
+  .cal-dia { height: 110px; vertical-align: top; padding: .35rem; }
+  .cal-fuera { background: #f8f9fa; color: #adb5bd; }
+  .cal-hoy { box-shadow: inset 0 0 0 2px #0d6efd; }
+  .cal-num { font-size: .75rem; font-weight: 600; color: #6c757d; margin-bottom: .2rem; }
+  .cal-evento {
+    font-size: .7rem; line-height: 1.2; padding: .12rem .3rem; margin-bottom: .15rem;
+    border-radius: .25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .cal-autorizado, .cal-evento.cal-autorizado { background: #d1e7dd; color: #0a3622; }
+  .cal-pendiente, .cal-evento.cal-pendiente { background: #fff3cd; color: #664d03; }
+  .cal-denegado,  .cal-evento.cal-denegado  { background: #f8d7da; color: #58151c; }
+  .cal-chip { display: inline-block; width: .8rem; height: .8rem; border-radius: .2rem; vertical-align: -1px; }
+</style>

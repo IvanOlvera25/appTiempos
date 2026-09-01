@@ -6,6 +6,8 @@ class Config:
     ADMIN_CODE = os.environ.get("ADMIN_CODE") or "HI35C3"
     LEADER_CODE = os.environ.get("LEADER_CODE") or "LP92B4"
     AREA_MANAGER_CODE = os.environ.get("AREA_MANAGER_CODE") or "AR845C"
+    RH_CODE = os.environ.get("RH_CODE") or "RH71D2"
+    EJECUTIVO_CODE = os.environ.get("EJECUTIVO_CODE") or "EJ38F6"
     SQLALCHEMY_DATABASE_URI = "mysql+pymysql://IvanUriel:iuOp20!!25@ad17solutions.dscloud.me:3307/AD17_Pruebas"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
@@ -17,6 +19,16 @@ class Config:
     ADICIONALES_DB_USER     = os.environ.get("ADICIONALES_DB_USER") or "IvanUriel"
     ADICIONALES_DB_PASSWORD = os.environ.get("ADICIONALES_DB_PASSWORD") or "iuOp20!!25"
     ADICIONALES_DB_NAME     = os.environ.get("ADICIONALES_DB_NAME") or "AD17_Adicionales"
+
+    # ---- Bases remotas de RH (AD17_RH / AD17_General) ----
+    # Fuente de verdad del personal y del catalogo de areas. La app solo lee:
+    # las altas/bajas/cambios se hacen en el sistema de RH.
+    RH_DB_HOST     = os.environ.get("RH_DB_HOST") or "ad17solutions.dscloud.me"
+    RH_DB_PORT     = int(os.environ.get("RH_DB_PORT") or 3307)
+    RH_DB_USER     = os.environ.get("RH_DB_USER") or "IvanUriel"
+    RH_DB_PASSWORD = os.environ.get("RH_DB_PASSWORD") or "iuOp20!!25"
+    RH_DB_NAME     = os.environ.get("RH_DB_NAME") or "AD17_RH"
+    GENERAL_DB_NAME = os.environ.get("GENERAL_DB_NAME") or "AD17_General"
 
     # Configuración de cookies de sesión
     SESSION_COOKIE_SECURE = True  # En producción usa True, desarrollo False

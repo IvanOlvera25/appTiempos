@@ -91,6 +91,19 @@
             </div>
         </div>
 
+        {# Actividades generales del FP 0. Se administran en Administración → Actividades
+           (grupo "Generales (FP 0)") y se anteponen a las del área al elegir ese proyecto. #}
+        <template id="general-activities-template">
+            <div class="row">
+                {% for act in general_activities %}
+                <div class="col-12 col-sm-6 col-md-4 mb-3">
+                    <button type="button" class="btn btn-primary btn-lg w-100 activity-btn"
+                        data-activity="{{ act }}">{{ act }}</button>
+                </div>
+                {% endfor %}
+            </div>
+        </template>
+
         <!-- Actividades -->
         <div id="activity-section" class="mb-4" style="display:none;">
             <h5>Seleccionar Actividad</h5>
@@ -154,29 +167,9 @@
         const $activitySection = $('#activity-section');
         const defaultActivityHTML = $('#activity-buttons-container').html();
 
-        // Extras para FP = 0 (Costos Administrativos)
-        const extraHtml = `
-        <div class="row">
-            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Limpieza de taller">Limpieza de taller</button></div>
-            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Escombrar y acomodar">Escombrar y acomodar</button></div>
-            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Gestión de materiales">Gestión de materiales</button></div>
-        </div>
-        <div class="row">
-            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Reciclado">Reciclado</button></div>
-            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Mantenimiento">Mantenimiento</button></div>
-            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Fabricar accesorios">Fabricar accesorios</button></div>
-        </div>
-        <div class="row">
-            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Construcción y obra">Construcción y obra</button></div>
-            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Administración y coordinación">Administración y coordinación</button></div>
-            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Job costing">Job costing</button></div>
-        </div>
-        <div class="row">
-            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Apoyo a comercialización">Apoyo a comercialización</button></div>
-        </div>
-        <div class="row">
-            <div class="col-md-4 mb-3"><button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="Preparación de maquinaria">Preparación de maquinaria</button></div>
-        </div>`;
+        // Actividades generales del FP 0 (Costos Administrativos), servidas por el backend
+        const generalTemplate = document.getElementById('general-activities-template');
+        const extraHtml = generalTemplate ? generalTemplate.innerHTML : '';
 
         // Helper para adjuntar listeners a los botones de actividad
         function attachActivityButtons() {

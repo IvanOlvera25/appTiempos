@@ -1,7 +1,14 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, session, current_app
-from .models import db, Employee, Project, TimeRecord, User, DepartmentActivity
+from .models import db, Employee, Project, TimeRecord, User, DepartmentActivity, AreaConfig
+from .catalogs import (
+    GENERAL_KEY, GENERAL_LABEL, activity_departments, area_usa_flujo_impresion,
+    department_label, ensure_seed_activities, ensure_seed_areas, get_area,
+    get_area_names, get_areas, get_department_activities, get_general_activities,
+    next_area_order,
+)
+from . import rh
 from .forms import QRForm, ProjectForm, RegisterTimeForm
-from .forms import RegistrationForm, LoginForm, EmployeeForm
+from .forms import RegistrationForm, LoginForm
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import pytz
@@ -18,10 +25,21 @@ import unicodedata
 
 main = Blueprint('main', __name__)
 
-AREA_DEPARTMENTS = [
-    "Metal", "Costura", "Impresion", "Stagging",
-    "Montaje", "Transporte", "Administración"
-]
+
+def area_departments():
+    """Areas dadas de alta para registrar tiempos (antes una lista fija)."""
+    return get_area_names(solo_activas=True)
+
+
+@main.app_context_processor
+def inject_areas():
+    """Deja el catalogo de areas al alcance de todas las plantillas."""
+    try:
+        areas = get_areas(solo_activas=True)
+    except Exception as e:  # la nav no debe tumbar la pagina si la tabla falta
+        current_app.logger.warning("inject_areas: no se pudo leer areas_config: %s", e)
+        areas = []
+    return {'areas': areas, 'area_departments': [a.nombre for a in areas]}
 
 
 def _require_area_manager():
@@ -125,7 +143,8 @@ def register_employee():
     ).all()
 
     # Decidir a dónde redirigir al seleccionar un empleado
-    next_route = 'main.register_project_imp' if department == 'Impresion' else 'main.register_project'
+    next_route = ('main.register_project_imp' if area_usa_flujo_impresion(department)
+                  else 'main.register_project')
 
     return render_template(
         'register_employee.html',
@@ -184,12 +203,13 @@ def register_project():
         # Inicializa/siembra actividades si la tabla está vacía
         ensure_seed_activities()
 
-        # Actividades desde BD
+        # Actividades del area, mas las generales que se ofrecen sobre el FP 0
         activities = get_department_activities(department)
+        general_activities = get_general_activities()
 
-        # (Opcional) mapa de actividades activas por proyecto SOLO para Impresion + empleado dado
+        # (Opcional) mapa de actividades activas por proyecto en el flujo de impresion
         active_activities = {}
-        if department == "Impresion" and employee_id:
+        if area_usa_flujo_impresion(department) and employee_id:
             active_records = TimeRecord.query.filter_by(
                 employee_id=employee_id,
                 end_time=None
@@ -223,6 +243,7 @@ def register_project():
             activities=activities,
             active_count=active_count,
             form=form,
+            general_activities=general_activities,
             active_activities=active_activities  # por si tu template lo usa
         )
 
@@ -255,7 +276,7 @@ def register_project():
     if form.validate_on_submit():
         if form.iniciar.data:
             # Finalizar registro(s) abierto(s) previos
-            if department == "Impresion":
+            if area_usa_flujo_impresion(department):
                 open_record = TimeRecord.query.filter_by(
                     employee_id=form.employee_id.data,
                     project_id=form.project_id.data,
@@ -264,7 +285,7 @@ def register_project():
                 if open_record:
                     open_record.end_time = datetime.utcnow()
                     db.session.commit()
-                    flash("Se finalizó automáticamente el registro anterior para este proyecto (Impresion).", "info")
+                    flash("Se finalizó automáticamente el registro anterior para este proyecto.", "info")
             else:
                 open_record = TimeRecord.query.filter_by(
                     employee_id=form.employee_id.data,
@@ -313,7 +334,7 @@ def register_project():
 
 @main.route('/register_project_imp', methods=['GET', 'POST'])
 def register_project_imp():
-    # Vista específica de Impresion
+    # Vista de las areas con flujo de impresion (varios registros abiertos a la vez)
     department  = request.args.get('department', 'Impresion').strip()
     employee_id = request.args.get('employee_id', '').strip()
 
@@ -345,8 +366,9 @@ def register_project_imp():
     # Inicializa/siembra actividades si la tabla está vacía
     ensure_seed_activities()
 
-    # Actividades desde BD (Impresion)
-    activities = get_department_activities('Impresion')
+    # Actividades del area, mas las generales que se ofrecen sobre el FP 0
+    activities = get_department_activities(department)
+    general_activities = get_general_activities()
 
     # proyectos activos
     projects = Project.query.filter_by(active=True).order_by(Project.folio.asc()).all()
@@ -381,7 +403,7 @@ def register_project_imp():
                 employee_id=employee_id
             ))
 
-        # iniciar sin cerrar previos (propio de Impresion)
+        # iniciar sin cerrar previos (propio del flujo de impresion)
         if form.validate_on_submit() and 'iniciar' in request.form:
             proj_id  = form.project_id.data
             activity = request.form.get('activity')
@@ -431,6 +453,7 @@ def register_project_imp():
         selected_employee=selected_employee,
         projects=projects,
         activities=activities,
+        general_activities=general_activities,
         active_records=active_records,
         active_activities=active_activities,
         form=form
@@ -1198,41 +1221,54 @@ def register():
             flash('Ese correo ya está registrado.', 'danger')
             return redirect(url_for('main.register'))
 
+        # Todos los perfiles arrancan apagados y cada rama enciende el suyo:
+        # así ninguna combinación queda a medias.
+        is_admin = is_project_leader = is_area_manager = False
+        is_rh = is_ejecutivo = False
+        area_manager_department = None
+        employee_id = None
+
+        codigo = form.verification_code.data
+
         # ▸ Registrar ADMIN
         if user_type == 'administrador':
-            admin_code = form.verification_code.data
-            if admin_code != current_app.config.get('ADMIN_CODE', 'HI35C3'):
+            if codigo != current_app.config.get('ADMIN_CODE', 'HI35C3'):
                 flash('Código de administrador inválido.', 'danger')
                 return redirect(url_for('main.register'))
-            employee_id = None
             is_admin = True
-            is_project_leader = False
 
         # ▸ Registrar LÍDER DE PROYECTO
         elif user_type == 'lider_proyecto':
-            leader_code = form.verification_code.data
-            if leader_code != current_app.config.get('LEADER_CODE', 'LP92B4'):  # Código específico para líderes
+            if codigo != current_app.config.get('LEADER_CODE', 'LP92B4'):
                 flash('Código de líder de proyecto inválido.', 'danger')
                 return redirect(url_for('main.register'))
-            employee_id = None
-            is_admin = False
             is_project_leader = True
+
+        # ▸ Registrar RH
+        elif user_type == 'rh':
+            if codigo != current_app.config.get('RH_CODE', 'RH71D2'):
+                flash('Código de RH inválido.', 'danger')
+                return redirect(url_for('main.register'))
+            is_rh = True
 
         # ▸ Registrar JEFE DE AREA
         elif user_type == 'jefe_area':
             area = (request.form.get('area_manager_department') or '').strip()
-            manager_code = form.verification_code.data
-            if manager_code != current_app.config.get('AREA_MANAGER_CODE', 'AR845C'):
+            if codigo != current_app.config.get('AREA_MANAGER_CODE', 'AR845C'):
                 flash('Código de Jefe de Area inválido.', 'danger')
                 return redirect(url_for('main.register'))
-            if area not in AREA_DEPARTMENTS:
+            if area not in area_departments():
                 flash('Selecciona un área válida para el Jefe de Area.', 'warning')
                 return redirect(url_for('main.register'))
-            employee_id = None
-            is_admin = False
-            is_project_leader = False
             is_area_manager = True
             area_manager_department = area
+
+        # ▸ Registrar EJECUTIVO
+        elif user_type == 'ejecutivo':
+            if codigo != current_app.config.get('EJECUTIVO_CODE', 'EJ38F6'):
+                flash('Código de Ejecutivo inválido.', 'danger')
+                return redirect(url_for('main.register'))
+            is_ejecutivo = True
 
         # ▸ Registrar EMPLEADO
         elif user_type == 'empleado':
@@ -1240,23 +1276,21 @@ def register():
             if not employee_id:
                 flash('Selecciona tu nombre de la lista.', 'warning')
                 return redirect(url_for('main.register'))
-
             if not Employee.query.get(int(employee_id)):
                 flash('Empleado no encontrado en la base.', 'danger')
                 return redirect(url_for('main.register'))
-            is_admin = False
-            is_project_leader = False
-            is_area_manager = False
-            area_manager_department = None
 
         # ▸ Tipo de usuario no elegido
         else:
-            flash('Debes elegir el tipo de usuario (Empleado, Administrador o Líder de Proyecto).', 'warning')
+            flash('Debes elegir el tipo de usuario.', 'warning')
             return redirect(url_for('main.register'))
 
-        if user_type in ('administrador', 'lider_proyecto'):
-            is_area_manager = False
-            area_manager_department = None
+        # Los perfiles que no son "empleado" pueden ligarse a un empleado de RH
+        # para tener saldo de vacaciones propio.
+        if user_type != 'empleado':
+            vinculo = (request.form.get('employee_name') or '').strip()
+            if vinculo and Employee.query.get(int(vinculo)):
+                employee_id = int(vinculo)
 
         # ── crear usuario ──
         hashed = generate_password_hash(password, method='pbkdf2:sha256')
@@ -1266,6 +1300,8 @@ def register():
             is_admin         = is_admin,
             is_project_leader = is_project_leader,
             is_area_manager  = is_area_manager,
+            is_rh            = is_rh,
+            is_ejecutivo     = is_ejecutivo,
             area_manager_department = area_manager_department,
             employee_id      = employee_id
         )
@@ -1276,7 +1312,7 @@ def register():
         return redirect(url_for('main.login'))
 
     # ───────── GET ─────────
-    return render_template('register.html', form=form, employees=employees, area_departments=AREA_DEPARTMENTS)
+    return render_template('register.html', form=form, employees=employees)
 
 # ─────────────────────────────────────────────────────────────
 # 2) INICIO DE SESIÓN
@@ -1337,16 +1373,16 @@ def logout():
 def _redirect_employee_to_project(emp: Employee, dept_requested: str = None):
     """
     Devuelve un redirect a la vista register_project / register_project_imp.
-    Si dept_requested (el botón que el usuario pulsó) existe,
-    se respeta siempre que sea “Impresion”; en otro caso usamos
-    el departamento real del empleado.
+    Si dept_requested (el botón que el usuario pulsó) existe se respeta; en otro
+    caso usamos el departamento real del empleado. La pantalla destino depende
+    del flujo configurado para el area.
     """
     dept = dept_requested or emp.departamento
 
-    if dept == 'Impresion':
+    if area_usa_flujo_impresion(dept):
         return redirect(url_for(
             'main.register_project_imp',
-            department='Impresion',
+            department=dept,
             employee_id=emp.id
         ))
     else:
@@ -1669,62 +1705,10 @@ def manage_employees():
         time_records=time_records  # usa r.start_time_mx / r.end_time_mx en el template
     )
 
-@main.route('/add', methods=['GET', 'POST'])
-@login_required
-def add_employee():
-    if not current_user.has_admin_privileges:  # Cambio aquí
-        return "Acceso denegado", 403
-
-    form = EmployeeForm()
-    if form.validate_on_submit():
-        try:
-            employee = Employee(
-                nompropio=form.nompropio.data,
-                n_empleado=form.n_empleado.data,
-                nombre=form.nombre.data,
-                apellido_paterno=form.apellido_paterno.data,
-                apellido_materno=form.apellido_materno.data,
-                departamento=form.departamento.data,
-                puesto=form.puesto.data,
-                qr_code=form.qr_code.data
-            )
-            db.session.add(employee)
-            db.session.commit()
-            flash('Empleado agregado exitosamente', 'success')
-            return redirect(url_for('main.manage_employees'))
-        except IntegrityError:
-            db.session.rollback()
-            flash('Error: El número de empleado o código QR ya existen', 'danger')
-
-    return render_template('add_employee.html', form=form)
-
-@main.route('/employee/edit/<int:id>', methods=['GET', 'POST'])
-@login_required
-def edit_employee(id):
-    if not current_user.has_admin_privileges:  # Cambio aquí
-        return "Acceso denegado", 403
-
-    employee = Employee.query.get_or_404(id)
-    form = EmployeeForm(obj=employee)
-    if form.validate_on_submit():
-        try:
-            # Verificamos si hay duplicados
-            if employee.n_empleado != form.n_empleado.data:
-                if Employee.query.filter_by(n_empleado=form.n_empleado.data).first():
-                    raise ValidationError('Número de empleado ya existe')
-            if employee.qr_code != form.qr_code.data:
-                if Employee.query.filter_by(qr_code=form.qr_code.data).first():
-                    raise ValidationError('Código QR ya está en uso')
-
-            form.populate_obj(employee)
-            db.session.commit()
-            flash('Empleado actualizado exitosamente', 'success')
-            return redirect(url_for('main.manage_employees'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error al actualizar: {str(e)}', 'danger')
-
-    return render_template('/edit_employee.html', form=form, employee=employee)
+# Las altas, bajas y ediciones de personal se hacen en el sistema de RH: aquí
+# `employees` es una vista de solo lectura sobre AD17_RH y no admite escrituras.
+# Por eso ya no existen las rutas /add, /employee/edit, /employee/delete ni
+# /employee/toggle_active.
 
 @main.route('/api/map_markers', methods=['GET'])
 @login_required
@@ -1813,40 +1797,6 @@ def api_map_markers():
         current_app.logger.error(traceback.format_exc())
         return jsonify({'success': False, 'message': 'Error interno'}), 500
 
-
-@main.route('/employee/delete/<int:id>', methods=['POST'])
-@login_required
-def delete_employee(id):
-    if not current_user.has_admin_privileges:  # Cambio aquí
-        return "Acceso denegado", 403
-    employee = Employee.query.get_or_404(id)
-    # Si tiene registros de tiempo, no se puede borrar
-    if employee.records:
-        flash('No se puede eliminar: El empleado tiene registros de tiempo asociados', 'danger')
-        return redirect(url_for('main.manage_employees'))
-
-    try:
-        db.session.delete(employee)
-        db.session.commit()
-        flash('Empleado eliminado exitosamente', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Error al eliminar: {str(e)}', 'danger')
-
-    return redirect(url_for('main.manage_employees'))
-
-@main.route('/employee/toggle_active/<int:id>', methods=['POST'])
-@login_required
-def toggle_employee_active(id):
-    if not current_user.is_admin:
-        flash('Acceso denegado. Se requieren privilegios de administrador.', 'danger')
-        return redirect(url_for('main.home'))
-    employee = Employee.query.get_or_404(id)
-    employee.active = not employee.active
-    db.session.commit()
-    status_str = 'habilitado' if employee.active else 'deshabilitado'
-    flash(f"Empleado '{employee.nompropio}' ha sido {status_str} exitosamente.", 'success')
-    return redirect(url_for('main.edit_employee', id=id))
 
 @main.route('/capture_photo', methods=['POST'])
 @csrf.exempt
@@ -3274,77 +3224,6 @@ def _bool(v):
 
 
 
-def get_department_activities(dept: str) -> list[str]:
-    if not dept:
-        return []
-    rows = (DepartmentActivity.query
-            .filter_by(department=dept, is_active=True)
-            .order_by(DepartmentActivity.sort_order.asc(), DepartmentActivity.id.asc())
-            .all())
-    return [r.name for r in rows]
-
-
-def ensure_seed_activities():
-    # Import local para evitar import circular
-    from app.models import DepartmentActivity
-
-    # Chequeo rápido de existencia
-    if db.session.query(DepartmentActivity.id).first():
-        return
-
-    seeds = {
-        "Metal": [
-            "Revisión de planos e información del proyecto",
-            "Solicitud de material a almacén",
-            "Medidas", "Corte", "Swaging", "Rolado",
-            "Barrido y pulido", "Soldadura", "Armado"
-        ],
-        "Costura": [
-            "Revisión de planos, artes e información del proyecto",
-            "Solicitud de material a almacén",
-            "Corte", "Limpieza de estructura",
-            "Medición de lienzos en estructura", "Costura",
-            "Prueba en estructura", "Despunte y over", "Doblar y empacar"
-        ],
-        "Impresion": [
-            "Revisión de orden de impresión, artes e información del proyecto",
-            "Solicitud de material a almacén",
-            "Ripeo", "Acomodo de gráficos en plotter",
-            "Impresión de papel en plotter Stitch",
-            "Impresión de papel en plotter papyrus",
-            "Impresión de papel en plotter 570",
-            "Sublimado de tela", "Entrega de gráficos a LP"
-        ],
-        "Stagging": [
-            "Revisión de planos, ordenes de costura e información del proyecto",
-            "Revisión de estructuras piezas de metal", "Marcado de estructuras",
-            "Revisión de fundas", "Solicitud de material a almacén",
-            "Empaque", "Documentación", "Carga/Entrega"
-        ],
-        "Montaje": [
-            "Montaje", "Desmontaje", "Recoleccion de Materiales y Herramientas",
-            "Cargar Transporte", "Translado",
-            "Retorno de Materiales y Herramientas", "En espera de acceso"
-        ],
-        "Transporte": [
-            "Carga", "Descarga",
-            "Translado para Entrega/Montaje/Desmontaje", "Translado para Compras",
-            "Esperando permiso de acceso", "Esperando entrega de material de proveedor",
-            "Preparacion para Translado", "Mantenimiento de Vehiculos"
-        ],
-    }
-
-    bulk = []
-    for dept, names in seeds.items():
-        for idx, name in enumerate(names):
-            bulk.append(DepartmentActivity(
-                department=dept, name=name, is_active=True, sort_order=idx
-            ))
-    db.session.bulk_save_objects(bulk)
-    db.session.commit()
-
-
-
 # ==== ADMIN: ACTIVIDADES POR DEPARTAMENTO ====
 @main.route('/activities', methods=['GET', 'POST'], endpoint='activities_admin')
 @login_required
@@ -3361,6 +3240,10 @@ def activities_admin():
 
         if not department or not name:
             flash('Debe llenar todos los campos.', 'warning')
+            return redirect(url_for('main.activities_admin'))
+
+        if department not in {d for d, _ in activity_departments()}:
+            flash('El área seleccionada no existe.', 'danger')
             return redirect(url_for('main.activities_admin'))
 
         try:
@@ -3393,13 +3276,20 @@ def activities_admin():
 
     # Listado
     from sqlalchemy import asc
+    ensure_seed_activities()
     activities = DepartmentActivity.query.order_by(
         asc(DepartmentActivity.department),
         asc(DepartmentActivity.sort_order),
         asc(DepartmentActivity.name)
     ).all()
 
-    return render_template('activities_admin.html', activities=activities)
+    return render_template(
+        'activities_admin.html',
+        activities=activities,
+        department_options=activity_departments(),
+        general_key=GENERAL_KEY,
+        general_label=GENERAL_LABEL
+    )
 
 
 # ===========================
@@ -3418,7 +3308,7 @@ def update_activity(activity_id: int):
 
     if not name or not department:
         return jsonify(success=False, message='Departamento y nombre son requeridos.'), 400
-    if department not in ALLOWED_DEPARTMENTS:
+    if department not in {d for d, _ in activity_departments()}:
         return jsonify(success=False, message='Departamento inválido.'), 400
 
     a.name = name
@@ -3462,9 +3352,6 @@ def toggle_activity(activity_id: int):
     except Exception as e:
         db.session.rollback()
         return jsonify(success=False, message=f'Error al cambiar estado: {e}'), 500
-ALLOWED_DEPARTMENTS = {
-    "Metal", "Costura", "Impresion", "Stagging", "Montaje", "Transporte", "Administración"
-}
 # ======================
 # ELIMINAR (POST sin body)
 # ======================
@@ -3477,6 +3364,199 @@ def delete_activity(activity_id: int):
         db.session.delete(a)
         db.session.commit()
         return jsonify(success=True, activity_id=activity_id)
+    except Exception as e:
+        db.session.rollback()
+        return jsonify(success=False, message=f'Error al eliminar: {e}'), 500
+
+
+# ─────────────────────────────────────────────────────────────
+# ADMIN: ÁREAS QUE REGISTRAN TIEMPOS
+# ─────────────────────────────────────────────────────────────
+def _solo_admin():
+    if not current_user.is_admin:
+        flash('Acceso denegado. Solo administradores.', 'danger')
+        return redirect(url_for('main.home'))
+    return None
+
+
+def _rh_area_id(valor):
+    """Normaliza el id de área de RH: cadena vacía significa 'sin enlazar'."""
+    if valor in (None, '', 'None'):
+        return None
+    return int(valor)
+
+
+def _renombrar_area(anterior, nuevo):
+    """
+    Propaga el cambio de nombre de un área a todo lo que la referencia por texto.
+
+    TimeRecord.departamento es histórico: si no se reetiqueta, los registros
+    viejos quedan huérfanos del área y desaparecen de los reportes por área.
+    """
+    if anterior == nuevo:
+        return
+    TimeRecord.query.filter_by(departamento=anterior).update(
+        {'departamento': nuevo}, synchronize_session=False)
+    DepartmentActivity.query.filter_by(department=anterior).update(
+        {'department': nuevo}, synchronize_session=False)
+    User.query.filter_by(area_manager_department=anterior).update(
+        {'area_manager_department': nuevo}, synchronize_session=False)
+    Employee.query.filter_by(departamento=anterior).update(
+        {'departamento': nuevo}, synchronize_session=False)
+
+
+@main.route('/admin/areas', methods=['GET', 'POST'], endpoint='areas_admin')
+@login_required
+def areas_admin():
+    """Alta y listado de las áreas habilitadas para registrar tiempos."""
+    bloqueo = _solo_admin()
+    if bloqueo:
+        return bloqueo
+
+    if request.method == 'POST':
+        nombre = (request.form.get('nombre') or '').strip()
+        flujo = (request.form.get('flujo') or 'estandar').strip()
+
+        if not nombre:
+            flash('El nombre del área es obligatorio.', 'warning')
+            return redirect(url_for('main.areas_admin'))
+        if nombre == GENERAL_KEY:
+            flash('Ese nombre está reservado por el sistema.', 'danger')
+            return redirect(url_for('main.areas_admin'))
+        if flujo not in AreaConfig.FLUJOS:
+            flash('Flujo de registro inválido.', 'danger')
+            return redirect(url_for('main.areas_admin'))
+
+        try:
+            db.session.add(AreaConfig(
+                nombre=nombre,
+                rh_area_id=_rh_area_id(request.form.get('rh_area_id')),
+                flujo=flujo,
+                activa=True,
+                orden=next_area_order()
+            ))
+            db.session.commit()
+            flash(f'Área "{nombre}" creada. Ahora puedes darle actividades.', 'success')
+        except IntegrityError:
+            db.session.rollback()
+            flash('Ya existe un área con ese nombre.', 'danger')
+        except (TypeError, ValueError):
+            db.session.rollback()
+            flash('El área de RH seleccionada no es válida.', 'danger')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al crear el área: {e}', 'danger')
+
+        return redirect(url_for('main.areas_admin'))
+
+    areas = get_areas(solo_activas=False)
+
+    # Cuántas actividades y cuántos registros tiene cada área, para que el
+    # administrador vea el impacto antes de desactivar o eliminar.
+    conteo_actividades = dict(
+        db.session.query(DepartmentActivity.department, func.count(DepartmentActivity.id))
+        .group_by(DepartmentActivity.department).all()
+    )
+    conteo_registros = dict(
+        db.session.query(TimeRecord.departamento, func.count(TimeRecord.id))
+        .group_by(TimeRecord.departamento).all()
+    )
+
+    return render_template(
+        'areas_admin.html',
+        areas=areas,
+        rh_areas=rh.listar_areas_seguro(),
+        conteo_actividades=conteo_actividades,
+        conteo_registros=conteo_registros,
+        flujos=AreaConfig.FLUJOS
+    )
+
+
+@main.route('/admin/areas/<int:area_id>/update', methods=['POST'])
+@login_required
+def update_area(area_id: int):
+    if not current_user.is_admin:
+        return jsonify(success=False, message='Acceso denegado.'), 403
+
+    area = AreaConfig.query.get_or_404(area_id)
+    data = request.get_json(silent=True) or {}
+
+    nombre = (data.get('nombre') or '').strip()
+    flujo = (data.get('flujo') or area.flujo).strip()
+
+    if not nombre:
+        return jsonify(success=False, message='El nombre es requerido.'), 400
+    if nombre == GENERAL_KEY:
+        return jsonify(success=False, message='Ese nombre está reservado.'), 400
+    if flujo not in AreaConfig.FLUJOS:
+        return jsonify(success=False, message='Flujo de registro inválido.'), 400
+
+    try:
+        rh_area_id = _rh_area_id(data.get('rh_area_id'))
+        orden = int(data.get('orden', area.orden) or 0)
+    except (TypeError, ValueError):
+        return jsonify(success=False, message='Área de RH y orden deben ser numéricos.'), 400
+
+    anterior = area.nombre
+    try:
+        _renombrar_area(anterior, nombre)
+        area.nombre = nombre
+        area.flujo = flujo
+        area.rh_area_id = rh_area_id
+        area.orden = orden
+        if data.get('activa') is not None:
+            area.activa = _bool(data.get('activa'))
+        db.session.commit()
+        return jsonify(success=True, area_id=area.id)
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify(success=False, message='Ya existe un área con ese nombre.'), 409
+    except Exception as e:
+        db.session.rollback()
+        return jsonify(success=False, message=f'Error al actualizar: {e}'), 500
+
+
+@main.route('/admin/areas/<int:area_id>/toggle', methods=['POST'])
+@login_required
+def toggle_area(area_id: int):
+    if not current_user.is_admin:
+        return jsonify(success=False, message='Acceso denegado.'), 403
+
+    area = AreaConfig.query.get_or_404(area_id)
+    data = request.get_json(silent=True) or {}
+    explicito = data.get('activa')
+    area.activa = (not bool(area.activa)) if explicito is None else _bool(explicito)
+
+    try:
+        db.session.commit()
+        return jsonify(success=True, area_id=area.id, activa=area.activa)
+    except Exception as e:
+        db.session.rollback()
+        return jsonify(success=False, message=f'Error al cambiar estado: {e}'), 500
+
+
+@main.route('/admin/areas/<int:area_id>/delete', methods=['POST'])
+@login_required
+def delete_area(area_id: int):
+    if not current_user.is_admin:
+        return jsonify(success=False, message='Acceso denegado.'), 403
+
+    area = AreaConfig.query.get_or_404(area_id)
+
+    # Borrar un área con historial dejaría registros que ya no se pueden filtrar
+    # por área; en ese caso el camino correcto es desactivarla.
+    registros = TimeRecord.query.filter_by(departamento=area.nombre).count()
+    if registros:
+        return jsonify(
+            success=False,
+            message=f'El área tiene {registros} registros de tiempo. Desactívala en vez de eliminarla.'
+        ), 409
+
+    try:
+        DepartmentActivity.query.filter_by(department=area.nombre).delete(synchronize_session=False)
+        db.session.delete(area)
+        db.session.commit()
+        return jsonify(success=True, area_id=area_id)
     except Exception as e:
         db.session.rollback()
         return jsonify(success=False, message=f'Error al eliminar: {e}'), 500
@@ -3503,6 +3583,8 @@ def manage_users():
     admin_code = current_app.config.get('ADMIN_CODE', 'HI35C3')
     leader_code = current_app.config.get('LEADER_CODE', 'LP92B4')
     area_manager_code = current_app.config.get('AREA_MANAGER_CODE', 'AR845C')
+    rh_code = current_app.config.get('RH_CODE', 'RH71D2')
+    ejecutivo_code = current_app.config.get('EJECUTIVO_CODE', 'EJ38F6')
 
     return render_template(
         'manage_users.html',
@@ -3511,7 +3593,8 @@ def manage_users():
         admin_code=admin_code,
         leader_code=leader_code,
         area_manager_code=area_manager_code,
-        area_departments=AREA_DEPARTMENTS
+        rh_code=rh_code,
+        ejecutivo_code=ejecutivo_code
     )
 
 
@@ -3538,6 +3621,8 @@ def admin_create_user():
     is_admin = False
     is_project_leader = False
     is_area_manager = False
+    is_rh = False
+    is_ejecutivo = False
     area_manager_department = None
     employee_id = None
 
@@ -3545,10 +3630,14 @@ def admin_create_user():
         is_admin = True
     elif user_type == 'lider_proyecto':
         is_project_leader = True
+    elif user_type == 'rh':
+        is_rh = True
+    elif user_type == 'ejecutivo':
+        is_ejecutivo = True
     elif user_type == 'jefe_area':
         is_area_manager = True
         area = request.form.get('area_manager_department', '').strip()
-        if area not in AREA_DEPARTMENTS:
+        if area not in area_departments():
             flash('Selecciona un área válida para el Jefe de Área.', 'danger')
             return redirect(url_for('main.manage_users'))
         area_manager_department = area
@@ -3570,6 +3659,21 @@ def admin_create_user():
         flash('Tipo de usuario inválido.', 'danger')
         return redirect(url_for('main.manage_users'))
 
+    # Ligar el usuario a un empleado de RH le da saldo de vacaciones propio,
+    # aunque su perfil no sea "empleado".
+    if user_type != 'empleado':
+        vinculo = (request.form.get('employee_id') or '').strip()
+        if vinculo:
+            emp = Employee.query.get(int(vinculo))
+            if not emp:
+                flash('El empleado seleccionado no existe.', 'danger')
+                return redirect(url_for('main.manage_users'))
+            if emp.user:
+                flash('%s ya tiene un usuario asignado; elige otro empleado o deja '
+                      'el vínculo vacío.' % emp.nompropio, 'danger')
+                return redirect(url_for('main.manage_users'))
+            employee_id = emp.id
+
     # Cifrar contraseña
     hashed = generate_password_hash(password, method='pbkdf2:sha256')
 
@@ -3580,6 +3684,8 @@ def admin_create_user():
             is_admin=is_admin,
             is_project_leader=is_project_leader,
             is_area_manager=is_area_manager,
+            is_rh=is_rh,
+            is_ejecutivo=is_ejecutivo,
             area_manager_department=area_manager_department,
             employee_id=employee_id
         )

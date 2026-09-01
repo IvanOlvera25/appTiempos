@@ -1,5 +1,5 @@
 {% extends "layout.html" %}
-{% block title %}Actividades por Departamento{% endblock %}
+{% block title %}Actividades por Área{% endblock %}
 
 {% block content %}
 <div class="container py-4">
@@ -9,12 +9,21 @@
 
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h1 class="h4 mb-1">Actividades por Departamento</h1>
-      <p class="text-muted mb-0">Administra el catálogo central de actividades usadas en los registros de tiempo.</p>
+      <h1 class="h4 mb-1">Actividades por Área</h1>
+      <p class="text-muted mb-0">
+        Administra el catálogo central de actividades. El grupo
+        <strong>{{ general_label }}</strong> son las que se ofrecen además de las del área
+        cuando el registro es sobre el FP 0.
+      </p>
     </div>
-    <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left"></i> Volver al dashboard
-    </a>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('main.areas_admin') }}" class="btn btn-outline-primary">
+        <i class="bi bi-diagram-3"></i> Áreas
+      </a>
+      <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver al dashboard
+      </a>
+    </div>
   </div>
 
   <!-- Formulario: Nueva actividad -->
@@ -27,16 +36,12 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
         <div class="col-md-4">
-          <label class="form-label">Departamento</label>
+          <label class="form-label">Área</label>
           <select name="department" class="form-select" required>
-            <option value="" selected disabled>Selecciona un departamento…</option>
-            <option value="Metal">Metal</option>
-            <option value="Costura">Costura</option>
-            <option value="Impresion">Impresión</option>
-            <option value="Stagging">Stagging</option>
-            <option value="Montaje">Montaje</option>
-            <option value="Transporte">Transporte</option>
-            <option value="Administración">Administración</option>
+            <option value="" selected disabled>Selecciona un área…</option>
+            {% for value, label in department_options %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
           </select>
         </div>
 
@@ -52,7 +57,7 @@
         </div>
       </form>
       <div class="form-text mt-2">
-        Los nombres de actividad son únicos por departamento.
+        Los nombres de actividad son únicos dentro de cada área.
       </div>
     </div>
   </div>
@@ -75,7 +80,8 @@
                       data-bs-target="#c-{{ loop.index }}"
                       aria-expanded="{{ 'true' if loop.first else 'false' }}"
                       aria-controls="c-{{ loop.index }}">
-                <span class="badge bg-secondary me-2">{{ items|length }}</span> {{ dept }}
+                <span class="badge bg-secondary me-2">{{ items|length }}</span>
+                {% if dept == general_key %}{{ general_label }}{% else %}{{ dept }}{% endif %}
               </button>
             </h2>
             <div id="c-{{ loop.index }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
@@ -180,15 +186,11 @@
       <div class="modal-body">
         <input type="hidden" id="edit_id">
         <div class="mb-3">
-          <label class="form-label">Departamento</label>
+          <label class="form-label">Área</label>
           <select id="edit_department" class="form-select" required>
-            <option value="Metal">Metal</option>
-            <option value="Costura">Costura</option>
-            <option value="Impresion">Impresión</option>
-            <option value="Stagging">Stagging</option>
-            <option value="Montaje">Montaje</option>
-            <option value="Transporte">Transporte</option>
-            <option value="Administración">Administración</option>
+            {% for value, label in department_options %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
           </select>
         </div>
         <div class="mb-3">
@@ -208,7 +210,7 @@
             <input type="number" id="edit_sort" class="form-control" value="0" min="0" step="1">
           </div>
         </div>
-        <div class="form-text mt-2">El nombre debe ser único dentro del mismo departamento.</div>
+        <div class="form-text mt-2">El nombre debe ser único dentro de la misma área.</div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
@@ -303,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const setEdit = (btn) => {
     document.getElementById('edit_id').value         = btn.dataset.id;
     document.getElementById('edit_name').value       = btn.dataset.name || '';
-    document.getElementById('edit_department').value = btn.dataset.department || 'Metal';
+    document.getElementById('edit_department').value = btn.dataset.department || '';
     document.getElementById('edit_active').value     = btn.dataset.active || '1';
     document.getElementById('edit_sort').value       = btn.dataset.sort || '0';
   };

@@ -44,6 +44,24 @@
       </div>
     </div>
     <div class="col-md-3">
+      <div class="card user-type-card h-100 text-center p-4" data-user-type="rh">
+        <div class="card-body d-flex flex-column justify-content-center">
+          <i class="bi bi-people fs-1 mb-3"></i>
+          <h5 class="card-title fw-semibold">RH</h5>
+          <p class="card-text text-muted mb-0">Vacaciones de toda la plantilla e incidencias.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card user-type-card h-100 text-center p-4" data-user-type="ejecutivo">
+        <div class="card-body d-flex flex-column justify-content-center">
+          <i class="bi bi-briefcase fs-1 mb-3"></i>
+          <h5 class="card-title fw-semibold">Ejecutivo</h5>
+          <p class="card-text text-muted mb-0">Solicita vacaciones y levanta informes de incidencia.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
       <div class="card user-type-card h-100 text-center p-4" data-user-type="administrador">
         <div class="card-body d-flex flex-column justify-content-center">
           <i class="bi bi-shield-lock fs-1 mb-3"></i>
@@ -64,10 +82,12 @@
         <div class="mb-3" id="employeeNameGroup" style="display:none;">
           <label for="employee_name" class="form-label">Nombre (Empleado)</label>
           <select class="form-select" id="employee_name" name="employee_name" data-placeholder="Selecciona tu nombre">
+              <option value=""></option>
               {% for emp in employees %}
                 <option value="{{ emp.id }}">{{ emp.nompropio }}</option>
               {% endfor %}
           </select>
+          <div class="form-text" id="employeeNameHelp"></div>
         </div>
         <div class="mb-3" id="areaManagerGroup" style="display:none;">
           <label for="area_manager_department" class="form-label">Area</label>
@@ -119,27 +139,27 @@
       const type=card.getAttribute('data-user-type');
       document.getElementById('user_type').value=type;
 
-      // Mostrar/ocultar campos según el tipo
-      if(type==='empleado'){
-        $('#employeeNameGroup').show();
-        $('#areaManagerGroup').hide();
-        $('#adminCodeGroup').hide();
-      } else if(type==='administrador'){
-        $('#employeeNameGroup').hide();
-        $('#areaManagerGroup').hide();
-        $('#adminCodeGroup').show();
-        $('#codeDescription').text('Ingresa la clave de administrador.');
-      } else if(type==='lider_proyecto'){
-        $('#employeeNameGroup').hide();
-        $('#areaManagerGroup').hide();
-        $('#adminCodeGroup').show();
-        $('#codeDescription').text('Ingresa la clave de líder de proyecto.');
-      } else if(type==='jefe_area'){
-        $('#employeeNameGroup').hide();
-        $('#areaManagerGroup').show();
-        $('#adminCodeGroup').show();
-        $('#codeDescription').text('Ingresa la clave de Jefe de Area.');
-      }
+      // Qué campos pide cada perfil. Ligar un empleado es obligatorio solo para
+      // "empleado"; para el resto es opcional y sirve para darle saldo de
+      // vacaciones a esa cuenta.
+      const PERFILES = {
+        empleado:       {empleado:'requerido', area:false, codigo:null},
+        lider_proyecto: {empleado:'opcional',  area:false, codigo:'Ingresa la clave de líder de proyecto.'},
+        rh:             {empleado:'opcional',  area:false, codigo:'Ingresa la clave de RH.'},
+        ejecutivo:      {empleado:'opcional',  area:false, codigo:'Ingresa la clave de Ejecutivo.'},
+        jefe_area:      {empleado:'opcional',  area:true,  codigo:'Ingresa la clave de Jefe de Area.'},
+        administrador:  {empleado:'opcional',  area:false, codigo:'Ingresa la clave de administrador.'}
+      };
+      const cfg = PERFILES[type] || PERFILES.administrador;
+
+      $('#employeeNameGroup').toggle(!!cfg.empleado);
+      $('#employeeNameHelp').text(
+        cfg.empleado === 'requerido'
+          ? 'Selecciona tu nombre de la lista.'
+          : 'Opcional. Si te ligas a un empleado, tu cuenta tendrá saldo de vacaciones propio.');
+      $('#areaManagerGroup').toggle(cfg.area);
+      $('#adminCodeGroup').toggle(!!cfg.codigo);
+      if(cfg.codigo){ $('#codeDescription').text(cfg.codigo); }
 
       document.getElementById('registerForm').style.display='block';
       $("#employee_name").select2({theme:'bootstrap4',placeholder:'Selecciona tu nombre',allowClear:true});
