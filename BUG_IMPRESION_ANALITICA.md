@@ -139,3 +139,39 @@ DDL de MySQL no es transaccional y la migracion alcanzo a soltar las FK
 idempotente el alta del evento en `sp_impresion_recalcular_dia`). Mientras tanto,
 las altas de RH hay que meterlas a mano en `employees` con `n_empleado` = rhID;
 asi se hizo con las 6 que faltaban (ids locales 143-148).
+
+## Estado al 2026-09-04: el trigger de UPDATE esta BORRADO
+
+Tras el intento fallido de migrar, regresar los registros de Impresion a su area
+volvio a fallar y en un caso (id 1297) **reinicio el servidor MariaDB**, no solo
+la conexion. Con `employees` como vista, 4 filas pasaron y 1 tumbo el servidor;
+el crash parece depender de la fila, no de la vista, pero no hay forma de
+saberlo sin leer el procedimiento.
+
+Se decidio borrar el trigger:
+
+```sql
+DROP TRIGGER AD17_Pruebas.trg_time_records_impresion_au;
+```
+
+Consecuencias, hoy:
+
+- Editar registros de Impresion desde Costos **ya funciona**, incluido cambiar
+  la fecha o el empleado. Verificado.
+- La analitica de Impresion **ya no se refresca al editar** un registro. Las
+  altas si la siguen alimentando: eso lo hace `trg_time_records_impresion_ai`,
+  que sigue en su lugar.
+- La migracion a `employees` como vista ya no esta bloqueada por este trigger.
+
+Su definicion exacta quedo guardada en `scripts_restaurar_trigger_impresion.sql`.
+Recrearla exige `SUPER` (DEFINER=root@%), que el usuario de la app no tiene.
+
+### Advertencia antes de recrearlo o de migrar
+
+`trg_time_records_impresion_ai` (INSERT) llama al **mismo** procedimiento. Si lo
+que reinicio el servidor es algo que el procedimiento hace tambien en el camino
+del INSERT, entonces despues de la fase 2 un trabajador iniciando un registro de
+Impresion podria tumbar el servidor. Hoy no pasa porque `employees` es tabla y
+las altas llevan meses funcionando, pero conviene tenerlo presente:
+
+**arreglar `sp_impresion_recalcular_dia` antes de recrear el trigger o de migrar.**
