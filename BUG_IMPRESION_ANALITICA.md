@@ -108,3 +108,34 @@ DELIMITER ;
    una fila por `id`. La fase 2 del despliegue convierte `employees` en vista
    sobre `AD17_RH`, y una vista no garantiza unicidad. Conviene el `LIMIT 1`
    antes de esa migracion.
+
+## Segundo efecto: el trigger bloquea la migracion a `employees` como vista
+
+El 2026-09-04 se intento aplicar la fase 2 (`flask db upgrade`, migracion
+`c3f81b6e4a72`). La verificacion previa paso limpia, pero la migracion aborto en
+el paso que remapea `employee_id` de id local a rhID:
+
+```
+sqlalchemy.exc.IntegrityError: (1062, "Duplicate entry 'time_records-16848-I' for key 'uk_evento'")
+[SQL: UPDATE time_records tr JOIN employees e ON e.id = tr.employee_id
+         SET tr.employee_id = CAST(e.n_empleado AS UNSIGNED)]
+```
+
+Es el mismo defecto. El UPDATE masivo cambia `employee_id` en cada fila; para las
+de Impresion el trigger recalcula un dia distinto al que ya tiene el evento y
+choca contra `uk_evento`.
+
+Es peor de lo que parece: mientras dura el UPDATE, `employees` sigue siendo la
+tabla vieja, asi que el trigger resuelve `WHERE e.id = NEW.employee_id` con el
+rhID recien escrito y cae en **otra persona**. Aunque no reventara, estaria
+recalculando la analitica de quien no es.
+
+Estado tras el intento: **los datos quedaron intactos** (alembic siguio en
+`d4e19a7c5b83`, `employees` siguio siendo tabla, cero filas remapeadas), pero el
+DDL de MySQL no es transaccional y la migracion alcanzo a soltar las FK
+`time_records_ibfk_1` y `users_ibfk_1`. Se restauraron a mano.
+
+**La fase 2 no se puede aplicar hasta que se corrija el punto 1** (hacer
+idempotente el alta del evento en `sp_impresion_recalcular_dia`). Mientras tanto,
+las altas de RH hay que meterlas a mano en `employees` con `n_empleado` = rhID;
+asi se hizo con las 6 que faltaban (ids locales 143-148).
