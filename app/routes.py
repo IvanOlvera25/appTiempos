@@ -63,6 +63,27 @@ def _to_mx(dt):
         dt = utc_tz.localize(dt)
     return dt.astimezone(cdmx_tz)
 
+
+# `time_records` tiene triggers que el equipo de analitica instalo en la base
+# (AD17_Analytics_DEV). El de Impresion se dispara en cada INSERT/UPDATE de un
+# registro de esa area y, si falla, MySQL aborta la operacion completa: la app
+# no puede hacer nada al respecto porque el usuario de la aplicacion ni siquiera
+# tiene acceso a ese esquema. Se detectan aqui para no culpar al formulario, que
+# es lo que hacia el mensaje generico de "verifica los datos".
+_MARCAS_TRIGGER_ANALITICA = (
+    'uk_evento',
+    'ad17_analytics',
+    'sp_impresion_recalcular_dia',
+    'sp_autocierre_areas',
+    'trigger_log',
+)
+
+
+def _rechazado_por_analitica(exc):
+    """True si la base rechazo el guardado desde el trigger de analitica."""
+    texto = str(exc).lower()
+    return any(marca in texto for marca in _MARCAS_TRIGGER_ANALITICA)
+
 @main.route('/')
 def home():
     # Si el usuario autenticado es empleado, lo brincamos directo
@@ -2998,7 +3019,15 @@ def create_time_record():
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Error creando registro: {e}")
-            flash('Error al crear el registro. Verifica los datos ingresados.', 'danger')
+            current_app.logger.error(f"Traceback: {traceback.format_exc()}")
+            if _rechazado_por_analitica(e):
+                flash(
+                    'No se pudo crear el registro: el modulo de analitica de '
+                    'Impresion rechazo el alta. Los datos capturados son validos; '
+                    'reportalo a Sistemas para que lo corrijan en la base.',
+                    'danger')
+            else:
+                flash('Error al crear el registro. Verifica los datos ingresados.', 'danger')
 
     # GET request - CAMBIO: Usar empleados únicos
     unique_employees_subquery = (
@@ -3105,9 +3134,17 @@ def edit_time_record(record_id):
 
         except Exception as e:
             db.session.rollback()
-            current_app.logger.error(f"Error editando registro: {e}")
+            current_app.logger.error(f"Error editando registro {record_id}: {e}")
             current_app.logger.error(f"Traceback: {traceback.format_exc()}")
-            flash('Error al actualizar el registro. Verifica los datos ingresados.', 'danger')
+            if _rechazado_por_analitica(e):
+                flash(
+                    f'No se pudo guardar el registro #{record_id}: el modulo de '
+                    'analitica de Impresion rechazo el cambio de fecha o de empleado. '
+                    'El registro quedo tal como estaba, no se perdio nada. Reporta '
+                    'este ID a Sistemas para que lo corrijan en la base.',
+                    'danger')
+            else:
+                flash('Error al actualizar el registro. Verifica los datos ingresados.', 'danger')
 
     # GET request - CAMBIO: Usar empleados únicos
     unique_employees_subquery = (
