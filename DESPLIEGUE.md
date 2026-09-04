@@ -53,9 +53,38 @@ flask db upgrade d4e19a7c5b83
 Recarga la web app. Con esto vuelven los botones de área, el login y quedan
 disponibles vacaciones e incidencias, con `employees` intacta como tabla.
 
-## 4. Fase 2 (employees como vista) — cuando decidas
+## 3b. Personal desde RH sin migrar (estado actual)
 
-Respalda antes:
+`employees` sigue siendo una tabla local, pero ya no se administra desde la
+app: se **sincroniza** con AD17_RH. Hace por copia lo que la vista de la fase 2
+haría en vivo — alta de personas nuevas, cambio de nombre/área/puesto, y baja
+(solo pasa a inactivo; no se borra a nadie). Los ids locales no se tocan.
+
+Tres formas de disparar la sincronización, todas equivalentes:
+
+| Dónde | Cómo |
+|---|---|
+| Pantalla *Empleados* | botón **Sincronizar con RH** (solo administradores) |
+| Consola del servidor | `FLASK_SKIP_SCHEDULER=1 flask sincronizar-rh` (`--dry-run` para solo ver qué cambiaría) |
+| Automático | job `sync_rh` cada hora, si el scheduler está corriendo (uWSGI con `--enable-threads`) |
+
+Si RH no responde no se toca nada.
+
+## 4. Fase 2 (employees como vista) — **DETENIDA, no la corras todavía**
+
+> **El 2026-09-04 se intentó y no se pudo aplicar.** El trigger de analítica de
+> Impresión (`AD17_Analytics_DEV.sp_impresion_recalcular_dia`) se dispara en el
+> UPDATE masivo que remapea `employee_id` y revienta con `1062 uk_evento`; y con
+> `employees` ya como vista, en un caso **reinició el servidor MariaDB**. Se hizo
+> `flask db downgrade` y todo volvió a su lugar. Detalle completo y el arreglo
+> que le toca al equipo de analítica en `BUG_IMPRESION_ANALITICA.md`.
+>
+> **Hasta que ese procedimiento esté corregido, esta fase no es viable.** El
+> trigger de INSERT llama al mismo procedimiento, así que aun quitando el de
+> UPDATE (que ya se quitó), un alta de Impresión podría tumbar el servidor con
+> `employees` como vista. Mientras tanto, la sección 3b cubre lo mismo sin riesgo.
+
+Cuando se pueda, respalda antes:
 
 ```bash
 mysqldump -h ad17solutions.dscloud.me -P 3307 -u IvanUriel -p \

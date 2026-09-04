@@ -75,6 +75,28 @@ def create_app():
             app.scheduler = APScheduler()
             app.scheduler.init_app(app)
 
+            # Personal desde RH cada hora. `employees` es una copia de AD17_RH
+            # mientras la migracion que la vuelve vista siga detenida (ver
+            # BUG_IMPRESION_ANALITICA.md). Va aqui y no en JOBS porque
+            # flask-apscheduler NO abre contexto de aplicacion para los jobs.
+            def _sincronizar_rh_job(app=app):
+                with app.app_context():
+                    from .rh import sincronizar_empleados
+                    try:
+                        r = sincronizar_empleados()
+                        app.logger.info(
+                            "sync_rh: altas=%d cambios=%d bajas=%d reactivados=%d conflictos=%d",
+                            len(r['altas']), len(r['cambios']), len(r['bajas']),
+                            len(r['reactivados']), len(r['conflictos']))
+                        if r['conflictos']:
+                            app.logger.warning("sync_rh: sin tocar por apuntar a otra persona: %s",
+                                               '; '.join(r['conflictos']))
+                    except Exception as e:
+                        app.logger.error("sync_rh: %s", e)
+
+            app.scheduler.add_job(id='sync_rh', func=_sincronizar_rh_job,
+                                  trigger='interval', hours=1)
+
             # Start protegido por try/except para el caso de uWSGI sin hilos
             try:
                 app.scheduler.start()
@@ -118,9 +140,26 @@ def create_app():
     # (Aquí sigue tu código de import_employees e import_employees_remote sin cambios)
 
     # ----------------------------------------------------------------------------
-    # Los comandos import_employees / import_employees_remote se eliminaron:
-    # copiaban el personal de AD17_RH a la tabla local `employees`, que ahora es
-    # una vista de solo lectura sobre esa misma base (migración c3f81b6e4a72).
+    # Los comandos import_employees / import_employees_remote se eliminaron
+    # pensando en que `employees` seria una vista sobre AD17_RH (migracion
+    # c3f81b6e4a72). Esa migracion esta detenida (ver BUG_IMPRESION_ANALITICA.md),
+    # asi que mientras tanto `employees` se alinea con RH desde aqui, desde el
+    # boton de la pantalla de Empleados y desde el job horario del scheduler.
     # ----------------------------------------------------------------------------
+    import click
+
+    @app.cli.command('sincronizar-rh')
+    @click.option('--dry-run', is_flag=True, help='Solo muestra que cambiaria, sin guardar.')
+    def sincronizar_rh(dry_run):
+        """Alinea la tabla employees con el personal de RH (AD17_RH)."""
+        from .rh import sincronizar_empleados
+        r = sincronizar_empleados(dry_run=dry_run)
+        for clave in ('altas', 'cambios', 'bajas', 'reactivados', 'conflictos'):
+            for nombre in r[clave]:
+                click.echo('%-12s %s' % (clave, nombre))
+        click.echo('%saltas=%d cambios=%d bajas=%d reactivados=%d conflictos=%d' % (
+            '(simulacion) ' if dry_run else '',
+            len(r['altas']), len(r['cambios']), len(r['bajas']), len(r['reactivados']),
+            len(r['conflictos'])))
 
     return app

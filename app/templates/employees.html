@@ -20,8 +20,17 @@
             <i class="bi bi-calendar2-plus me-2"></i>Adicionales
           </a>
           {% endif %}
-          {% if current_user.has_admin_privileges %}
-          {# El personal se da de alta en el sistema de RH; aquí solo se consulta. #}
+          {# El personal se da de alta en el sistema de RH; este boton trae esos cambios. #}
+          {% if current_user.is_admin %}
+          <form method="post" action="{{ url_for('main.sync_employees_rh') }}" class="d-inline"
+                onsubmit="return confirm('Se dan de alta las personas nuevas de RH y se actualizan nombre, área, puesto y estado de las que ya existen. ¿Continuar?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="btn btn-outline-secondary btn-lg"
+                    title="Las altas y cambios de personal se hacen en el sistema de RH (AD17_RH); este botón los trae a la app.">
+              <i class="bi bi-arrow-repeat me-2"></i>Sincronizar con RH
+            </button>
+          </form>
+          {% elif current_user.has_admin_privileges %}
           <span class="btn btn-outline-secondary btn-lg disabled" tabindex="-1"
                 title="Las altas y cambios de personal se hacen en el sistema de RH (AD17_RH).">
             <i class="bi bi-info-circle me-2"></i>Personal administrado en RH

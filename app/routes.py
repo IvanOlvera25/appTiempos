@@ -1531,6 +1531,51 @@ def area_records():
         }
     )
 
+def _resumir_nombres(nombres, maximo=8):
+    """'A, B, C y 4 mas' para no reventar el flash con toda la plantilla."""
+    if len(nombres) <= maximo:
+        return ', '.join(nombres)
+    return '%s y %d mas' % (', '.join(nombres[:maximo]), len(nombres) - maximo)
+
+
+@main.route('/admin/employees/sync_rh', methods=['POST'])
+@login_required
+def sync_employees_rh():
+    """
+    Trae a `employees` las altas, bajas y cambios del sistema de RH.
+
+    Mientras `employees` siga siendo una copia (la migracion que la vuelve vista
+    esta detenida, ver BUG_IMPRESION_ANALITICA.md), este boton es la unica forma
+    de que una persona nueva en RH aparezca en la app.
+    """
+    guard = _solo_admin()
+    if guard:
+        return guard
+    try:
+        resumen = rh.sincronizar_empleados()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error("sync_employees_rh: %s", e)
+        current_app.logger.error(traceback.format_exc())
+        flash('No se pudo sincronizar con RH: %s' % e, 'danger')
+        return redirect(url_for('main.manage_employees'))
+
+    partes = [
+        '%d %s: %s' % (len(resumen[clave]), etiqueta, _resumir_nombres(resumen[clave]))
+        for clave, etiqueta in (('altas', 'altas'), ('cambios', 'actualizados'),
+                                ('bajas', 'bajas'), ('reactivados', 'reactivados'))
+        if resumen[clave]
+    ]
+    if partes:
+        flash('Personal sincronizado con RH. ' + ' | '.join(partes), 'success')
+    else:
+        flash('Personal sincronizado con RH: no habia cambios.', 'info')
+    if resumen['conflictos']:
+        flash('Sin tocar por apuntar a otra persona en RH (revisa su numero de '
+              'empleado): ' + _resumir_nombres(resumen['conflictos']), 'warning')
+    return redirect(url_for('main.manage_employees'))
+
+
 @main.route('/employees')
 @login_required
 def manage_employees():
