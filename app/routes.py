@@ -84,6 +84,27 @@ def _rechazado_por_analitica(exc):
     texto = str(exc).lower()
     return any(marca in texto for marca in _MARCAS_TRIGGER_ANALITICA)
 
+
+def _cerrar_registros_previos(employee_id, department, project_id):
+    """Cierra lo que el empleado deja abierto al iniciar un registro nuevo.
+
+    En un area normal se cierra todo lo abierto, venga de donde venga (antes solo
+    se cerraba el primero y los varios abiertos de Impresion quedaban colgados).
+    En un area con flujo de impresion se conservan los registros abiertos de esa
+    misma area, salvo el del mismo proyecto, pero se cierran los de otras areas.
+    Devuelve cuantos registros cerro.
+    """
+    abiertos = TimeRecord.query.filter_by(employee_id=employee_id, end_time=None).all()
+    if area_usa_flujo_impresion(department):
+        abiertos = [r for r in abiertos
+                    if r.departamento != department or str(r.project_id) == str(project_id)]
+    ahora = datetime.utcnow()
+    for r in abiertos:
+        r.end_time = ahora
+    if abiertos:
+        db.session.commit()
+    return len(abiertos)
+
 @main.route('/')
 def home():
     # Si el usuario autenticado es empleado, lo brincamos directo
@@ -296,26 +317,9 @@ def register_project():
     # Iniciar nuevo registro
     if form.validate_on_submit():
         if form.iniciar.data:
-            # Finalizar registro(s) abierto(s) previos
-            if area_usa_flujo_impresion(department):
-                open_record = TimeRecord.query.filter_by(
-                    employee_id=form.employee_id.data,
-                    project_id=form.project_id.data,
-                    end_time=None
-                ).first()
-                if open_record:
-                    open_record.end_time = datetime.utcnow()
-                    db.session.commit()
-                    flash("Se finalizó automáticamente el registro anterior para este proyecto.", "info")
-            else:
-                open_record = TimeRecord.query.filter_by(
-                    employee_id=form.employee_id.data,
-                    end_time=None
-                ).first()
-                if open_record:
-                    open_record.end_time = datetime.utcnow()
-                    db.session.commit()
-                    flash("Se finalizó automáticamente el registro anterior.", "info")
+            # Finalizar registro(s) abierto(s) previos, tambien los de otras areas
+            if _cerrar_registros_previos(form.employee_id.data, department, form.project_id.data):
+                flash("Se finalizaron automáticamente los registros anteriores.", "info")
 
             # Geolocalización opcional
             try:
@@ -437,18 +441,11 @@ def register_project_imp():
                 except ValueError:
                     lat = lon = None
 
-                # Aquí NO cerramos otros proyectos del mismo empleado,
-                # sólo cerraríamos si existiera uno exacto (empleado+proyecto) si así lo deseas.
-                # Si quieres forzar uno a la vez por proyecto:
-                open_same = TimeRecord.query.filter_by(
-                    employee_id=selected_employee.id,
-                    project_id=proj_id,
-                    end_time=None
-                ).first()
-                if open_same:
-                    open_same.end_time = datetime.utcnow()
-                    db.session.commit()
-                    flash("Se finalizó automáticamente el registro anterior de este proyecto.", "info")
+                # Se conservan los otros proyectos abiertos de esta area, pero se
+                # cierran el del mismo proyecto y todo lo que siga abierto en otra area
+                if _cerrar_registros_previos(selected_employee.id, department, proj_id):
+                    flash("Se finalizaron automáticamente los registros anteriores "
+                          "de este proyecto o de otra área.", "info")
 
                 new_rec = TimeRecord(
                     employee_id=selected_employee.id,
