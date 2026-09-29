@@ -145,11 +145,12 @@
     </div>
   </div>
 
-  <!-- Filtro del calendario -->
-  <form method="GET" class="row g-2 mb-3">
+  <!-- Filtro del calendario y del resumen -->
+  <form method="GET" class="row g-2 mb-3 align-items-end" id="filtro_plantilla">
     <input type="hidden" name="anio" value="{{ nav.anio }}">
     <input type="hidden" name="mes" value="{{ nav.mes }}">
     <div class="col-md-3">
+      <label class="form-label small text-muted mb-1">Estatus</label>
       <select name="estatus" class="form-select" onchange="this.form.submit()">
         <option value="">Todos los estatus</option>
         {% for e in estatus_opciones %}
@@ -157,10 +158,54 @@
         {% endfor %}
       </select>
     </div>
+    <div class="col-md-3">
+      <label class="form-label small text-muted mb-1">Ver</label>
+      <select name="ver" id="filtro_ver" class="form-select">
+        <option value="">Toda la plantilla</option>
+        <option value="persona" {% if ver == 'persona' %}selected{% endif %}>Por persona</option>
+        <option value="area" {% if ver == 'area' %}selected{% endif %}>Por área</option>
+      </select>
+    </div>
+    <div class="col-md-4" data-filtro="persona">
+      <label class="form-label small text-muted mb-1">Persona</label>
+      <select name="persona" class="form-select" onchange="this.form.submit()">
+        <option value="">Selecciona…</option>
+        {% for e in empleados %}
+        <option value="{{ e.rh_id }}" {% if persona == e.rh_id %}selected{% endif %}>{{ e.nombre }} — {{ e.area }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4" data-filtro="area">
+      <label class="form-label small text-muted mb-1">Área</label>
+      <select name="area" class="form-select" onchange="this.form.submit()">
+        <option value="">Selecciona…</option>
+        {% for a in areas %}
+        <option value="{{ a }}" {% if area == a %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if ver %}
+    <div class="col-auto">
+      <a class="btn btn-outline-secondary"
+         href="{{ url_for('vacaciones.admin', anio=nav.anio, mes=nav.mes, **({'estatus': estatus} if estatus else {})) }}">
+        <i class="bi bi-x-lg"></i> Quitar filtro
+      </a>
+    </div>
+    {% endif %}
   </form>
 
-  {% set extra_args = {'estatus': estatus} if estatus else {} %}
   {% include 'vacaciones/_calendario.html' %}
+
+  <!-- Resumen de saldos -->
+  {% if ver == 'persona' and saldos %}
+    {% set titulo_saldos = 'Resumen de ' ~ saldos[0].nombre %}
+  {% elif ver == 'area' %}
+    {% set titulo_saldos = 'Resumen de ' ~ area %}
+  {% else %}
+    {% set titulo_saldos = 'Resumen de toda la plantilla' %}
+  {% endif %}
+  {% set alto_maximo = '520px' %}
+  {% include 'vacaciones/_saldos.html' %}
 
   <!-- Detalle del mes -->
   <div class="card">
@@ -205,4 +250,26 @@
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const ver = document.getElementById('filtro_ver');
+  const bloques = document.querySelectorAll('#filtro_plantilla [data-filtro]');
+
+  // Solo se muestra el selector del modo elegido; el otro no viaja en la URL
+  const sincronizar = () => {
+    bloques.forEach(b => {
+      const activo = b.dataset.filtro === ver.value;
+      b.hidden = !activo;
+      b.querySelector('select').disabled = !activo;
+    });
+  };
+
+  ver.addEventListener('change', () => {
+    sincronizar();
+    if (!ver.value) ver.form.submit();
+  });
+  sincronizar();
+});
+</script>
 {% endblock %}

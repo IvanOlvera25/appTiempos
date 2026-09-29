@@ -137,6 +137,14 @@ def _pendientes(rh_id, inicio, fin):
     return int(vac), int(med)
 
 
+def _con_pendientes(datos, vac_pend, med_pend):
+    datos['vacaciones_pendientes'] = vac_pend
+    datos['mediodias_pendientes'] = med_pend
+    datos['vacaciones_libres'] = max(0, datos['vacaciones_disponibles'] - vac_pend)
+    datos['mediodias_libres'] = max(0, datos['mediodias_disponibles'] - med_pend)
+    return datos
+
+
 def saldo_empleado(rh_id):
     """
     Saldo de un empleado, con los pendientes ya descontados.
@@ -151,12 +159,34 @@ def saldo_empleado(rh_id):
 
     vac_pend, med_pend = _pendientes(
         rh_id, datos['inicio_periodo'], datos['proximo_aniversario'])
+    return _con_pendientes(datos, vac_pend, med_pend)
 
-    datos['vacaciones_pendientes'] = vac_pend
-    datos['mediodias_pendientes'] = med_pend
-    datos['vacaciones_libres'] = max(0, datos['vacaciones_disponibles'] - vac_pend)
-    datos['mediodias_libres'] = max(0, datos['mediodias_disponibles'] - med_pend)
-    return datos
+
+def saldos_plantilla():
+    """
+    `saldo_empleado` de todo el personal activo.
+
+    Los pendientes se cuentan con una consulta agregada por tabla, cada quien
+    dentro de su propio periodo, en vez de dos consultas por persona.
+    """
+    empleados = listar_empleados()
+
+    def _pendientes_por_persona(tabla):
+        filas = _consultar("""
+            SELECT t.rhID, COUNT(*) AS n
+              FROM %s t
+              JOIN empleados_activos e ON e.id = t.rhID
+             WHERE t.estatus_autorizacion = 'PENDIENTE'
+               AND t.fecha >= e.inicio_periodo_actual
+               AND t.fecha <  e.proximo_aniversario
+             GROUP BY t.rhID
+        """ % tabla)
+        return {f['rhID']: int(f['n']) for f in filas}
+
+    vac = _pendientes_por_persona('Vacaciones')
+    med = _pendientes_por_persona('MediosDias')
+    return [_con_pendientes(e, vac.get(e['rh_id'], 0), med.get(e['rh_id'], 0))
+            for e in empleados]
 
 
 # ─────────────────────────────────────────────────────────────

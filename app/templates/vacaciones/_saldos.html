@@ -1,0 +1,49 @@
+{# Tabla de saldos reutilizable. Espera `saldos` (ver vacaciones.saldo_empleado)
+   y opcionalmente `titulo_saldos` y `alto_maximo`. #}
+<div class="card mb-4">
+  <div class="card-header d-flex align-items-center">
+    <i class="bi bi-people me-2"></i>{{ titulo_saldos|default('Saldos') }}
+    <span class="badge bg-secondary ms-2">{{ saldos|length }}</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive"{% if alto_maximo is defined %} style="max-height: {{ alto_maximo }}; overflow-y: auto;"{% endif %}>
+      <table class="table table-striped mb-0 align-middle">
+        <thead class="table-light{% if alto_maximo is defined %} sticky-top{% endif %}">
+          <tr>
+            <th>Empleado</th><th>Área</th><th class="text-center">Antigüedad</th>
+            <th class="text-center">Del periodo</th><th class="text-center">Tomados</th>
+            <th class="text-center">Pendientes</th><th class="text-center">Disponibles</th>
+            <th class="text-center">Medios días</th>
+            <th class="text-center">Próximo periodo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in saldos %}
+          <tr class="{% if s.es_propio %}table-primary{% endif %}">
+            <td>
+              <strong>{{ s.nombre }}</strong>
+              {% if s.es_propio %}<span class="badge bg-primary ms-1">Tú</span>{% endif %}
+            </td>
+            <td class="small text-muted">{{ s.area }}</td>
+            <td class="text-center">{{ s.antiguedad }}</td>
+            <td class="text-center">{{ s.num_vacaciones }}</td>
+            <td class="text-center">{{ s.vacaciones_tomadas }}</td>
+            <td class="text-center">
+              {% if s.vacaciones_pendientes %}<span class="badge bg-warning text-dark">{{ s.vacaciones_pendientes }}</span>{% else %}0{% endif %}
+            </td>
+            <td class="text-center"><span class="badge bg-primary">{{ s.vacaciones_libres }}</span></td>
+            <td class="text-center small" title="Libres / del periodo ({{ s.mediodias_tomados }} tomados{% if s.mediodias_pendientes %}, {{ s.mediodias_pendientes }} pendientes{% endif %})">
+              {{ s.mediodias_libres }} / {{ s.num_mediodia }}
+            </td>
+            <td class="text-center small">
+              {{ s.proximo_aniversario.strftime('%d/%m/%Y') if s.proximo_aniversario else '—' }}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="text-center text-muted p-4">Sin datos que mostrar.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

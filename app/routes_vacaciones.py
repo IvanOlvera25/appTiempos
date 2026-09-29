@@ -343,9 +343,29 @@ def admin():
     if estatus not in (None,) + vac.ESTATUS:
         estatus = None
 
-    eventos = vac.listar_vacaciones(desde=inicio, hasta=fin, estatus=estatus)
+    saldos = vac.saldos_plantilla()
+    areas = sorted({s['area'] for s in saldos if s['area']})
+
+    # Filtro del calendario y del resumen: una persona o un área, no ambos
+    ver = (request.args.get('ver') or '').strip()
+    persona = request.args.get('persona', type=int)
+    area = (request.args.get('area') or '').strip()
+    if ver == 'persona' and persona:
+        coincide = lambda x: x['rh_id'] == persona
+    elif ver == 'area' and area:
+        coincide = lambda x: x['area'] == area
+    else:
+        ver, persona, area = '', None, ''
+        coincide = lambda x: True
+
+    eventos = [e for e in vac.listar_vacaciones(desde=inicio, hasta=fin, estatus=estatus)
+               if coincide(e)]
     pendientes = vac.listar_vacaciones(estatus='PENDIENTE')
     pendientes.sort(key=lambda s: s['fecha'])
+
+    # Parametros que la navegacion del calendario debe conservar
+    extra_args = {k: v for k, v in (('estatus', estatus), ('ver', ver),
+                                    ('persona', persona), ('area', area)) if v}
 
     return render_template(
         'vacaciones/admin.html',
@@ -353,7 +373,13 @@ def admin():
         nav=_navegacion_mes(anio, mes),
         eventos=eventos,
         pendientes=pendientes,
-        empleados=vac.listar_empleados(),
+        empleados=saldos,
+        saldos=[s for s in saldos if coincide(s)],
+        areas=areas,
+        ver=ver,
+        persona=persona,
+        area=area,
+        extra_args=extra_args,
         estatus=estatus,
         estatus_opciones=vac.ESTATUS,
         hoy=date.today().isoformat(),
