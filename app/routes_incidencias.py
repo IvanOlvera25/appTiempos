@@ -90,6 +90,20 @@ def _proyectos_activos():
     return Project.query.filter_by(active=True).order_by(Project.folio.asc()).all()
 
 
+def _catalogo_fp(seleccionados=()):
+    """Proyectos que el capturador de FP puede resolver por folio.
+
+    Son los activos, mas los que el informe ya tenia aunque se hayan desactivado,
+    para que al editar no desaparezcan de sus tarjetas.
+    """
+    proyectos = {p.id: p for p in _proyectos_activos()}
+    faltantes = [pid for pid in seleccionados if pid not in proyectos]
+    if faltantes:
+        proyectos.update({p.id: p for p in Project.query.filter(Project.id.in_(faltantes))})
+    return [{'id': p.id, 'folio': p.folio, 'name': p.name, 'client': p.client}
+            for p in proyectos.values()]
+
+
 def _ids_del_form(campo):
     """Conjunto de enteros de un campo repetido del formulario."""
     ids = set()
@@ -244,7 +258,7 @@ def nuevo_informe():
         clasificaciones=get_clasificaciones(),
         areas=get_area_names(),
         empleados=Employee.query.filter_by(active=True).order_by(Employee.nompropio).all(),
-        proyectos=_proyectos_activos(),
+        catalogo_fp=_catalogo_fp(),
         seleccionados=[]
     )
 
@@ -321,7 +335,7 @@ def editar_informe(report_id):
         clasificaciones=get_clasificaciones(),
         areas=get_area_names(solo_activas=False),
         empleados=Employee.query.filter_by(active=True).order_by(Employee.nompropio).all(),
-        proyectos=_proyectos_activos(),
+        catalogo_fp=_catalogo_fp([p.project_id for p in informe.projects]),
         seleccionados=[p.project_id for p in informe.projects]
     )
 

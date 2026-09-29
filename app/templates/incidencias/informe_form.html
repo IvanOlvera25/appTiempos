@@ -75,15 +75,13 @@
       </div>
 
       <div class="mb-3">
-        <label class="form-label">FP de proyecto(s) afectado(s)</label>
-        <select name="project_ids" class="form-select" multiple size="8">
-          {% for p in proyectos %}
-          <option value="{{ p.id }}" {% if p.id in seleccionados %}selected{% endif %}>
-            {{ p.folio if p.folio is not none else 's/f' }} — {{ p.name }} ({{ p.client }})
-          </option>
-          {% endfor %}
-        </select>
-        <div class="form-text">Ctrl/Cmd + clic para elegir varios.</div>
+        <label class="form-label" for="fp_entrada">FP de proyecto(s) afectado(s)</label>
+        <input type="text" id="fp_entrada" class="form-control" inputmode="numeric"
+               autocomplete="off" placeholder="Escribe el folio y presiona Enter o espacio">
+        <div id="fp_error" class="invalid-feedback d-block" hidden></div>
+        <div id="fp_tarjetas" class="d-flex flex-wrap gap-2 mt-2"></div>
+        <div id="fp_hidden"></div>
+        <div class="form-text">Puedes agregar varios FP. Quita uno con la ×.</div>
       </div>
 
       <div class="mb-0">
@@ -115,6 +113,97 @@ document.addEventListener('DOMContentLoaded', () => {
 
   selector.addEventListener('change', sincronizar);
   sincronizar();
+
+  // ── Captura de FP estilo destinatarios de correo ──
+  // Catalogo: proyectos activos mas los que ya tenia el informe (aunque ya esten inactivos)
+  const catalogo = {{ catalogo_fp|tojson }};
+  const porFolio = {};
+  catalogo.forEach(p => {
+    if (p.folio === null) return;
+    (porFolio[String(p.folio)] ||= []).push(p);
+  });
+
+  const entrada  = document.getElementById('fp_entrada');
+  const error    = document.getElementById('fp_error');
+  const tarjetas = document.getElementById('fp_tarjetas');
+  const ocultos  = document.getElementById('fp_hidden');
+  const elegidos = new Map();   // project id -> proyecto
+
+  const mostrarError = (msg) => {
+    error.textContent = msg || '';
+    error.hidden = !msg;
+    entrada.classList.toggle('is-invalid', !!msg);
+  };
+
+  const pintar = () => {
+    tarjetas.innerHTML = '';
+    ocultos.innerHTML = '';
+    elegidos.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'card shadow-sm';
+      card.innerHTML = `
+        <div class="card-body py-2 px-3 d-flex align-items-start gap-3">
+          <div>
+            <div class="fw-semibold">FP ${p.folio}</div>
+            <div class="small">${escapar(p.name)}</div>
+            <div class="small text-muted">${escapar(p.client || '')}</div>
+          </div>
+          <button type="button" class="btn-close ms-auto" aria-label="Quitar FP ${p.folio}"></button>
+        </div>`;
+      card.querySelector('.btn-close').addEventListener('click', () => {
+        elegidos.delete(p.id);
+        pintar();
+        entrada.focus();
+      });
+      tarjetas.appendChild(card);
+
+      const h = document.createElement('input');
+      h.type = 'hidden';
+      h.name = 'project_ids';
+      h.value = p.id;
+      ocultos.appendChild(h);
+    });
+  };
+
+  const escapar = (t) => String(t).replace(/[&<>"']/g, c => (
+    {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+
+  const agregar = () => {
+    const folio = entrada.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+    if (!folio) { entrada.value = ''; mostrarError(''); return; }
+    const encontrados = porFolio[folio];
+    if (!encontrados) {
+      mostrarError(`No hay un proyecto activo con FP ${folio}.`);
+      return;
+    }
+    if (encontrados.every(p => elegidos.has(p.id))) {
+      mostrarError(`El FP ${folio} ya está agregado.`);
+      entrada.value = '';
+      return;
+    }
+    encontrados.forEach(p => elegidos.set(p.id, p));
+    entrada.value = '';
+    mostrarError('');
+    pintar();
+  };
+
+  entrada.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === ',') {
+      e.preventDefault();   // Enter no debe enviar el formulario
+      agregar();
+    } else if (e.key === 'Backspace' && !entrada.value && elegidos.size) {
+      // Igual que en los destinatarios: borrar con el campo vacio quita la ultima tarjeta
+      elegidos.delete([...elegidos.keys()].pop());
+      pintar();
+    }
+  });
+  entrada.addEventListener('input', () => mostrarError(''));
+  // Si escribieron un folio y se van del campo sin confirmarlo, se agrega igual
+  entrada.addEventListener('blur', () => { if (entrada.value.trim()) agregar(); });
+
+  const iniciales = {{ seleccionados|tojson }};
+  catalogo.filter(p => iniciales.includes(p.id)).forEach(p => elegidos.set(p.id, p));
+  pintar();
 });
 </script>
 {% endblock %}
