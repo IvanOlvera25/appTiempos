@@ -1,160 +1,268 @@
 {% extends "layout.html" %}
-{% block title %}Mi Panel - Registros Personales - Sistema de Gestión Operativa{% endblock %}
+{% block title %}Mi panel{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-  <!-- Encabezado Principal -->
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
-    <div>
-      <h2 class="fw-bold mb-1">Mis Registros de Tiempo</h2>
-      <p class="text-muted mb-0">Consulta tu historial de tiempos por proyecto y área trabajada — <strong>{{ employee.nompropio }}</strong> (Nº {{ employee.n_empleado }})</p>
-    </div>
-    <div class="d-flex gap-2 align-items-center flex-wrap">
-      <a class="btn btn-outline-primary" href="{{ url_for('main.my_adicionales') }}">
-        <i class="bi bi-calendar2-plus me-1"></i>Mis Adicionales
-      </a>
-      <span class="badge bg-primary fs-6 p-2 px-3">
-        <i class="bi bi-clock-history me-1"></i>Total Horas: {{ total_hours }} h
-      </span>
-      {% if active_count > 0 %}
-      <span class="badge bg-warning text-dark fs-6 p-2 px-3">
-        <i class="bi bi-play-circle me-1"></i>{{ active_count }} Activo(s)
-      </span>
-      {% endif %}
-    </div>
+<style>
+  .mp-filtros .form-select, .mp-filtros .form-control { min-width: 0; }
+  .mp-filtros .mp-proyecto { flex: 1 1 260px; }
+  .mp-filtros .mp-proyecto .form-select { width: 100%; }
+  .mp-filtros .mp-area { flex: 0 1 190px; }
+  .mp-filtros .input-group { width: auto; flex: 0 1 200px; flex-wrap: nowrap; }
+  .mp-filtros .input-group .form-control { min-width: 0; }
+  .mp-item .t { font-weight: 600; font-size: .86rem; color: var(--ad-text); overflow-wrap: anywhere; }
+  .mp-item .s { font-size: .76rem; color: var(--ad-text-3); }
+  .mp-item .mp-dur { font-variant-numeric: tabular-nums; }
+  /* Tabla: en tableta la fecha y el nombre del proyecto pueden partirse en dos renglones */
+  .mp-tabla .mp-proy { max-width: 300px; }
+  .mp-tabla .mp-fecha { white-space: nowrap; }
+  /* Filtros: en celular se pliegan detrás de un botón para que el historial quede a la vista */
+  .mp-filtros-btn { display: flex; align-items: center; gap: .5rem; justify-content: flex-start; }
+  .mp-filtros-btn .bi-chevron-down { transition: transform .2s; }
+  .mp-filtros-btn:not(.collapsed) .bi-chevron-down { transform: rotate(180deg); }
+  @media (min-width: 768px) {
+    .mp-filtros-wrap.collapse:not(.show) { display: block; }
+  }
+  @media (max-width: 1199.98px) {
+    .mp-tabla .mp-proy { max-width: 230px; min-width: 170px; }
+    .mp-tabla .mp-proy .text-truncate { white-space: normal; }
+    .mp-tabla .mp-fecha { white-space: normal; min-width: 88px; }
+  }
+  @media (max-width: 767.98px) {
+    .mp-filtros { margin-bottom: 1rem; }
+  }
+  @media (max-width: 575.98px) {
+    .mp-kpis .stat { padding: .75rem .85rem; }
+    .mp-kpis .stat-value { font-size: 1.35rem; }
+    .mp-kpis .stat-icon { display: none; }
+    .mp-kpis .stat-icon ~ .stat-label { padding-right: 0; }
+    .mp-filtros > *, .mp-filtros .mp-area, .mp-filtros .input-group { flex: 1 1 100%; }
+    .mp-filtros .input-group-text { min-width: 4.4rem; }
+  }
+</style>
+
+{% set hay_filtros = filters.project_id or filters.department or filters.date_from or filters.date_to %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-person-circle"></i> Mi panel</div>
+    <h1>Mis registros de tiempo</h1>
+    <p>{{ employee.nompropio }} · Nº {{ employee.n_empleado }}. Consulta tu historial por proyecto, área y fecha.</p>
   </div>
-
-  <!-- Tarjeta de Filtros -->
-  <div class="card shadow-sm mb-4 border-0">
-    <div class="card-body">
-      <form method="get" class="row g-3 align-items-end" id="filterForm">
-        <div class="col-12 col-md-3">
-          <label class="form-label fw-semibold small">Proyecto</label>
-          <select name="project_id" class="form-select" id="projectFilterSelect">
-            <option value="">Todos los Proyectos</option>
-            {% for project in employee_projects %}
-            <option value="{{ project.id }}" {% if filters.project_id == project.id %}selected{% endif %}>
-              {% if project.folio %}FP {{ project.folio }} - {% endif %}{{ project.name }}
-            </option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-12 col-md-3">
-          <label class="form-label fw-semibold small">Área / Departamento</label>
-          <select name="department" class="form-select">
-            <option value="">Todas las Áreas</option>
-            {% for dept in employee_departments %}
-            <option value="{{ dept }}" {% if filters.department == dept %}selected{% endif %}>{{ dept }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-6 col-md-2">
-          <label class="form-label fw-semibold small">Desde fecha</label>
-          <input type="date" name="date_from" class="form-control" value="{{ filters.date_from }}">
-        </div>
-        <div class="col-6 col-md-2">
-          <label class="form-label fw-semibold small">Hasta fecha</label>
-          <input type="date" name="date_to" class="form-control" value="{{ filters.date_to }}">
-        </div>
-        <div class="col-12 col-md-2 d-flex gap-2">
-          <button class="btn btn-primary flex-fill" type="submit">
-            <i class="bi bi-funnel me-1"></i>Filtrar
-          </button>
-          <a class="btn btn-outline-secondary" href="{{ url_for('main.my_dashboard') }}">Limpiar</a>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Tabla de Registros -->
-  <div class="card shadow-sm border-0">
-    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
-      <h6 class="mb-0 fw-semibold">Historial Personal de Tiempos</h6>
-      <span class="badge bg-info px-3 py-2" style="font-size: 0.85rem;">{{ records.total }} registros encontrados</span>
-    </div>
-    <div class="card-body p-0">
-      {% if records.items %}
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th class="ps-4">Proyecto</th>
-              <th>Área / Depto</th>
-              <th>Actividad</th>
-              <th>Inicio</th>
-              <th>Fin</th>
-              <th class="pe-4">Duración</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for record in records.items %}
-            <tr>
-              <td class="ps-4">
-                <div class="fw-bold text-dark">{{ record.project.name if record.project else '—' }}</div>
-                <small class="text-muted">{% if record.project and record.project.folio %}FP {{ record.project.folio }}{% else %}Proyecto Especial{% endif %}</small>
-              </td>
-              <td>
-                <span class="badge bg-secondary-subtle text-dark border px-2 py-1">
-                  <i class="bi bi-building me-1"></i>{{ record.departamento or employee.departamento or 'General' }}
-                </span>
-              </td>
-              <td>{{ record.actividad or 'Sin especificar' }}</td>
-              <td>
-                {% if record.start_time_mx %}
-                  {{ record.start_time_mx.strftime('%d/%m/%Y %H:%M') }}
-                {% else %}
-                  {{ record.start_time.strftime('%d/%m/%Y %H:%M') }}
-                {% endif %}
-              </td>
-              <td>
-                {% if record.end_time_mx %}
-                  {{ record.end_time_mx.strftime('%d/%m/%Y %H:%M') }}
-                {% elif record.end_time %}
-                  {{ record.end_time.strftime('%d/%m/%Y %H:%M') }}
-                {% else %}
-                  <span class="badge bg-warning text-dark"><i class="bi bi-record-fill text-danger me-1"></i>Activo</span>
-                {% endif %}
-              </td>
-              <td class="pe-4">
-                {% if record.end_time %}
-                  {% set duration = (record.end_time - record.start_time).total_seconds() / 3600 %}
-                  <strong class="text-primary">{{ "%.2f"|format(duration) }} h</strong>
-                {% else %}
-                  <span class="text-muted">—</span>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <div class="text-center py-5 text-muted">
-        <i class="bi bi-calendar-x" style="font-size:3rem;"></i>
-        <p class="mt-3 mb-0 fs-5">No tienes registros almacenados con los filtros seleccionados.</p>
-      </div>
-      {% endif %}
-    </div>
-
-    <!-- Paginación -->
-    {% if records.pages > 1 %}
-    <div class="card-footer bg-white border-0 py-3">
-      <nav aria-label="Paginación de registros personales">
-        <ul class="pagination justify-content-end mb-0">
-          {% for page_num in records.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-            {% if page_num %}
-            <li class="page-item {{ 'active' if page_num == records.page }}">
-              <a class="page-link" href="{{ url_for('main.my_dashboard', page=page_num, project_id=filters.project_id, department=filters.department, date_from=filters.date_from, date_to=filters.date_to) }}">{{ page_num }}</a>
-            </li>
-            {% else %}
-            <li class="page-item disabled"><span class="page-link">…</span></li>
-            {% endif %}
-          {% endfor %}
-        </ul>
-      </nav>
-    </div>
-    {% endif %}
+  <div class="actions">
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.my_adicionales') }}">
+      <i class="bi bi-calendar2-plus"></i> Mis adicionales
+    </a>
   </div>
 </div>
 
+<!-- Indicadores -->
+<div class="row g-2 g-md-3 mb-3 mp-kpis">
+  <div class="col-6 col-md-3">
+    <div class="stat">
+      <span class="stat-icon brand"><i class="bi bi-clock-history"></i></span>
+      <div class="stat-label">Horas</div>
+      <div class="stat-value">{{ "{:,.1f}".format(total_hours) }}<small>h</small></div>
+      <div class="stat-foot">{{ 'con los filtros' if hay_filtros else 'en todo tu historial' }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-journal-text"></i></span>
+      <div class="stat-label">Registros</div>
+      <div class="stat-value">{{ "{:,}".format(records.total) }}</div>
+      <div class="stat-foot">{{ 'con los filtros' if hay_filtros else 'en total' }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-play-circle"></i></span>
+      <div class="stat-label">En curso</div>
+      <div class="stat-value">{{ active_count }}</div>
+      <div class="stat-foot">{% if active_count > 0 %}<span class="dot live"></span>registro{{ 's' if active_count != 1 }} abierto{{ 's' if active_count != 1 }}{% else %}ninguno abierto{% endif %}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-kanban"></i></span>
+      <div class="stat-label">Proyectos</div>
+      <div class="stat-value">{{ employee_projects|length }}</div>
+      <div class="stat-foot">en los que has trabajado</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filtros (en celular se pliegan; abiertos si hay alguno aplicado) -->
+{% set n_filtros = [filters.project_id, filters.department, filters.date_from, filters.date_to]|select|list|length %}
+<button type="button" class="btn btn-outline-secondary w-100 d-md-none mb-3 mp-filtros-btn {{ '' if hay_filtros else 'collapsed' }}"
+        data-bs-toggle="collapse" data-bs-target="#mpFiltros" aria-expanded="{{ 'true' if hay_filtros else 'false' }}" aria-controls="mpFiltros">
+  <i class="bi bi-funnel"></i> Filtrar historial
+  {% if n_filtros %}<span class="badge bg-primary">{{ n_filtros }} activo{{ 's' if n_filtros != 1 }}</span>{% endif %}
+  <i class="bi bi-chevron-down ms-auto"></i>
+</button>
+<div class="collapse mp-filtros-wrap {{ 'show' if hay_filtros }}" id="mpFiltros">
+<form method="get" class="filter-bar mp-filtros" id="filterForm">
+  <div class="mp-proyecto">
+    <select name="project_id" class="form-select form-select-sm" id="projectFilterSelect" aria-label="Proyecto">
+      <option value="">Todos los proyectos</option>
+      {% for project in employee_projects %}
+      <option value="{{ project.id }}" {% if filters.project_id == project.id %}selected{% endif %}>
+        {% if project.folio %}FP {{ project.folio }} · {% endif %}{{ project.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <select name="department" class="form-select form-select-sm mp-area" aria-label="Área">
+    <option value="">Todas las áreas</option>
+    {% for dept in employee_departments %}
+    <option value="{{ dept }}" {% if filters.department == dept %}selected{% endif %}>{{ dept }}</option>
+    {% endfor %}
+  </select>
+  <div class="input-group input-group-sm">
+    <span class="input-group-text">Desde</span>
+    <input type="date" name="date_from" class="form-control" value="{{ filters.date_from }}" aria-label="Desde fecha">
+  </div>
+  <div class="input-group input-group-sm">
+    <span class="input-group-text">Hasta</span>
+    <input type="date" name="date_to" class="form-control" value="{{ filters.date_to }}" aria-label="Hasta fecha">
+  </div>
+  <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-funnel"></i> Filtrar</button>
+  {% if hay_filtros %}
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.my_dashboard') }}"><i class="bi bi-x-lg"></i> Limpiar</a>
+  {% endif %}
+</form>
+</div>
+
+<!-- Historial -->
+<div class="card">
+  <div class="card-header">
+    <i class="bi bi-clock-history"></i>Historial
+    <span class="badge bg-secondary">{{ "{:,}".format(records.total) }}</span>
+    {% if records.pages > 1 %}
+    <span class="small text-muted fw-normal ms-auto">Página {{ records.page }} de {{ records.pages }}</span>
+    {% endif %}
+  </div>
+  {% if records.items %}
+  <!-- Escritorio: tabla -->
+  <div class="table-responsive d-none d-md-block">
+    <table class="table table-hover align-middle mp-tabla">
+      <thead>
+        <tr>
+          <th>Proyecto</th>
+          <th class="d-none d-xl-table-cell">Área</th>
+          <th>Actividad</th>
+          <th>Inicio</th>
+          <th>Fin</th>
+          <th class="text-end">Duración</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in records.items %}
+        <tr>
+          <td class="mp-proy">
+            <div class="fw-semibold text-truncate" title="{{ record.project.name if record.project else '' }}">{{ record.project.name if record.project else '—' }}</div>
+            <div class="small text-muted">{% if record.project and record.project.folio %}FP {{ record.project.folio }}{% else %}Proyecto especial{% endif %}<span class="d-xl-none"> · {{ record.departamento or employee.departamento or 'General' }}</span></div>
+          </td>
+          <td class="d-none d-xl-table-cell"><span class="badge bg-secondary">{{ record.departamento or employee.departamento or 'General' }}</span></td>
+          <td class="small text-muted" style="min-width: 150px;">{{ record.actividad or 'Sin especificar' }}</td>
+          <td class="small mp-fecha">
+            {% if record.start_time_mx %}
+              {{ record.start_time_mx.strftime('%d/%m/%Y %H:%M') }}
+            {% else %}
+              {{ record.start_time.strftime('%d/%m/%Y %H:%M') }}
+            {% endif %}
+          </td>
+          <td class="small mp-fecha">
+            {% if record.end_time_mx %}
+              {{ record.end_time_mx.strftime('%d/%m/%Y %H:%M') }}
+            {% elif record.end_time %}
+              {{ record.end_time.strftime('%d/%m/%Y %H:%M') }}
+            {% else %}
+              <span class="badge bg-success"><span class="dot"></span>En curso</span>
+            {% endif %}
+          </td>
+          <td class="text-end text-nowrap">
+            {% if record.end_time %}
+              {% set duration = (record.end_time - record.start_time).total_seconds() / 3600 %}
+              <span class="fw-semibold">{{ "%.2f"|format(duration) }} h</span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Celular: lista -->
+  <div class="list-group list-group-flush d-md-none">
+    {% for record in records.items %}
+    <div class="list-group-item mp-item">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <div style="min-width: 0;">
+          <div class="t">{{ record.project.name if record.project else '—' }}</div>
+          <div class="s">{% if record.project and record.project.folio %}FP {{ record.project.folio }}{% else %}Proyecto especial{% endif %} · {{ record.departamento or employee.departamento or 'General' }}</div>
+        </div>
+        <div class="text-end flex-shrink-0">
+          {% if record.end_time %}
+            {% set duration = (record.end_time - record.start_time).total_seconds() / 3600 %}
+            <span class="fw-semibold small mp-dur">{{ "%.2f"|format(duration) }} h</span>
+          {% else %}
+            <span class="badge bg-success"><span class="dot"></span>En curso</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="s mt-1">{{ record.actividad or 'Sin especificar' }}</div>
+      <div class="s">
+        <i class="bi bi-clock me-1"></i>{{ (record.start_time_mx or record.start_time).strftime('%d/%m/%Y %H:%M') }}
+        {% if record.end_time %} – {{ (record.end_time_mx or record.end_time).strftime('%H:%M') }}{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon"><i class="bi bi-calendar-x"></i></div>
+    {% if hay_filtros %}
+    <h6>Sin registros con estos filtros</h6>
+    <p>Prueba con otras fechas o quita los filtros.</p>
+    {% else %}
+    <h6>Aún no tienes registros</h6>
+    <p>Cuando registres tiempo en un proyecto, aparecerá aquí.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Paginación -->
+  {% if records.pages > 1 %}
+  <div class="card-footer d-flex flex-wrap align-items-center gap-2">
+    <span class="small text-muted">{{ "{:,}".format(records.total) }} registros</span>
+    <nav aria-label="Paginación de registros personales" class="ms-auto">
+      <ul class="pagination pagination-sm flex-wrap mb-0">
+        {% for page_num in records.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+          {% if page_num %}
+          <li class="page-item {{ 'active' if page_num == records.page }}">
+            <a class="page-link" href="{{ url_for('main.my_dashboard', page=page_num, project_id=filters.project_id, department=filters.department, date_from=filters.date_from, date_to=filters.date_to) }}">{{ page_num }}</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Con muchos proyectos, el selector permite escribir para buscar
+  (function () {
+    const sel = document.getElementById('projectFilterSelect');
+    if (sel && sel.options.length > 12 && window.jQuery && $.fn.select2) {
+      $(sel).select2({ theme: 'bootstrap4', width: '100%', placeholder: 'Todos los proyectos', allowClear: true });
+    }
+  })();
+</script>
 {% endblock %}

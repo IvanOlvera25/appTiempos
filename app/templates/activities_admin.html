@@ -1,192 +1,224 @@
 {% extends "layout.html" %}
-{% block title %}Actividades por Área{% endblock %}
+{% block title %}Actividades por área{% endblock %}
 
 {% block content %}
-<div class="container py-4">
+<!-- CSRF para AJAX -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
 
-  <!-- CSRF para AJAX -->
-  <meta name="csrf-token" content="{{ csrf_token() }}">
+<style>
+  .act-acc .accordion-button { gap: .6rem; font-weight: 600; font-size: .9rem; padding: .85rem 1.15rem; }
+  .act-acc .accordion-button:not(.collapsed) { box-shadow: inset 0 -1px 0 var(--ad-border); }
+  .act-acc .accordion-body .table > thead > tr > th:first-child,
+  .act-acc .accordion-body .table > tbody > tr > td:first-child { padding-left: 1.15rem; }
+  .act-acc .grp-meta { font-weight: 400; font-size: .78rem; color: var(--ad-text-3); margin-left: auto; margin-right: .75rem; }
+  /* Celular y tableta vertical: el buscador ocupa su propio renglón */
+  @media (max-width: 767.98px) {
+    .act-buscar { flex: 1 1 100%; margin-left: 0 !important; }
+    .act-buscar .search-field { flex: 1 1 auto; }
+    .act-buscar .search-field .form-control { width: 100% !important; }
+  }
+  /* Celular: cada actividad es una tarjeta con sus botones con texto */
+  @media (max-width: 575.98px) {
+    .act-acc .accordion-button { padding: .9rem .95rem; }
+    .act-acc .tabla-tarjetas > tbody > tr > td.td-acciones { padding-top: .5rem !important; }
+    .act-acc .act-botones { display: flex !important; width: 100%; gap: .4rem !important; }
+    .act-acc .act-botones > .btn { min-height: 42px; }
+    .act-acc .act-botones > .btn:not(.btn-icon) { flex: 1 1 0; }
+    .act-acc .act-botones > .btn-icon { width: 42px; height: 42px; flex: 0 0 42px; }
+    .act-acc .tabla-tarjetas > tbody > tr:hover > * { --bs-table-bg-state: transparent; }
+  }
+  /* Celular y tableta: los botones muestran su texto (la columna ya reserva el espacio) */
+  @media (max-width: 991.98px) {
+    .act-acc .act-botones > .btn > span.d-none { display: inline !important; }
+  }
+</style>
 
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <h1 class="h4 mb-1">Actividades por Área</h1>
-      <p class="text-muted mb-0">
-        Administra el catálogo central de actividades. El grupo
-        <strong>{{ general_label }}</strong> son las que se ofrecen además de las del área
-        cuando el registro es sobre el FP 0.
-      </p>
-    </div>
-    <div class="d-flex gap-2">
-      <a href="{{ url_for('main.areas_admin') }}" class="btn btn-outline-primary">
-        <i class="bi bi-diagram-3"></i> Áreas
-      </a>
-      <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left"></i> Volver al dashboard
-      </a>
-    </div>
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-list-task"></i> Configuración</div>
+    <h1>Actividades por área</h1>
+    <p>
+      Catálogo central de actividades. El grupo <strong>{{ general_label }}</strong> son las que se ofrecen además
+      de las del área cuando el registro es sobre el FP 0.
+    </p>
   </div>
+  <div class="actions">
+    <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Volver al dashboard
+    </a>
+    <a href="{{ url_for('main.areas_admin') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-diagram-3"></i> Áreas
+    </a>
+  </div>
+</div>
 
-  <!-- Formulario: Nueva actividad -->
-  <div class="card mb-4">
-    <div class="card-header d-flex align-items-center">
-      <i class="bi bi-plus-circle me-2"></i> Agregar nueva actividad
-    </div>
-    <div class="card-body">
-      <form method="POST" class="row g-3">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+<!-- Formulario: Nueva actividad -->
+<div class="card mb-4">
+  <div class="card-header"><i class="bi bi-plus-circle"></i>Agregar actividad</div>
+  <div class="card-body">
+    <form method="POST" class="row g-3 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
-        <div class="col-md-4">
-          <label class="form-label">Área</label>
-          <select name="department" class="form-select" required>
-            <option value="" selected disabled>Selecciona un área…</option>
-            {% for value, label in department_options %}
-            <option value="{{ value }}">{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="col-md-6">
-          <label class="form-label">Nombre de la actividad</label>
-          <input type="text" name="name" class="form-control" placeholder="Ej. Corte / Ensamble / Ripeo…" maxlength="200" required>
-        </div>
-
-        <div class="col-md-2 d-flex align-items-end">
-          <button type="submit" class="btn btn-primary w-100">
-            <i class="bi bi-save"></i> Guardar
-          </button>
-        </div>
-      </form>
-      <div class="form-text mt-2">
-        Los nombres de actividad son únicos dentro de cada área.
+      <div class="col-md-4">
+        <label class="form-label" for="nuevaArea">Área</label>
+        <select name="department" id="nuevaArea" class="form-select" required>
+          <option value="" selected disabled>Selecciona un área…</option>
+          {% for value, label in department_options %}
+          <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
       </div>
+
+      <div class="col-md-6">
+        <label class="form-label" for="nuevaActividad">Nombre de la actividad</label>
+        <input type="text" name="name" id="nuevaActividad" class="form-control" placeholder="Ej. Corte / Ensamble / Ripeo…" maxlength="200" required>
+      </div>
+
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">
+          <i class="bi bi-plus-lg"></i> Agregar
+        </button>
+      </div>
+    </form>
+    <div class="form-text mt-2">Los nombres de actividad son únicos dentro de cada área. La nueva actividad se agrega al final del grupo.</div>
+  </div>
+</div>
+
+<!-- Listado agrupado por departamento -->
+{% set grouped = activities|groupby('department') %}
+<div class="card">
+  <div class="card-header">
+    <i class="bi bi-list-task"></i>Actividades registradas
+    <span class="badge bg-secondary">{{ activities|length }}</span>
+    {% if activities and activities|length > 0 %}
+    <div class="ms-auto d-flex align-items-center gap-2 act-buscar">
+      <div class="search-field"><i class="bi bi-search"></i>
+        <input type="search" id="buscarActividad" class="form-control form-control-sm" placeholder="Buscar actividad o área…" style="width: 240px;" aria-label="Buscar actividad o área">
+      </div>
+      <span class="small text-muted d-none" id="conteoActividad"></span>
     </div>
+    {% endif %}
   </div>
 
-  <!-- Listado agrupado por departamento -->
-  <div class="card">
-    <div class="card-header d-flex align-items-center">
-      <i class="bi bi-list-task me-2"></i> Actividades registradas
-    </div>
-    <div class="card-body p-0">
-      {% set grouped = activities|groupby('department') %}
+  {% if activities and activities|length > 0 %}
+    <div class="accordion accordion-flush act-acc" id="accActivities">
+      {% for dept, items in grouped %}
+      {% set inactivas = items|rejectattr('is_active')|list|length %}
+      <div class="accordion-item" data-area="{% if dept == general_key %}{{ general_label }}{% else %}{{ dept }}{% endif %}">
+        <h2 class="accordion-header" id="h-{{ loop.index }}">
+          <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#c-{{ loop.index }}"
+                  aria-expanded="{{ 'true' if loop.first else 'false' }}"
+                  aria-controls="c-{{ loop.index }}">
+            {% if dept == general_key %}{{ general_label }}{% else %}{{ dept }}{% endif %}
+            <span class="badge bg-secondary">{{ items|length }}</span>
+            {% if inactivas %}<span class="grp-meta">{{ inactivas }} {{ 'inactiva' if inactivas == 1 else 'inactivas' }}</span>{% endif %}
+          </button>
+        </h2>
+        <div id="c-{{ loop.index }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
+             aria-labelledby="h-{{ loop.index }}">
+          <div class="accordion-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0 align-middle" data-tarjetas>
+                <thead>
+                  <tr>
+                    <th style="width:80px;" data-movil-oculto>ID</th>
+                    <th data-titulo>Actividad</th>
+                    <th style="width:120px;">Estado</th>
+                    <th style="width:100px;">Orden</th>
+                    <th style="width:280px;" class="text-end">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for a in items|sort(attribute='sort_order') %}
+                  <tr data-activity-id="{{ a.id }}">
+                    <td class="text-muted small">{{ a.id }}</td>
+                    <td class="fw-semibold">{{ a.name }}</td>
+                    <td>
+                      {% if a.is_active %}
+                        <span class="badge bg-success">Activa</span>
+                      {% else %}
+                        <span class="badge bg-secondary">Inactiva</span>
+                      {% endif %}
+                    </td>
+                    <td class="text-muted">{{ a.sort_order or 0 }}</td>
+                    <td class="text-end text-nowrap td-acciones" data-label="">
+                      <div class="d-inline-flex gap-1 act-botones">
+                        <!-- Editar -->
+                        <button
+                          class="btn btn-sm btn-outline-secondary btn-edit"
+                          data-id="{{ a.id }}"
+                          data-name="{{ a.name|e }}"
+                          data-department="{{ a.department|e }}"
+                          data-active="{{ 1 if a.is_active else 0 }}"
+                          data-sort="{{ a.sort_order or 0 }}"
+                          title="Editar">
+                          <i class="bi bi-pencil"></i>
+                          <span class="d-none d-lg-inline">Editar</span>
+                        </button>
 
-      {% if activities and activities|length > 0 %}
-        <div class="accordion" id="accActivities">
-          {% for dept, items in grouped %}
-          <div class="accordion-item">
-            <h2 class="accordion-header" id="h-{{ loop.index }}">
-              <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button"
-                      data-bs-toggle="collapse"
-                      data-bs-target="#c-{{ loop.index }}"
-                      aria-expanded="{{ 'true' if loop.first else 'false' }}"
-                      aria-controls="c-{{ loop.index }}">
-                <span class="badge bg-secondary me-2">{{ items|length }}</span>
-                {% if dept == general_key %}{{ general_label }}{% else %}{{ dept }}{% endif %}
-              </button>
-            </h2>
-            <div id="c-{{ loop.index }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
-                 aria-labelledby="h-{{ loop.index }}" data-bs-parent="#accActivities">
-              <div class="accordion-body p-0">
-                <div class="table-responsive">
-                  <table class="table table-striped mb-0 align-middle">
-                    <thead class="table-light">
-                      <tr>
-                        <th style="width:80px;">ID</th>
-                        <th>Actividad</th>
-                        <th style="width:120px;">Activo</th>
-                        <th style="width:140px;">Orden</th>
-                        <th style="width:260px;" class="text-end">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {% for a in items|sort(attribute='sort_order') %}
-                      <tr data-activity-id="{{ a.id }}">
-                        <td class="text-muted">{{ a.id }}</td>
-                        <td>{{ a.name }}</td>
-                        <td>
+                        <!-- Activar/Desactivar -->
+                        <button
+                          class="btn btn-sm {% if a.is_active %}btn-outline-secondary{% else %}btn-outline-success{% endif %} btn-toggle"
+                          data-id="{{ a.id }}"
+                          data-active="{{ 1 if a.is_active else 0 }}"
+                          title="{% if a.is_active %}Desactivar{% else %}Activar{% endif %}">
                           {% if a.is_active %}
-                            <span class="badge bg-success">Sí</span>
+                            <i class="bi bi-pause-circle"></i>
+                            <span class="d-none d-lg-inline">Desactivar</span>
                           {% else %}
-                            <span class="badge bg-secondary">No</span>
+                            <i class="bi bi-play-circle"></i>
+                            <span class="d-none d-lg-inline">Activar</span>
                           {% endif %}
-                        </td>
-                        <td>
-                          <span class="text-muted">{{ a.sort_order or 0 }}</span>
-                        </td>
-                        <td class="text-end">
-                          <div class="btn-group">
-                            <!-- Editar -->
-                            <button
-                              class="btn btn-sm btn-outline-primary btn-edit"
-                              data-id="{{ a.id }}"
-                              data-name="{{ a.name|e }}"
-                              data-department="{{ a.department|e }}"
-                              data-active="{{ 1 if a.is_active else 0 }}"
-                              data-sort="{{ a.sort_order or 0 }}"
-                              title="Editar">
-                              <i class="bi bi-pencil-square"></i>
-                              <span class="d-none d-lg-inline">Editar</span>
-                            </button>
+                        </button>
 
-                            <!-- Activar/Desactivar -->
-                            <button
-                              class="btn btn-sm {% if a.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %} btn-toggle"
-                              data-id="{{ a.id }}"
-                              data-active="{{ 1 if a.is_active else 0 }}"
-                              title="{% if a.is_active %}Desactivar{% else %}Activar{% endif %}">
-                              {% if a.is_active %}
-                                <i class="bi bi-pause-circle"></i>
-                                <span class="d-none d-lg-inline">Desactivar</span>
-                              {% else %}
-                                <i class="bi bi-play-circle"></i>
-                                <span class="d-none d-lg-inline">Activar</span>
-                              {% endif %}
-                            </button>
-
-                            <!-- Eliminar -->
-                            <button
-                              class="btn btn-sm btn-outline-danger btn-delete"
-                              data-id="{{ a.id }}"
-                              data-name="{{ a.name|e }}"
-                              title="Eliminar">
-                              <i class="bi bi-trash3"></i>
-                              <span class="d-none d-lg-inline">Eliminar</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                      {% endfor %}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                        <!-- Eliminar -->
+                        <button
+                          class="btn btn-sm btn-outline-danger btn-icon btn-delete"
+                          data-id="{{ a.id }}"
+                          data-name="{{ a.name|e }}"
+                          title="Eliminar" aria-label="Eliminar">
+                          <i class="bi bi-trash3"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
             </div>
           </div>
-          {% endfor %}
         </div>
-      {% else %}
-        <div class="p-4 text-center text-muted">
-          <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-          No hay actividades registradas aún.
-        </div>
-      {% endif %}
+      </div>
+      {% endfor %}
     </div>
-  </div>
-
+    <div class="empty d-none" id="sinActividades">
+      <div class="empty-icon"><i class="bi bi-search"></i></div>
+      <h6>Ninguna actividad coincide</h6>
+      <p>Prueba con otra palabra o con el nombre del área.</p>
+    </div>
+  {% else %}
+    <div class="empty">
+      <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+      <h6>No hay actividades registradas aún</h6>
+      <p>Agrega la primera con el formulario de arriba.</p>
+    </div>
+  {% endif %}
 </div>
 
 <!-- Modal Editar -->
 <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-dialog-centered">
     <form id="editForm" class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-pencil-square me-1"></i> Editar actividad</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title">Editar actividad</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="edit_id">
         <div class="mb-3">
-          <label class="form-label">Área</label>
+          <label class="form-label" for="edit_department">Área</label>
           <select id="edit_department" class="form-select" required>
             {% for value, label in department_options %}
             <option value="{{ value }}">{{ label }}</option>
@@ -194,28 +226,28 @@
           </select>
         </div>
         <div class="mb-3">
-          <label class="form-label">Nombre</label>
+          <label class="form-label" for="edit_name">Nombre</label>
           <input type="text" id="edit_name" class="form-control" maxlength="200" required>
         </div>
         <div class="row g-3">
           <div class="col-md-6">
-            <label class="form-label">Activo</label>
+            <label class="form-label" for="edit_active">Activa</label>
             <select id="edit_active" class="form-select">
               <option value="1">Sí</option>
               <option value="0">No</option>
             </select>
           </div>
           <div class="col-md-6">
-            <label class="form-label">Orden</label>
+            <label class="form-label" for="edit_sort">Orden</label>
             <input type="number" id="edit_sort" class="form-control" value="0" min="0" step="1">
           </div>
         </div>
         <div class="form-text mt-2">El nombre debe ser único dentro de la misma área.</div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
         <button class="btn btn-primary" type="submit">
-          <i class="bi bi-save"></i> Guardar cambios
+          <i class="bi bi-check-lg"></i> Guardar cambios
         </button>
       </div>
     </form>
@@ -224,17 +256,17 @@
 
 <!-- Modal Eliminar -->
 <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-1"></i> Confirmar eliminación</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-danger me-1"></i> Eliminar actividad</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <p class="mb-0">¿Eliminar la actividad <strong id="del_name"></strong> (ID <span id="del_id"></span>)? Esta acción no se puede deshacer.</p>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button class="btn btn-danger" id="confirmDeleteBtn">
           <i class="bi bi-trash3"></i> Eliminar
         </button>
@@ -242,13 +274,9 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
-<style>
-  .accordion-button { font-weight: 600; }
-  .btn-group .btn { border-radius: .375rem !important; }
-  .btn-group .btn i { font-size: .9rem; }
-</style>
-
+{% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   // ---------- CSRF (token fijo desde servidor) ----------
@@ -260,6 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const DELETE_BASE = "{{ url_for('main.delete_activity', activity_id=0) }}"; // /activities/0/delete
   // Reemplaza SOLO el segmento /0/ por /{id}/
   const buildUrl = (base, id) => base.replace(/\/0(\/|$)/, `/${id}$1`);
+  const aviso = (msg) => AD17.toast(msg, 'danger');
 
   // ---------- fetch JSON robusto ----------
   async function fetchJSON(url, options = {}) {
@@ -287,15 +316,54 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!ct.includes('application/json')) {
       const txt = await r.text().catch(() => '');
       console.error('Respuesta no JSON:', txt.slice(0, 800));
-      alert('Error inesperado del servidor (respuesta no JSON). Revisa logs.');
+      aviso('Error inesperado del servidor (respuesta no JSON). Revisa logs.');
       return null;
     }
     const data = await r.json().catch(() => null);
     if (!data) {
-      alert('No se pudo interpretar la respuesta del servidor.');
+      aviso('No se pudo interpretar la respuesta del servidor.');
       return null;
     }
     return { ok: r.ok, status: r.status, data };
+  }
+
+  // ---------- Buscador (filtra en todas las áreas) ----------
+  const buscar = document.getElementById('buscarActividad');
+  if (buscar) {
+    const grupos = Array.from(document.querySelectorAll('#accActivities .accordion-item'));
+    const total = document.querySelectorAll('#accActivities tbody tr').length;
+    const conteo = document.getElementById('conteoActividad');
+    const vacio = document.getElementById('sinActividades');
+    const colapso = (g) => bootstrap.Collapse.getOrCreateInstance(g.querySelector('.accordion-collapse'), { toggle: false });
+    let abiertosAntes = null;   // qué grupos estaban abiertos antes de buscar
+
+    buscar.addEventListener('input', () => {
+      const terminos = AD17.normalizar(buscar.value.trim()).split(/\s+/).filter(Boolean);
+      if (terminos.length && !abiertosAntes) {
+        abiertosAntes = grupos.filter((g) => g.querySelector('.accordion-collapse').classList.contains('show'));
+      }
+      let visibles = 0;
+      grupos.forEach((g) => {
+        const area = AD17.normalizar(g.dataset.area);
+        let n = 0;
+        g.querySelectorAll('tbody tr').forEach((tr) => {
+          const t = area + ' ' + AD17.normalizar(tr.textContent);
+          const ok = terminos.every((w) => t.includes(w));
+          tr.classList.toggle('row-hidden', !ok);
+          if (ok) n++;
+        });
+        visibles += n;
+        g.classList.toggle('d-none', terminos.length > 0 && n === 0);
+        if (terminos.length) { if (n) colapso(g).show(); }
+      });
+      if (!terminos.length && abiertosAntes) {
+        grupos.forEach((g) => (abiertosAntes.includes(g) ? colapso(g).show() : colapso(g).hide()));
+        abiertosAntes = null;
+      }
+      conteo.classList.toggle('d-none', !terminos.length);
+      conteo.textContent = `${visibles} de ${total}`;
+      vacio.classList.toggle('d-none', visibles > 0);
+    });
   }
 
   // ---------- Modal editar ----------
@@ -329,10 +397,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const res = await fetchJSON(buildUrl(TOGGLE_BASE, id), { method: 'POST', body: JSON.stringify({}) });
         if (!res) return;
         if (res.data?.success) location.reload();
-        else alert(res.data?.message || 'No se pudo cambiar el estado.');
+        else aviso(res.data?.message || 'No se pudo cambiar el estado.');
       } catch (err) {
         console.error(err);
-        alert('Error de red al cambiar estado.');
+        aviso('Error de red al cambiar estado.');
       } finally {
         toggleBtn.disabled = false;
       }
@@ -344,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const name = delBtn.dataset.name || '';
       document.getElementById('del_id').textContent = id;
       document.getElementById('del_name').textContent = name;
-      const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+      const deleteModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteModal'));
       deleteModal.show();
       return;
     }
@@ -371,10 +439,10 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       if (!res) return;
       if (res.data?.success) location.reload();
-      else alert(res.data?.message || 'No se pudieron guardar los cambios.');
+      else aviso(res.data?.message || 'No se pudieron guardar los cambios.');
     } catch (err) {
       console.error(err);
-      alert('Error de red al guardar cambios.');
+      aviso('Error de red al guardar cambios.');
     } finally {
       btn.disabled = false;
     }
@@ -389,10 +457,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetchJSON(buildUrl(DELETE_BASE, id), { method: 'POST', body: JSON.stringify({}) });
       if (!res) return;
       if (res.data?.success) location.reload();
-      else alert(res.data?.message || 'No se pudo eliminar la actividad.');
+      else aviso(res.data?.message || 'No se pudo eliminar la actividad.');
     } catch (err) {
       console.error(err);
-      alert('Error de red al eliminar.');
+      aviso('Error de red al eliminar.');
     } finally {
       btn.disabled = false;
     }

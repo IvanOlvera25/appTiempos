@@ -2,54 +2,95 @@
 {% block title %}Clasificaciones de incidencia{% endblock %}
 
 {% block content %}
-<div class="container py-4" style="max-width: 800px;">
+{% set max_usos = (usos.values()|list|max) if usos else 0 %}
 
-  <div class="d-flex justify-content-between align-items-center mb-4">
+<style>
+  /* Celular: nombre y estado en una línea; uso y acción en la siguiente */
+  @media (max-width: 575.98px) {
+    .clas-tabla.tabla-tarjetas > tbody > tr {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: .75rem; row-gap: .45rem; align-items: center;
+    }
+    .clas-tabla.tabla-tarjetas > tbody > tr > td { padding: 0 !important; min-height: 0; }
+    .clas-tabla.tabla-tarjetas > tbody > tr > td.td-titulo { grid-column: 1; grid-row: 1; }
+    .clas-tabla.tabla-tarjetas > tbody > tr > td.clas-estado { grid-column: 2; grid-row: 1; }
+    .clas-tabla.tabla-tarjetas > tbody > tr > td.clas-usos { grid-column: 1; grid-row: 2; display: flex; align-items: center; gap: .6rem; text-align: left !important; }
+    .clas-tabla.tabla-tarjetas > tbody > tr > td.clas-usos::before { position: static; width: auto; flex: 0 0 auto; }
+    .clas-tabla.tabla-tarjetas > tbody > tr > td.clas-usos .bar-cell { flex: 1 1 auto; }
+    .clas-tabla.tabla-tarjetas > tbody > tr > td.clas-accion { grid-column: 2; grid-row: 2; }
+    .clas-tabla.tabla-tarjetas > tbody > tr > td.clas-estado::before,
+    .clas-tabla.tabla-tarjetas > tbody > tr > td.clas-accion::before { display: none; }
+    .clas-tabla.tabla-tarjetas > tbody > tr > td.td-span { grid-column: 1 / -1; }
+    .clas-tabla.tabla-tarjetas > tbody > tr.row-hidden { display: none; }
+    .clas-tabla.tabla-tarjetas > tbody > tr > td .btn { min-height: 40px; }
+  }
+</style>
+
+<div style="max-width: 880px;">
+  <div class="page-head">
     <div>
-      <h1 class="h4 mb-1">Clasificaciones de incidencia</h1>
-      <p class="text-muted mb-0">Catálogo que se ofrece al levantar un informe o armar una incidencia.</p>
+      <div class="eyebrow"><i class="bi bi-tags"></i> Incidencias</div>
+      <h1>Clasificaciones de incidencia</h1>
+      <p>Catálogo que se ofrece al levantar un informe o armar una incidencia.</p>
     </div>
-    <a href="{{ url_for('incidencias.lista') }}" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left"></i> Volver
-    </a>
+    <div class="actions">
+      <a href="{{ url_for('incidencias.lista') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+      </a>
+    </div>
   </div>
 
   <div class="card mb-4">
-    <div class="card-header"><i class="bi bi-plus-circle me-2"></i>Agregar clasificación</div>
+    <div class="card-header"><i class="bi bi-plus-circle"></i>Agregar clasificación</div>
     <div class="card-body">
       <form method="POST" class="row g-2">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="col-md-9">
           <input type="text" name="nombre" class="form-control" maxlength="120" required
-                 placeholder="Ej. Falla de proveedor">
+                 placeholder="Ej. Falla de proveedor" aria-label="Nombre de la clasificación">
         </div>
         <div class="col-md-3">
-          <button class="btn btn-primary w-100"><i class="bi bi-save"></i> Agregar</button>
+          <button class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Agregar</button>
         </div>
       </form>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-body p-0">
-      <table class="table table-striped mb-0 align-middle">
-        <thead class="table-light">
-          <tr><th>Clasificación</th><th style="width:110px;">Informes</th>
-              <th style="width:100px;">Activa</th><th style="width:140px;" class="text-end">Acción</th></tr>
+    <div class="card-header">
+      <i class="bi bi-tags"></i>Catálogo
+      <span class="badge bg-secondary">{{ clasificaciones|length }}</span>
+    </div>
+    {% if clasificaciones %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle clas-tabla" data-tarjetas{% if clasificaciones|length > 8 %} data-buscable="Buscar clasificación…"{% endif %}>
+        <thead>
+          <tr>
+            <th data-titulo>Clasificación</th>
+            <th style="width:200px;">Informes</th>
+            <th style="width:110px;">Estado</th>
+            <th style="width:140px;" class="text-end" data-nosort>Acción</th>
+          </tr>
         </thead>
         <tbody>
           {% for c in clasificaciones %}
+          {% set n = usos.get(c.id, 0) %}
           <tr>
-            <td>{{ c.nombre }}</td>
-            <td class="text-muted">{{ usos.get(c.id, 0) }}</td>
-            <td>
-              {% if c.activa %}<span class="badge bg-success">Sí</span>
-              {% else %}<span class="badge bg-secondary">No</span>{% endif %}
+            <td class="fw-medium{% if not c.activa %} text-muted{% endif %}">{{ c.nombre }}</td>
+            <td class="clas-usos" data-valor="{{ n }}">
+              <div class="bar-cell">
+                <div class="bar-track"><div class="bar-fill" style="width: {{ ((100 * n / max_usos)|round|int) if max_usos else 0 }}%"></div></div>
+                <span class="v">{{ n }}</span>
+              </div>
             </td>
-            <td class="text-end">
+            <td class="clas-estado">
+              {% if c.activa %}<span class="badge bg-success">Activa</span>
+              {% else %}<span class="badge bg-secondary">Inactiva</span>{% endif %}
+            </td>
+            <td class="text-end clas-accion">
               <form method="POST" action="{{ url_for('incidencias.toggle_clasificacion', clasificacion_id=c.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-sm {{ 'btn-outline-warning' if c.activa else 'btn-outline-success' }}">
+                <button class="btn btn-sm btn-outline-secondary">
+                  <i class="bi {{ 'bi-pause-circle' if c.activa else 'bi-play-circle' }}"></i>
                   {{ 'Desactivar' if c.activa else 'Activar' }}
                 </button>
               </form>
@@ -59,7 +100,15 @@
         </tbody>
       </table>
     </div>
+    {% else %}
+    <div class="empty">
+      <div class="empty-icon"><i class="bi bi-tags"></i></div>
+      <h6>Sin clasificaciones</h6>
+      <p>Agrega la primera con el formulario de arriba.</p>
+    </div>
+    {% endif %}
     <div class="card-footer small text-muted">
+      <i class="bi bi-info-circle me-1"></i>
       Desactivar una clasificación la saca de los formularios nuevos, pero no toca los informes que ya la usan.
     </div>
   </div>

@@ -1,49 +1,97 @@
 {# Tabla de saldos reutilizable. Espera `saldos` (ver vacaciones.saldo_empleado)
    y opcionalmente `titulo_saldos` y `alto_maximo`. #}
 <div class="card mb-4">
-  <div class="card-header d-flex align-items-center">
-    <i class="bi bi-people me-2"></i>{{ titulo_saldos|default('Saldos') }}
-    <span class="badge bg-secondary ms-2">{{ saldos|length }}</span>
+  <div class="card-header">
+    <i class="bi bi-people"></i>{{ titulo_saldos|default('Saldos') }}
+    <span class="badge bg-secondary">{{ saldos|length }}</span>
+    {% if saldos %}
+    <span class="chart-sub ms-auto d-none d-md-inline">{{ saldos|sum(attribute='vacaciones_libres') }} días disponibles en total</span>
+    {% endif %}
   </div>
-  <div class="card-body p-0">
-    <div class="table-responsive"{% if alto_maximo is defined %} style="max-height: {{ alto_maximo }}; overflow-y: auto;"{% endif %}>
-      <table class="table table-striped mb-0 align-middle">
-        <thead class="table-light{% if alto_maximo is defined %} sticky-top{% endif %}">
-          <tr>
-            <th>Empleado</th><th>Área</th><th class="text-center">Antigüedad</th>
-            <th class="text-center">Del periodo</th><th class="text-center">Tomados</th>
-            <th class="text-center">Pendientes</th><th class="text-center">Disponibles</th>
-            <th class="text-center">Medios días</th>
-            <th class="text-center">Próximo periodo</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for s in saldos %}
-          <tr class="{% if s.es_propio %}table-primary{% endif %}">
-            <td>
-              <strong>{{ s.nombre }}</strong>
-              {% if s.es_propio %}<span class="badge bg-primary ms-1">Tú</span>{% endif %}
-            </td>
-            <td class="small text-muted">{{ s.area }}</td>
-            <td class="text-center">{{ s.antiguedad }}</td>
-            <td class="text-center">{{ s.num_vacaciones }}</td>
-            <td class="text-center">{{ s.vacaciones_tomadas }}</td>
-            <td class="text-center">
-              {% if s.vacaciones_pendientes %}<span class="badge bg-warning text-dark">{{ s.vacaciones_pendientes }}</span>{% else %}0{% endif %}
-            </td>
-            <td class="text-center"><span class="badge bg-primary">{{ s.vacaciones_libres }}</span></td>
-            <td class="text-center small" title="Libres / del periodo ({{ s.mediodias_tomados }} tomados{% if s.mediodias_pendientes %}, {{ s.mediodias_pendientes }} pendientes{% endif %})">
-              {{ s.mediodias_libres }} / {{ s.num_mediodia }}
-            </td>
-            <td class="text-center small">
-              {{ s.proximo_aniversario.strftime('%d/%m/%Y') if s.proximo_aniversario else '—' }}
-            </td>
-          </tr>
-          {% else %}
-          <tr><td colspan="9" class="text-center text-muted p-4">Sin datos que mostrar.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+  {% if saldos %}
+  <div class="table-responsive"{% if alto_maximo is defined %} style="max-height: {{ alto_maximo }}; overflow-y: auto;"{% endif %}>
+    <table class="table table-hover mb-0 align-middle tabla-saldos" data-tarjetas{% if saldos|length > 5 %} data-buscable="Buscar por nombre o área…"{% endif %}>
+      <thead{% if alto_maximo is defined %} class="sticky-top"{% endif %}>
+        <tr>
+          <th style="min-width: 190px;" data-titulo>Empleado</th>
+          <th class="text-center">Antigüedad</th>
+          <th class="text-center">Del periodo</th>
+          <th class="text-center">Tomados</th>
+          <th class="text-center">Pendientes</th>
+          <th>Disponibles</th>
+          <th class="text-center">Medios días</th>
+          <th class="text-end">Próximo periodo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in saldos %}
+        {% set pct = ((100 * s.vacaciones_libres / s.num_vacaciones)|round|int) if s.num_vacaciones else 0 %}
+        <tr class="{% if s.es_propio %}table-primary{% endif %}">
+          <td data-valor="{{ s.nombre }}">
+            <div class="d-flex align-items-center gap-2">
+              <span class="avatar avatar-sm{% if s.es_propio %} avatar-brand{% endif %}">{{ iniciales(s.nombre) }}</span>
+              <div class="lh-sm">
+                <div class="fw-semibold">
+                  {{ s.nombre }}
+                  {% if s.es_propio %}<span class="badge bg-primary ms-1">Tú</span>{% endif %}
+                </div>
+                <div class="small text-muted">{{ s.area or 'Sin área' }}</div>
+              </div>
+            </div>
+          </td>
+          <td class="text-center text-nowrap" data-valor="{{ s.antiguedad }}">
+            {{ s.antiguedad }} <span class="text-muted small">{{ 'año' if s.antiguedad == 1 else 'años' }}</span>
+          </td>
+          <td class="text-center">{{ s.num_vacaciones }}</td>
+          <td class="text-center">{{ s.vacaciones_tomadas }}</td>
+          <td class="text-center" data-valor="{{ s.vacaciones_pendientes }}">
+            {% if s.vacaciones_pendientes %}<span class="badge bg-warning">{{ s.vacaciones_pendientes }}</span>{% else %}<span class="text-muted">0</span>{% endif %}
+          </td>
+          <td class="saldo-disp" data-valor="{{ s.vacaciones_libres }}" title="{{ s.vacaciones_libres }} de {{ s.num_vacaciones }} días del periodo">
+            <div class="bar-cell" style="min-width: 110px;">
+              <div class="bar-track"><div class="bar-fill" style="width: {{ [pct, 100]|min }}%"></div></div>
+              <span class="v">{{ s.vacaciones_libres }}</span>
+            </div>
+          </td>
+          <td class="text-center small text-nowrap" data-valor="{{ s.mediodias_libres }}"
+              title="Libres / del periodo ({{ s.mediodias_tomados }} tomados{% if s.mediodias_pendientes %}, {{ s.mediodias_pendientes }} pendientes{% endif %})">
+            {{ s.mediodias_libres }} <span class="text-muted">/ {{ s.num_mediodia }}</span>
+          </td>
+          <td class="text-end small text-nowrap" data-valor="{{ s.proximo_aniversario.isoformat() if s.proximo_aniversario else '9999' }}">
+            {{ s.proximo_aniversario.strftime('%d/%m/%Y') if s.proximo_aniversario else '—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon"><i class="bi bi-people"></i></div>
+    <h6>Sin datos que mostrar</h6>
+    <p>No hay personas con saldo de vacaciones en esta vista.</p>
+  </div>
+  {% endif %}
 </div>
+
+<style>
+  /* Celular: cada persona en una tarjeta compacta (disponibles arriba y el resto en tres columnas) */
+  @media (max-width: 575.98px) {
+    .tabla-saldos.tabla-tarjetas > tbody > tr {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem .75rem; padding: .85rem .95rem;
+    }
+    .tabla-saldos.tabla-tarjetas > tbody > tr > td { padding: 0 !important; text-align: left !important; min-height: 0; }
+    .tabla-saldos.tabla-tarjetas > tbody > tr > td::before { position: static; display: block; width: auto; margin-bottom: .15rem; }
+    .tabla-saldos.tabla-tarjetas > tbody > tr > td.td-titulo { grid-column: 1 / -1; order: -2; }
+    .tabla-saldos.tabla-tarjetas > tbody > tr > td.saldo-disp { grid-column: 1 / -1; order: -1; }
+    .tabla-saldos.tabla-tarjetas > tbody > tr > td.td-span { grid-column: 1 / -1; }
+    .tabla-saldos.tabla-tarjetas > tbody > tr.row-hidden { display: none; }
+    .tabla-saldos.tabla-tarjetas > tbody > tr > td.saldo-disp { display: flex; align-items: center; gap: .75rem; }
+    .tabla-saldos.tabla-tarjetas > tbody > tr > td.saldo-disp::before { margin: 0; flex: 0 0 auto; }
+    .tabla-saldos.tabla-tarjetas > tbody > tr > td.saldo-disp .bar-cell { min-width: 0 !important; flex: 1 1 auto; }
+    .tabla-saldos.tabla-tarjetas > tbody > tr > td.td-titulo .small { font-weight: 400; }
+    /* La fila propia se marca completa, no celda por celda */
+    .tabla-saldos.tabla-tarjetas > tbody > tr.table-primary { background: var(--ad-brand-soft); }
+    .tabla-saldos.tabla-tarjetas > tbody > tr.table-primary > td { background: transparent !important; box-shadow: none !important; }
+  }
+</style>

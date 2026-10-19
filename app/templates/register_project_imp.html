@@ -1,241 +1,246 @@
 {% extends "layout.html" %}
+{% block title %}Registrar tiempo · {{ department }}{% endblock %}
+
 {% block content %}
+{% include '_kiosco_estilos.html' %}
 <style>
-    /* Marcador rojo para proyectos con registro activo */
-    .active-record {
-        position: relative;
-        border: 2px solid red !important;
-    }
-
-    .active-record::after {
-        content: "ACTIVO";
-        position: absolute;
-        top: 5px;
-        right: 5px;
-        background: red;
-        color: white;
-        padding: 2px 5px;
-        border-radius: 3px;
-        font-size: 0.8rem;
-    }
-
-    /* Botón resaltado al elegir actividad */
-    .active-activity-btn {
-        background-color: #ffdddd !important;
-        border-color: #ff0000 !important;
-        color: #a00 !important;
-    }
+  .k-rec { display: flex; align-items: center; gap: .9rem; padding: .85rem 1.1rem; border-bottom: 1px solid var(--ad-border); }
+  .k-rec:last-child { border-bottom: 0; }
+  .k-rec .finalize-btn { min-height: 44px; min-width: 120px; }
 </style>
 
-<div class="container mt-5">
-    <h2 class="mb-4">Registrar Tiempo (Impresión)</h2>
-
-    {% if department %}
-    <div class="alert alert-info text-center">
-        Departamento <strong>{{ department }}</strong>: <span id="activeWorkersCount">{{ active_records|length }}</span>
-        registro(s) activo(s).
+<div class="kiosco">
+  <div class="k-head">
+    <div class="k-who">
+      <span class="avatar avatar-lg avatar-brand">{{ iniciales(selected_employee.nompropio) }}</span>
+      <div>
+        <div class="k-who-name">{{ selected_employee.nompropio }}</div>
+        <div class="k-who-sub">
+          <span class="badge bg-light"><i class="bi bi-printer"></i>{{ department }}</span>
+          <span class="text-muted small">Puedes tener varios proyectos abiertos a la vez</span>
+        </div>
+      </div>
+      {% if not (current_user.is_authenticated and current_user.is_employee) %}
+      <a class="btn btn-outline-secondary ms-auto" href="{{ url_for('main.register_employee', department=department) }}" aria-label="No soy yo">
+        <i class="bi bi-arrow-left"></i><span class="d-none d-sm-inline"> No soy yo</span>
+      </a>
+      {% endif %}
     </div>
-    {% endif %}
+    <ol class="k-steps">
+      <li class="done"><span>1</span>Persona</li>
+      <li class="current" id="paso-proyecto"><span>2</span>Proyecto</li>
+      <li id="paso-actividad"><span>3</span>Actividad</li>
+    </ol>
+  </div>
 
-    <form id="new-time-form" method="POST">
-        {{ form.hidden_tag() }}
-        <input type="hidden" name="department" value="{{ department }}">
-        <input type="hidden" name="employee_id" value="{{ selected_employee.id }}">
-        <!-- input project_id & activity se inyectarán vía JS -->
+  <form id="new-time-form" method="POST">
+    {{ form.hidden_tag() }}
+    <input type="hidden" name="department" value="{{ department }}">
+    <input type="hidden" name="employee_id" value="{{ selected_employee.id }}">
+    <!-- project_id y activity se inyectan vía JS -->
 
-        <!-- Registros activos individuales -->
-        <div class="mb-4">
-            <h5>Registros Activos</h5>
-            {% if active_records %}
-            <ul class="list-group">
-                {% for rec in active_records %}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>FP:</strong> {{ rec.project.folio }}<br>
-                        <strong>Proyecto:</strong> {{ rec.project.name }}<br>
-                        <strong>Actividad:</strong> {{ rec.actividad or 'Sin especificar' }}<br>
-                        <strong>Inicio:</strong> {{ rec.start_time.strftime('%Y-%m-%d %H:%M:%S') }}
-                    </div>
-                    <button type="button" class="btn btn-sm btn-danger finalize-btn"
-                        data-record-id="{{ rec.id }}">Finalizar</button>
-                </li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <p>No hay registros activos.</p>
+    <!-- Registros abiertos de la persona -->
+    <div class="card mb-4">
+      <div class="card-header"><span class="dot live me-1"></span>Tus registros en curso
+        <span class="badge bg-secondary ms-auto"><span id="activeWorkersCount">{{ active_records|length }}</span></span></div>
+      {% if active_records %}
+        {% for rec in active_records %}
+        <div class="k-rec">
+          <div class="min-w-0 flex-grow-1">
+            <div class="k-fp">FP {{ rec.project.folio }}</div>
+            <div class="fw-semibold text-truncate">{{ rec.project.name }}</div>
+            <div class="small text-muted text-truncate">{{ rec.actividad or 'Sin especificar' }} · desde {{ rec.start_time|mx('%d/%m %H:%M') }}{% if rec.departamento and rec.departamento != department %} · {{ rec.departamento }}{% endif %}</div>
+          </div>
+          <button type="button" class="btn btn-outline-danger finalize-btn" data-record-id="{{ rec.id }}"><i class="bi bi-stop-circle"></i> Finalizar</button>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty py-4"><p>No tienes registros abiertos.</p></div>
+      {% endif %}
+    </div>
+
+    <!-- Paso 2: proyecto -->
+    <section id="project-selection">
+      <div class="k-title">
+        <h2>Iniciar un proyecto</h2>
+        <span class="text-muted small"><span id="nProyectos">{{ projects|length }}</span> proyectos activos</span>
+      </div>
+      <div class="search-field k-search">
+        <i class="bi bi-search lg"></i>
+        <input type="search" class="form-control form-control-lg" id="buscarProyecto" autocomplete="off"
+               placeholder="Busca por FP, proyecto o cliente"
+               data-filtra="#listaProyectos" data-vacio="#sinProyectos" data-contador="#nProyectos">
+      </div>
+      <div class="k-grid" id="listaProyectos">
+        {% for project in projects %}
+        <div data-filtrable="fp {{ project.folio }} {{ project.name }} {{ project.client }}">
+          <div class="project-card k-card {% if project.id in active_activities %}active-record{% endif %}"
+               data-project-id="{{ project.id }}" data-folio="{{ project.folio }}" role="button" tabindex="0">
+            <div class="k-fp">{% if project.folio == 0 %}<i class="bi bi-briefcase"></i> General{% else %}FP {{ project.folio if project.folio else 'N/A' }}{% endif %}</div>
+            <div class="k-name">{{ project.name }}</div>
+            <div class="k-client">{{ project.client }}</div>
+            {% if project.id in active_activities %}
+            <div class="k-active"><span class="dot live"></span>{{ active_activities[project.id]|join(', ') }}</div>
             {% endif %}
+          </div>
         </div>
+        {% endfor %}
+      </div>
+      <div id="sinProyectos" class="empty d-none">
+        <div class="empty-icon"><i class="bi bi-search"></i></div>
+        <h6>No hay proyectos que coincidan</h6>
+        <p>Revisa el número de FP.</p>
+      </div>
+    </section>
 
-        <!-- Selección de proyecto -->
-        <div class="mb-4" id="project-selection">
-            <h5>Seleccionar Proyecto</h5>
-            <div class="row">
-                {% for project in projects %}
-                <div class="col-12 col-sm-6 col-md-4 mb-3">
-                    <div class="card project-card shadow-sm{% if project.id in active_activities %} active-record{% endif %}"
-                        data-project-id="{{ project.id }}" data-folio="{{ project.folio }}">
-                        <div class="card-body">
-                            <h5 class="card-title"><strong>FP:</strong> {{ project.folio if project.folio else 'N/A' }}
-                            </h5>
-                            <p><strong>Proyecto:</strong> {{ project.name }}</p>
-                            <p><strong>Cliente:</strong> {{ project.client }}</p>
-                            {% if project.id in active_activities %}
-                            <div class="mt-2 text-danger small">
-                                <strong>Actividades activas:</strong> {{ active_activities[project.id]|join(', ') }}
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
+    {# Actividades generales del FP 0. Se administran en Administración → Actividades
+       (grupo "Generales (FP 0)") y se anteponen a las del área al elegir ese proyecto. #}
+    <template id="general-activities-template">
+      <div class="k-subtitle" style="grid-column: 1 / -1;">Generales</div>
+      {% for act in general_activities %}
+      <button type="button" class="activity-btn k-act" data-activity="{{ act }}"><i class="bi bi-check-circle-fill"></i><span>{{ act }}</span></button>
+      {% endfor %}
+      <div class="k-subtitle" style="grid-column: 1 / -1;">De {{ department }}</div>
+    </template>
 
-        {# Actividades generales del FP 0. Se administran en Administración → Actividades
-           (grupo "Generales (FP 0)") y se anteponen a las del área al elegir ese proyecto. #}
-        <template id="general-activities-template">
-            <div class="row">
-                {% for act in general_activities %}
-                <div class="col-12 col-sm-6 col-md-4 mb-3">
-                    <button type="button" class="btn btn-primary btn-lg w-100 activity-btn"
-                        data-activity="{{ act }}">{{ act }}</button>
-                </div>
-                {% endfor %}
-            </div>
-        </template>
+    <!-- Paso 3: actividad -->
+    <section id="activity-section" style="display:none;">
+      <div class="k-picked" id="proyectoElegido"></div>
+      <div class="k-title"><h2>¿Qué actividad vas a hacer?</h2></div>
+      <div class="k-grid acts" id="activity-buttons-container">
+        {% for act in activities %}
+        <button type="button" class="activity-btn k-act" data-activity="{{ act }}"><i class="bi bi-check-circle-fill"></i><span>{{ act }}</span></button>
+        {% endfor %}
+      </div>
+    </section>
 
-        <!-- Actividades -->
-        <div id="activity-section" class="mb-4" style="display:none;">
-            <h5>Seleccionar Actividad</h5>
-            <div class="row" id="activity-buttons-container">
-                {% for act in activities %}
-                <div class="col-12 col-sm-6 col-md-4 mb-3">
-                    <button type="button" class="btn btn-primary btn-lg w-100 activity-btn" data-activity="{{ act }}">{{
-                        act }}</button>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-
-        <button type="submit" name="iniciar" class="btn btn-success" id="start-btn" disabled>Iniciar</button>
-    </form>
+    <div class="k-actions">
+      <div class="k-hint" id="pistaAccion">Elige un proyecto para continuar.</div>
+      <button type="submit" name="iniciar" class="btn btn-success btn-lg ms-auto" id="start-btn" disabled>
+        <i class="bi bi-play-circle"></i> Iniciar
+      </button>
+    </div>
+  </form>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    $(function () {
-        // ═══════════════════════════════════════════════════════════
-        // LOADER INTEGRATION FOR IMPRESION
-        // Prevents double-click and shows professional loading state
-        // ═══════════════════════════════════════════════════════════
-        let isSubmitting = false;
+  $(function () {
+    let isSubmitting = false;
+    const pista = document.getElementById('pistaAccion');
 
-        // 1. Finalizar registro individual con loader
-        $('.finalize-btn').click(function () {
-            if (isSubmitting) return;
+    // 1. Finalizar un registro concreto
+    $('.finalize-btn').click(function () {
+      if (isSubmitting) return;
+      const recId = $(this).data('record-id');
+      const $btn = $(this);
+      isSubmitting = true;
+      $btn.prop('disabled', true).css('opacity', '0.6');
+      if (window.AD17Loader) AD17Loader.showTimeEnd();
 
-            const recId = $(this).data('record-id');
-            const $btn = $(this);
-
-            isSubmitting = true;
-            $btn.prop('disabled', true).css('opacity', '0.6');
-
-            // Show loader
-            if (window.AD17Loader) {
-                AD17Loader.showTimeEnd();
-            }
-
-            $.post(`/finalize_time_record/${recId}`, {}, res => {
-                if (res.success) {
-                    location.reload();
-                } else {
-                    if (window.AD17Loader) AD17Loader.hide();
-                    isSubmitting = false;
-                    $btn.prop('disabled', false).css('opacity', '1');
-                    alert(res.message || 'No se pudo finalizar.');
-                }
-            }).fail(function () {
-                if (window.AD17Loader) AD17Loader.hide();
-                isSubmitting = false;
-                $btn.prop('disabled', false).css('opacity', '1');
-                alert('Error de conexión. Intente de nuevo.');
-            });
-        });
-
-        // Guardar HTML original de actividades (del departamento)
-        const $activitySection = $('#activity-section');
-        const defaultActivityHTML = $('#activity-buttons-container').html();
-
-        // Actividades generales del FP 0 (Costos Administrativos), servidas por el backend
-        const generalTemplate = document.getElementById('general-activities-template');
-        const extraHtml = generalTemplate ? generalTemplate.innerHTML : '';
-
-        // Helper para adjuntar listeners a los botones de actividad
-        function attachActivityButtons() {
-            $('.activity-btn').off('click').on('click', function () {
-                $('.activity-btn').removeClass('active-activity-btn');
-                $(this).addClass('active-activity-btn');
-                const act = $(this).data('activity');
-                $('#new-time-form input[name="activity"]').remove();
-                $('<input>', { type: 'hidden', name: 'activity', value: act }).appendTo('#new-time-form');
-                $('#start-btn').prop('disabled', false);
-            });
+      $.post(`/finalize_time_record/${recId}`, {}, res => {
+        if (res.success) {
+          location.reload();
+        } else {
+          if (window.AD17Loader) AD17Loader.hide();
+          isSubmitting = false;
+          $btn.prop('disabled', false).css('opacity', '1');
+          AD17.toast(res.message || 'No se pudo finalizar.', 'danger');
         }
-
-        attachActivityButtons();
-
-        // 2. Seleccionar proyecto
-        $('.project-card').click(function () {
-            $('.project-card').removeClass('border border-primary');
-            $(this).addClass('border border-primary');
-
-            const projId = $(this).data('project-id');
-            const projFolio = $(this).data('folio');
-
-            $('#new-time-form input[name="project_id"]').remove();
-            $('<input>', { type: 'hidden', name: 'project_id', value: projId }).appendTo('#new-time-form');
-
-            // Combinar actividades extra + departamento si FP==0
-            if (String(projFolio) === '0') {
-                $('#activity-buttons-container').html(extraHtml + defaultActivityHTML);
-            } else {
-                $('#activity-buttons-container').html(defaultActivityHTML);
-            }
-            attachActivityButtons();
-
-            $('#project-selection').hide();
-            $activitySection.show();
-            $('#start-btn').prop('disabled', true);
-        });
-
-        // 3. Form submission with loader
-        $('#new-time-form').on('submit', function (e) {
-            if (isSubmitting) {
-                e.preventDefault();
-                return false;
-            }
-
-            // Validate activity is selected
-            if (!$('#new-time-form input[name="activity"]').val()) {
-                e.preventDefault();
-                alert('Por favor selecciona una actividad antes de iniciar.');
-                return false;
-            }
-
-            isSubmitting = true;
-
-            // Show loader AFTER a small delay to allow form to submit
-            setTimeout(function () {
-                $('#start-btn').prop('disabled', true).css('opacity', '0.6');
-
-                if (window.AD17Loader) {
-                    AD17Loader.showTimeStart();
-                }
-            }, 50);
-
-            return true;
-        });
+      }).fail(function () {
+        if (window.AD17Loader) AD17Loader.hide();
+        isSubmitting = false;
+        $btn.prop('disabled', false).css('opacity', '1');
+        AD17.toast('Error de conexión. Intenta de nuevo.', 'danger');
+      });
     });
+
+    const $activitySection = $('#activity-section');
+    const defaultActivityHTML = $('#activity-buttons-container').html();
+    const generalTemplate = document.getElementById('general-activities-template');
+    const extraHtml = generalTemplate ? generalTemplate.innerHTML : '';
+
+    function attachActivityButtons() {
+      $('.activity-btn').off('click').on('click', function () {
+        $('.activity-btn').removeClass('active-activity-btn');
+        $(this).addClass('active-activity-btn');
+        const act = $(this).data('activity');
+        $('#new-time-form input[name="activity"]').remove();
+        $('<input>', { type: 'hidden', name: 'activity', value: act }).appendTo('#new-time-form');
+        $('#start-btn').prop('disabled', false);
+        $('#paso-actividad').addClass('done');
+        pista.innerHTML = 'Listo: presiona <strong>Iniciar</strong>.';
+      });
+    }
+    attachActivityButtons();
+
+    function volverAProyectos() {
+      $('#new-time-form input[name="project_id"], #new-time-form input[name="activity"]').remove();
+      $('#start-btn').prop('disabled', true);
+      $activitySection.hide();
+      $('#project-selection').show();
+      $('#paso-proyecto').removeClass('done').addClass('current');
+      $('#paso-actividad').removeClass('current done');
+      pista.textContent = 'Elige un proyecto para continuar.';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // 2. Seleccionar proyecto
+    function elegir(card) {
+      const $card = $(card);
+      $('.project-card').removeClass('border border-primary selected');
+      $card.addClass('border border-primary selected');
+      const projId = $card.data('project-id');
+      const projFolio = $card.data('folio');
+
+      $('#new-time-form input[name="project_id"]').remove();
+      $('#new-time-form input[name="activity"]').remove();
+      $('<input>', { type: 'hidden', name: 'project_id', value: projId }).appendTo('#new-time-form');
+
+      $('#activity-buttons-container').html(String(projFolio) === '0' ? extraHtml + defaultActivityHTML : defaultActivityHTML);
+      attachActivityButtons();
+
+      $('#proyectoElegido').html(`
+        <div class="min-w-0"><div class="k-fp">${$card.find('.k-fp').html()}</div>
+        <div class="fw-semibold text-truncate">${AD17.escapar($card.find('.k-name').text())}</div>
+        <div class="small text-muted text-truncate">${AD17.escapar($card.find('.k-client').text())}</div></div>
+        <button type="button" class="btn btn-outline-secondary ms-auto" id="cambiarProyecto"><i class="bi bi-arrow-left-right"></i> Cambiar proyecto</button>`);
+      $('#cambiarProyecto').on('click', volverAProyectos);
+
+      $('#project-selection').hide();
+      $activitySection.show();
+      $('#start-btn').prop('disabled', true);
+      $('#paso-proyecto').removeClass('current').addClass('done');
+      $('#paso-actividad').addClass('current');
+      pista.textContent = 'Elige la actividad.';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    $('.project-card').on('click', function () { elegir(this); })
+      .on('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); elegir(this); } });
+
+    $('#buscarProyecto').on('keydown', function (e) {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const visibles = $('#listaProyectos > [data-filtrable]:not(.d-none) .project-card');
+      if (visibles.length === 1) elegir(visibles[0]);
+    });
+
+    // 3. Enviar con indicador de carga
+    $('#new-time-form').on('submit', function (e) {
+      if (isSubmitting) { e.preventDefault(); return false; }
+      if (!$('#new-time-form input[name="activity"]').val()) {
+        e.preventDefault();
+        AD17.toast('Selecciona una actividad antes de iniciar.', 'warning', 5000);
+        return false;
+      }
+      isSubmitting = true;
+      setTimeout(function () {
+        $('#start-btn').prop('disabled', true).css('opacity', '0.6');
+        if (window.AD17Loader) AD17Loader.showTimeStart();
+      }, 50);
+      return true;
+    });
+  });
 </script>
 {% endblock %}

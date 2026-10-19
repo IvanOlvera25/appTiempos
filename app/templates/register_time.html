@@ -1,31 +1,47 @@
 {% extends "layout.html" %}
+{% block title %}Registrar tiempo{% endblock %}
 {% block content %}
 <style>
-    /* Estilo para proyectos con registro activo */
-    .active-record {
-        border: 2px solid red !important;
-        color: red;
+    /* Proyecto con registro activo */
+    .project-card.active-record {
+        border: 2px solid var(--ad-danger) !important;
+        box-shadow: 0 0 0 4px var(--ad-danger-soft);
+        color: var(--ad-danger-ink);
     }
+    .project-card .fp { font-size: .72rem; font-weight: 600; color: var(--ad-text-2); background: var(--ad-surface-3); border: 1px solid var(--ad-border); border-radius: 5px; padding: .05rem .35rem; }
+    #qr-scanner-section video { max-height: 60vh; object-fit: cover; background: #0c111d; }
 </style>
-<div class="container mt-5">
-    <h2 class="mb-4">Registrar Tiempo</h2>
+
+<div style="max-width: 1100px;">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow"><i class="bi bi-qr-code-scan"></i> Registro de tiempo{% if department %} · {{ department }}{% endif %}</div>
+            <h1>Registrar tiempo</h1>
+            <p>Escanea tu código QR o regístrate de forma manual.</p>
+        </div>
+        <div class="actions">
+            <button type="button" class="btn btn-outline-secondary" id="manual-register-btn"><i class="bi bi-keyboard"></i> Registrar manualmente</button>
+        </div>
+    </div>
 
     {% if department %}
-      <div class="alert alert-info text-center">
-        Departamento <strong>{{ department }}</strong>: <span id="activeWorkersCount">{{ active_count }}</span> trabajador(es) con tiempos activos sin finalizar.
+      <div class="alert alert-info d-flex align-items-center gap-2">
+        <span class="dot live"></span>
+        <div>Área <strong>{{ department }}</strong>: <strong id="activeWorkersCount">{{ active_count }}</strong> trabajador(es) con tiempos activos sin finalizar.</div>
       </div>
     {% endif %}
 
     <!-- Sección de Escaneo de QR -->
-    <button type="button" class="btn btn-secondary" id="manual-register-btn">Registrar Manualmente</button>
     <div id="qr-scanner-section">
-        <div class="mb-4">
-            <video id="video" autoplay muted class="w-100 rounded"></video>
-            <p id="qr-reader-status" class="mt-2">Escaneando...</p>
-            <!-- Canvas oculto para capturar la imagen de la cámara -->
-            <canvas id="snapshotCanvas" width="300" height="200" style="display: none;"></canvas>
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-camera-video"></i>Escanear código QR</div>
+            <div class="card-body">
+                <video id="video" autoplay muted class="w-100 rounded"></video>
+                <p id="qr-reader-status" class="mt-2 mb-0 small text-muted">Escaneando...</p>
+                <!-- Canvas oculto para capturar la imagen de la cámara -->
+                <canvas id="snapshotCanvas" width="300" height="200" style="display: none;"></canvas>
+            </div>
         </div>
-
     </div>
 
     <!-- Sección de Registro Manual -->
@@ -35,60 +51,65 @@
             <!-- Campo oculto para almacenar el departamento seleccionado -->
             <input type="hidden" name="department" value="{{ department }}">
 
-            <!-- Empleado Manual y botón de "Volver a Escanear QR" alineados -->
-            <div class="row mb-4 align-items-center">
-                <div class="col-md-8">
-                    <label for="employee_search" class="form-label">Seleccionar Empleado (Manual)</label>
-                    <select class="form-select" id="employee_search" name="employee_search">
-                        <option value="">-- Seleccione --</option>
-                        {% for emp in employees %}
-                            <option value="{{ emp.id }}">{{ emp.nompropio }}</option>
-                        {% endfor %}
-                    </select>
-                    {{ form.employee_id(class="d-none", id="employee_id_hidden") }}
-                    {{ form.qr_code(class="d-none", id="qr_code_hidden") }}
-                    {% for error in form.employee_id.errors %}
-                      <div class="text-danger">{{ error }}</div>
-                    {% endfor %}
-                    {% for error in form.qr_code.errors %}
-                      <div class="text-danger">{{ error }}</div>
-                    {% endfor %}
-                </div>
-                <div class="col-md-4 text-end">
-                    <button type="button" class="btn btn-secondary" id="back-to-scanner-btn">Volver a Escanear QR</button>
+            <!-- Empleado manual y botón de "Volver a escanear QR" -->
+            <div class="card mb-4">
+                <div class="card-header"><i class="bi bi-person"></i>Persona</div>
+                <div class="card-body">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-8">
+                            <label for="employee_search" class="form-label">Seleccionar empleado</label>
+                            <select class="form-select" id="employee_search" name="employee_search">
+                                <option value="">-- Seleccione --</option>
+                                {% for emp in employees %}
+                                    <option value="{{ emp.id }}">{{ emp.nompropio }}</option>
+                                {% endfor %}
+                            </select>
+                            {{ form.employee_id(class="d-none", id="employee_id_hidden") }}
+                            {{ form.qr_code(class="d-none", id="qr_code_hidden") }}
+                            {% for error in form.employee_id.errors %}
+                              <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                            {% for error in form.qr_code.errors %}
+                              <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-4 text-md-end">
+                            <button type="button" class="btn btn-outline-secondary" id="back-to-scanner-btn"><i class="bi bi-qr-code-scan"></i> Volver a escanear QR</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Selección de Proyecto -->
             <div class="mb-4">
-                <label class="form-label">Seleccionar Proyecto</label>
+                <div class="section-label mt-0">Proyecto</div>
                 {{ form.project_id(class="d-none", id="project_id_hidden") }}
-                <div class="row">
+                <div class="row g-3">
                     {% for project in projects %}
-                        <div class="col-12 col-sm-6 col-md-4 mb-4">
-                            <div class="card h-100 project-card shadow-sm" data-project-id="{{ project.id }}" data-folio="{{ project.folio }}">
+                        <div class="col-12 col-sm-6 col-md-4">
+                            <div class="card h-100 project-card" data-project-id="{{ project.id }}" data-folio="{{ project.folio }}">
                                 <div class="card-body">
-                                    <h5 class="card-title"><strong>FP:</strong> {{ project.folio if project.folio is not none else 'N/A' }}</h5>
-                                    <h5 class="card-title"><strong>Proyecto:</strong> {{ project.name }}</h5>
-                                    <p class="card-text"><strong>Cliente:</strong> {{ project.client }}</p>
+                                    <div class="mb-1"><span class="fp">FP {{ project.folio if project.folio is not none else 'N/A' }}</span></div>
+                                    <div class="fw-semibold">{{ project.name }}</div>
+                                    <div class="small text-muted">{{ project.client }}</div>
                                 </div>
                             </div>
                         </div>
                     {% endfor %}
                 </div>
                 {% for error in form.project_id.errors %}
-                  <div class="text-danger">{{ error }}</div>
+                  <div class="invalid-feedback d-block">{{ error }}</div>
                 {% endfor %}
             </div>
 
             <!-- Sección de Selección de Actividad (solo si el departamento es distinto a Montaje) -->
             {% if department != "Montaje" %}
             <div class="mb-4" id="activity-section" style="display: none;">
-                <label class="form-label">Seleccionar Actividad</label>
-                <div class="row">
+                <label class="form-label">Seleccionar actividad</label>
+                <div class="row g-3">
                     {% for act in activities %}
-                        <div class="col-12 col-sm-6 col-md-4 mb-3">
-                            <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="{{ act }}">
+                        <div class="col-12 col-sm-6 col-md-4">
+                            <button type="button" class="btn btn-outline-primary btn-lg w-100 dept-btn activity-btn" data-activity="{{ act }}">
                                 {{ act }}
                             </button>
                         </div>
@@ -108,70 +129,75 @@
             <input type="hidden" name="longitude" id="longitude">
 
             <!-- Botones para iniciar o finalizar -->
-            <div class="mb-3">
-                <button type="submit" class="btn btn-success me-3" name="iniciar" value="iniciar">Iniciar</button>
-                <button type="submit" class="btn btn-danger me-3" name="finalizar" value="finalizar">Finalizar</button>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <button type="submit" class="btn btn-success btn-lg" name="iniciar" value="iniciar"><i class="bi bi-play-fill"></i> Iniciar</button>
+                <button type="submit" class="btn btn-danger btn-lg" name="finalizar" value="finalizar"><i class="bi bi-stop-fill"></i> Finalizar</button>
             </div>
         </form>
     </div>
 
-    <!-- Modal y toasts (se mantienen sin cambios) -->
-    <!-- ... (resto del código de modal y toasts) ... -->
-          <!-- Modal para escanear QR y Toasts -->
-  <div class="modal fade" id="qrModal" tabindex="-1" aria-labelledby="qrModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="qrModalLabel">Escanear Código QR</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-        </div>
-        <div class="modal-body">
-          <video id="modal-video" autoplay muted class="w-100 rounded"></video>
-          <p id="modal-qr-reader-status" class="mt-2 text-muted">Escaneando...</p>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+    <!-- Modal para escanear QR -->
+    <div class="modal fade" id="qrModal" tabindex="-1" aria-labelledby="qrModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="qrModalLabel">Escanear código QR</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <video id="modal-video" autoplay muted class="w-100 rounded"></video>
+            <p id="modal-qr-reader-status" class="mt-2 mb-0 small text-muted">Escaneando...</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
-    <div id="qrSuccessToast" class="toast align-items-center text-bg-warning border-0" role="alert" aria-live="assertive" aria-atomic="true">
-      <div class="d-flex">
-        <div class="toast-body">
-          QR escaneado exitosamente: <strong id="employeeNameToast">Nombre del Empleado</strong>
+    <!-- Toasts del escáner -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+      <div id="qrSuccessToast" class="toast align-items-center text-bg-warning border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body">
+            QR escaneado: <strong id="employeeNameToast">Nombre del empleado</strong>
+          </div>
+          <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
         </div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
       </div>
     </div>
-  </div>
 
-  <div class="position-fixed top-50 start-50 translate-middle p-3" style="z-index: 1100;">
-    <div id="countdownToast" class="toast text-bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true" style="opacity:1; min-width: 320px;">
-      <div class="toast-header text-bg-dark border-0">
-        <i class="bi bi-camera-fill me-2 text-white" style="font-size: 1.5rem;"></i>
-        <strong class="me-auto text-white">Atención</strong>
-      </div>
-      <div class="toast-body d-flex flex-column align-items-center">
-        <h4 class="my-2 text-center text-white fw-bold">¡Sonríe, te tomaremos una foto!</h4>
-        <h3 id="countdownMessage" class="my-2 display-6 fw-bold text-center text-white" style="font-size: 2rem;"></h3>
+    <div class="position-fixed top-50 start-50 translate-middle p-3" style="z-index: 1100;">
+      <div id="countdownToast" class="toast text-bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true" style="opacity:1; min-width: 320px;">
+        <div class="toast-header text-bg-dark border-0">
+          <i class="bi bi-camera-fill me-2 text-white" style="font-size: 1.5rem;"></i>
+          <strong class="me-auto text-white">Atención</strong>
+        </div>
+        <div class="toast-body d-flex flex-column align-items-center">
+          <h4 class="my-2 text-center text-white fw-bold">Sonríe, te tomaremos una foto</h4>
+          <h3 id="countdownMessage" class="my-2 display-6 fw-bold text-center text-white" style="font-size: 2rem;"></h3>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
-    <div id="qrErrorToast" class="toast align-items-center text-bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
-      <div class="d-flex">
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+      <div id="qrErrorToast" class="toast align-items-center text-bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body"><span id="errorMessageToast"></span></div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+        </div>
+      </div>
+    </div>
 </div>
 
 <script>
+    const avisarRegistro = (msg, tipo) => (window.AD17 ? AD17.toast(msg, tipo || 'info') : alert(msg));
+
     // Configurar geolocalización
     function setGeolocation() {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           function(position) {
-            console.log("Posición obtenida:", position.coords.latitude, position.coords.longitude);
             document.getElementById('latitude').value = position.coords.latitude;
             document.getElementById('longitude').value = position.coords.longitude;
           },
@@ -265,7 +291,7 @@
             if (dept === "Impresion") {
                 const employeeId = document.getElementById('employee_id_hidden').value;
                 if (!employeeId) {
-                    alert("Seleccione un empleado primero");
+                    avisarRegistro("Seleccione un empleado primero", 'warning');
                     return;
                 }
                 // Consultar si ya existe un registro activo para este empleado/proyecto
@@ -279,13 +305,13 @@
                                 .then(res => res.json())
                                 .then(finalizeData => {
                                     if (finalizeData.success) {
-                                        alert("Registro finalizado para este proyecto.");
+                                        avisarRegistro("Registro finalizado para este proyecto.", 'success');
                                         this.classList.remove('active-record');
                                         // Redirigir a la parte de QR: ocultar formulario manual y mostrar la cámara
                                         document.getElementById('manual-registration').style.display = 'none';
                                         document.getElementById('qr-scanner-section').style.display = 'block';
                                     } else {
-                                        alert("Error al finalizar el registro.");
+                                        avisarRegistro("Error al finalizar el registro.", 'danger');
                                     }
                                 });
                           } else {
@@ -318,16 +344,16 @@
                 document.getElementById('project_id_hidden').value = projectId;
                 if (projectFolio === 0) {
                     activitySection.innerHTML = `
-                        <label class="form-label">Seleccionar Actividad</label>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="barrer">barrer</button>
+                        <label class="form-label">Seleccionar actividad</label>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <button type="button" class="btn btn-outline-primary btn-lg w-100 dept-btn activity-btn" data-activity="barrer">barrer</button>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="recoger">recoger</button>
+                            <div class="col-md-4">
+                                <button type="button" class="btn btn-outline-primary btn-lg w-100 dept-btn activity-btn" data-activity="recoger">recoger</button>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn" data-activity="limpiar">limpiar</button>
+                            <div class="col-md-4">
+                                <button type="button" class="btn btn-outline-primary btn-lg w-100 dept-btn activity-btn" data-activity="limpiar">limpiar</button>
                             </div>
                         </div>
                     `;
@@ -344,10 +370,11 @@
         });
     });
 </script>
+{% endblock %}
+
 {% block scripts %}
 <!-- ZXing solo se carga en la página de registro (versión fija para caching) -->
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script>const department = "{{ department }}";</script>
 <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
-{% endblock %}
 {% endblock %}

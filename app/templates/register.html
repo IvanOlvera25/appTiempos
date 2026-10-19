@@ -1,96 +1,69 @@
 {% extends "layout.html" %}
+{% block title %}Crear cuenta{% endblock %}
 {% block content %}
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-<!-- Select2 (para lista de empleados) -->
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-<style>
-  .user-type-card{cursor:pointer;transition:transform .25s ease,box-shadow .25s ease;border:2px solid transparent;}
-  .user-type-card:hover,.user-type-card.active{transform:translateY(-6px);box-shadow:0 0 20px rgba(0,0,0,.15);border-color:#16A34A;}
-</style>
-<div class="container py-5">
-  <div class="row justify-content-center mb-4">
-    <div class="col-lg-8 text-center">
-      <h2 class="fw-bold mb-3">Registro de Nuevo Usuario</h2>
-      <p class="text-muted">Selecciona el tipo de cuenta que deseas crear</p>
-    </div>
-  </div>
-  <div class="row g-4 justify-content-center">
-    <div class="col-md-3">
-      <div class="card user-type-card h-100 text-center p-4" data-user-type="empleado">
-        <div class="card-body d-flex flex-column justify-content-center">
-          <i class="bi bi-person-badge fs-1 mb-3"></i>
-          <h5 class="card-title fw-semibold">Empleado</h5>
-          <p class="card-text text-muted mb-0">Acceso para registrar tus tiempos y actividades.</p>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card user-type-card h-100 text-center p-4" data-user-type="lider_proyecto">
-        <div class="card-body d-flex flex-column justify-content-center">
-          <i class="bi bi-diagram-3 fs-1 mb-3"></i>
-          <h5 class="card-title fw-semibold">Líder de Proyecto</h5>
-          <p class="card-text text-muted mb-0">Gestiona proyectos y supervisa equipos.</p>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card user-type-card h-100 text-center p-4" data-user-type="jefe_area">
-        <div class="card-body d-flex flex-column justify-content-center">
-          <i class="bi bi-person-workspace fs-1 mb-3"></i>
-          <h5 class="card-title fw-semibold">Jefe de Area</h5>
-          <p class="card-text text-muted mb-0">Supervisa el estatus y registros de su área.</p>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card user-type-card h-100 text-center p-4" data-user-type="rh">
-        <div class="card-body d-flex flex-column justify-content-center">
-          <i class="bi bi-people fs-1 mb-3"></i>
-          <h5 class="card-title fw-semibold">RH</h5>
-          <p class="card-text text-muted mb-0">Vacaciones de toda la plantilla e incidencias.</p>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card user-type-card h-100 text-center p-4" data-user-type="ejecutivo">
-        <div class="card-body d-flex flex-column justify-content-center">
-          <i class="bi bi-briefcase fs-1 mb-3"></i>
-          <h5 class="card-title fw-semibold">Ejecutivo</h5>
-          <p class="card-text text-muted mb-0">Solicita vacaciones y levanta informes de incidencia.</p>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card user-type-card h-100 text-center p-4" data-user-type="administrador">
-        <div class="card-body d-flex flex-column justify-content-center">
-          <i class="bi bi-shield-lock fs-1 mb-3"></i>
-          <h5 class="card-title fw-semibold">Administrador</h5>
-          <p class="card-text text-muted mb-0">Gestiona empleados, proyectos y reportes.</p>
-        </div>
-      </div>
-    </div>
-  </div>
+{% include '_auth_estilos.html' %}
 
-  <form id="registerForm" method="POST" class="needs-validation mt-5" novalidate style="display:none;">
-    {{ form.hidden_tag() }}
-    <input type="hidden" name="user_type" id="user_type" value="" />
+<div class="auth">
+  <div class="auth-card wide">
+    <aside class="auth-aside">
+      <div>
+        <span class="brand-mark">AD17</span>
+        <h2>Crea tu cuenta</h2>
+        <p>Elige tu perfil. Los perfiles con permisos especiales piden la clave que te da tu administrador.</p>
+      </div>
+      <ul class="auth-feats">
+        <li><i class="bi bi-person-badge"></i><span><strong>Empleado</strong>Elige tu nombre de la lista para ligar tu cuenta.</span></li>
+        <li><i class="bi bi-key"></i><span><strong>Perfiles con clave</strong>Líder, Jefe de área, RH, Ejecutivo y Administrador.</span></li>
+        <li><i class="bi bi-sun"></i><span><strong>Vacaciones</strong>Si ligas tu cuenta a un empleado tendrás tu saldo propio.</span></li>
+      </ul>
+    </aside>
 
-    <div class="row justify-content-center">
-      <div class="col-lg-6">
-        <!-- Nombre completo / Empleado -->
+    <div class="auth-main">
+      <h1>Registro de nuevo usuario</h1>
+      <p class="sub">1. Elige el tipo de cuenta · 2. Completa tus datos</p>
+
+      <div class="roles" role="radiogroup" aria-label="Tipo de cuenta">
+        <button type="button" class="user-type-card" data-user-type="empleado" role="radio" aria-checked="false">
+          <i class="bi bi-person-badge"></i><div class="t">Empleado</div><div class="d">Registra tus tiempos y actividades.</div>
+        </button>
+        <button type="button" class="user-type-card" data-user-type="lider_proyecto" role="radio" aria-checked="false">
+          <i class="bi bi-diagram-3"></i><div class="t">Líder de proyecto</div><div class="d">Gestiona proyectos y equipos.</div>
+        </button>
+        <button type="button" class="user-type-card" data-user-type="jefe_area" role="radio" aria-checked="false">
+          <i class="bi bi-person-workspace"></i><div class="t">Jefe de área</div><div class="d">Estatus y registros de su área.</div>
+        </button>
+        <button type="button" class="user-type-card" data-user-type="rh" role="radio" aria-checked="false">
+          <i class="bi bi-people"></i><div class="t">RH</div><div class="d">Vacaciones e incidencias.</div>
+        </button>
+        <button type="button" class="user-type-card" data-user-type="ejecutivo" role="radio" aria-checked="false">
+          <i class="bi bi-briefcase"></i><div class="t">Ejecutivo</div><div class="d">Vacaciones e informes.</div>
+        </button>
+        <button type="button" class="user-type-card" data-user-type="administrador" role="radio" aria-checked="false">
+          <i class="bi bi-shield-lock"></i><div class="t">Administrador</div><div class="d">Empleados, proyectos y reportes.</div>
+        </button>
+      </div>
+
+      <div id="sinPerfil" class="empty border rounded-3 py-4">
+        <div class="empty-icon"><i class="bi bi-hand-index"></i></div>
+        <p>Elige arriba el tipo de cuenta para continuar.</p>
+      </div>
+
+      <form id="registerForm" method="POST" class="needs-validation" novalidate style="display:none;">
+        {{ form.hidden_tag() }}
+        <input type="hidden" name="user_type" id="user_type" value="" />
+
         <div class="mb-3" id="employeeNameGroup" style="display:none;">
-          <label for="employee_name" class="form-label">Nombre (Empleado)</label>
+          <label for="employee_name" class="form-label">Tu nombre (empleado)</label>
           <select class="form-select" id="employee_name" name="employee_name" data-placeholder="Selecciona tu nombre">
-              <option value=""></option>
-              {% for emp in employees %}
-                <option value="{{ emp.id }}">{{ emp.nompropio }}</option>
-              {% endfor %}
+            <option value=""></option>
+            {% for emp in employees %}
+            <option value="{{ emp.id }}">{{ emp.nompropio }}</option>
+            {% endfor %}
           </select>
           <div class="form-text" id="employeeNameHelp"></div>
         </div>
         <div class="mb-3" id="areaManagerGroup" style="display:none;">
-          <label for="area_manager_department" class="form-label">Area</label>
+          <label for="area_manager_department" class="form-label">Área</label>
           <select class="form-select" id="area_manager_department" name="area_manager_department">
             <option value="">Selecciona un área</option>
             {% for dept in area_departments %}
@@ -98,57 +71,62 @@
             {% endfor %}
           </select>
         </div>
-        <!-- Correo / Username -->
         <div class="mb-3">
           {{ form.username.label(class="form-label") }}
-          {{ form.username(class="form-control", placeholder="Correo electrónico") }}
-          {% for error in form.username.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          {{ form.username(class="form-control", placeholder="Correo electrónico", autocomplete="username") }}
+          {% for error in form.username.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
         </div>
-        <!-- Contraseña -->
-        <div class="mb-3">
-          {{ form.password.label(class="form-label") }}
-          {{ form.password(class="form-control") }}
-          {% for error in form.password.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            {{ form.password.label(class="form-label") }}
+            <div class="pw-field">
+              {{ form.password(class="form-control", autocomplete="new-password") }}
+              <button type="button" class="pw-toggle" aria-label="Mostrar contraseña" data-pw-toggle="password"><i class="bi bi-eye"></i></button>
+            </div>
+            <div class="form-text">Mínimo 6 caracteres.</div>
+            {% for error in form.password.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          </div>
+          <div class="col-sm-6">
+            {{ form.confirm_password.label(class="form-label") }}
+            {{ form.confirm_password(class="form-control", autocomplete="new-password") }}
+            <div class="form-text" id="coinciden">&nbsp;</div>
+            {% for error in form.confirm_password.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          </div>
         </div>
-        <!-- Confirmar -->
-        <div class="mb-3">
-          {{ form.confirm_password.label(class="form-label") }}
-          {{ form.confirm_password(class="form-control") }}
-          {% for error in form.confirm_password.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-        </div>
-        <!-- Código admin -->
         <div class="mb-3" id="adminCodeGroup" style="display:none;">
           {{ form.verification_code.label(class="form-label") }}
-          {{ form.verification_code(class="form-control") }}
+          {{ form.verification_code(class="form-control", autocomplete="off") }}
           <div class="form-text" id="codeDescription">Ingresa la clave correspondiente.</div>
-          {% for error in form.verification_code.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          {% for error in form.verification_code.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
         </div>
-        <!-- Submit -->
-        <button type="submit" class="btn btn-success w-100 mt-2">Crear cuenta</button>
-      </div>
+        <button type="submit" class="btn btn-primary btn-lg w-100 mt-2"><i class="bi bi-person-plus"></i> Crear cuenta</button>
+      </form>
+
+      <div class="auth-alt">¿Ya tienes cuenta? <a href="{{ url_for('main.login') }}" class="fw-semibold">Inicia sesión</a></div>
     </div>
-  </form>
+  </div>
 </div>
 
 <script>
-  // Tarjetas tipo de usuario
-  document.querySelectorAll('.user-type-card').forEach(card=>{
-    card.addEventListener('click',()=>{
-      document.querySelectorAll('.user-type-card').forEach(c=>c.classList.remove('active'));
+  // Tipo de cuenta
+  document.querySelectorAll('.user-type-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.user-type-card').forEach(c => { c.classList.remove('active'); c.setAttribute('aria-checked', 'false'); });
       card.classList.add('active');
-      const type=card.getAttribute('data-user-type');
-      document.getElementById('user_type').value=type;
+      card.setAttribute('aria-checked', 'true');
+      const type = card.getAttribute('data-user-type');
+      document.getElementById('user_type').value = type;
 
       // Qué campos pide cada perfil. Ligar un empleado es obligatorio solo para
       // "empleado"; para el resto es opcional y sirve para darle saldo de
       // vacaciones a esa cuenta.
       const PERFILES = {
-        empleado:       {empleado:'requerido', area:false, codigo:null},
-        lider_proyecto: {empleado:'opcional',  area:false, codigo:'Ingresa la clave de líder de proyecto.'},
-        rh:             {empleado:'opcional',  area:false, codigo:'Ingresa la clave de RH.'},
-        ejecutivo:      {empleado:'opcional',  area:false, codigo:'Ingresa la clave de Ejecutivo.'},
-        jefe_area:      {empleado:'opcional',  area:true,  codigo:'Ingresa la clave de Jefe de Area.'},
-        administrador:  {empleado:'opcional',  area:false, codigo:'Ingresa la clave de administrador.'}
+        empleado:       { empleado: 'requerido', area: false, codigo: null },
+        lider_proyecto: { empleado: 'opcional',  area: false, codigo: 'Ingresa la clave de líder de proyecto.' },
+        rh:             { empleado: 'opcional',  area: false, codigo: 'Ingresa la clave de RH.' },
+        ejecutivo:      { empleado: 'opcional',  area: false, codigo: 'Ingresa la clave de Ejecutivo.' },
+        jefe_area:      { empleado: 'opcional',  area: true,  codigo: 'Ingresa la clave de Jefe de Area.' },
+        administrador:  { empleado: 'opcional',  area: false, codigo: 'Ingresa la clave de administrador.' }
       };
       const cfg = PERFILES[type] || PERFILES.administrador;
 
@@ -159,20 +137,34 @@
           : 'Opcional. Si te ligas a un empleado, tu cuenta tendrá saldo de vacaciones propio.');
       $('#areaManagerGroup').toggle(cfg.area);
       $('#adminCodeGroup').toggle(!!cfg.codigo);
-      if(cfg.codigo){ $('#codeDescription').text(cfg.codigo); }
+      if (cfg.codigo) { $('#codeDescription').text(cfg.codigo); }
 
-      document.getElementById('registerForm').style.display='block';
-      $("#employee_name").select2({theme:'bootstrap4',placeholder:'Selecciona tu nombre',allowClear:true});
+      document.getElementById('sinPerfil').style.display = 'none';
+      document.getElementById('registerForm').style.display = 'block';
+      $("#employee_name").select2({ theme: 'bootstrap4', placeholder: 'Selecciona tu nombre', allowClear: true, width: '100%' });
 
-      // Enfocar primer input significativo
-      setTimeout(()=>{
-        if(type==='empleado'){
-          $('#employee_name').select2('open');
-        } else {
-          document.getElementById('username').focus();
-        }
-      },300);
+      setTimeout(() => {
+        if (type === 'empleado') { $('#employee_name').select2('open'); }
+        else { document.getElementById('username').focus(); }
+      }, 300);
     });
   });
+
+  // Mostrar contraseña y confirmar que coinciden
+  document.querySelectorAll('[data-pw-toggle]').forEach((b) => b.addEventListener('click', () => {
+    const campo = document.getElementById(b.dataset.pwToggle);
+    const ver = campo.type === 'password';
+    campo.type = ver ? 'text' : 'password';
+    b.querySelector('i').className = ver ? 'bi bi-eye-slash' : 'bi bi-eye';
+  }));
+  (function () {
+    const a = document.getElementById('password'), b = document.getElementById('confirm_password'), msg = document.getElementById('coinciden');
+    const revisar = () => {
+      if (!b.value) { msg.innerHTML = '&nbsp;'; return; }
+      const ok = a.value === b.value;
+      msg.innerHTML = ok ? '<span class="text-success"><i class="bi bi-check-circle"></i> Coinciden</span>' : '<span class="text-danger"><i class="bi bi-x-circle"></i> No coinciden</span>';
+    };
+    a.addEventListener('input', revisar); b.addEventListener('input', revisar);
+  })();
 </script>
 {% endblock %}

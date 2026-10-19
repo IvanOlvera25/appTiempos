@@ -2,121 +2,143 @@
 {% block title %}Incidencia #{{ incidencia.id }}{% endblock %}
 
 {% block content %}
-<div class="container py-4" style="max-width: 1000px;">
+{% set tipos_responsable = {'AREA': 'Área', 'EMPLEADO': 'Trabajador', 'CLIENTE': 'Cliente'} %}
+<style>
+  .props { margin: 0; }
+  .props dt { font-size: .75rem; font-weight: 500; color: var(--ad-text-3); margin-bottom: .2rem; }
+  .props dd { margin-bottom: 1.1rem; font-weight: 500; color: var(--ad-text); }
+  .props dd:last-child { margin-bottom: 0; }
+  .texto-largo { white-space: pre-wrap; line-height: 1.6; margin: 0; }
+  .fp-lista { display: flex; flex-direction: column; gap: .4rem; }
+  .fp-lista .fp { display: flex; align-items: baseline; gap: .5rem; font-size: .84rem; font-weight: 500; }
+  .fp-lista .fp .badge { flex-shrink: 0; }
+  @media (max-width: 575.98px) {
+    .inc-tabla.tabla-tarjetas > tbody > tr > td.td-titulo { font-size: 1rem; }
+    .inc-tabla.tabla-tarjetas > tbody > tr > td.inc-texto { padding-bottom: .5rem !important; font-size: .875rem; line-height: 1.45; }
+  }
+</style>
 
-  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+<div style="max-width: 1100px;">
+  <div class="page-head">
     <div>
-      <h1 class="h4 mb-1">
+      <div class="eyebrow"><i class="bi bi-collection"></i> Incidencia</div>
+      <h1 class="d-flex align-items-center flex-wrap gap-2">
         Incidencia #{{ incidencia.id }}
         {% if incidencia.estado == 'CERRADA' %}
-          <span class="badge bg-secondary align-middle">Cerrada</span>
+          <span class="badge bg-secondary">Cerrada</span>
         {% else %}
-          <span class="badge bg-success align-middle">Abierta</span>
+          <span class="badge bg-success"><span class="dot"></span>Abierta</span>
         {% endif %}
       </h1>
-      <p class="text-muted mb-0">
+      <p>
         {{ incidencia.created_at.strftime('%d/%m/%Y %H:%M') }} ·
         {{ incidencia.created_by.username if incidencia.created_by else '—' }}
       </p>
     </div>
-    <div class="d-flex gap-2">
-      {% if administra %}
-      <a href="{{ url_for('incidencias.editar', incident_id=incidencia.id) }}" class="btn btn-outline-primary">
-        <i class="bi bi-pencil"></i> Editar
-      </a>
-      {% endif %}
+    <div class="actions">
       <a href="{{ url_for('incidencias.lista') }}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Volver
       </a>
-    </div>
-  </div>
-
-  <div class="card mb-3">
-    <div class="card-header"><i class="bi bi-card-text me-2"></i>Descripción</div>
-    <div class="card-body">
-      <p class="mb-0" style="white-space: pre-wrap;">{{ incidencia.descripcion }}</p>
-    </div>
-  </div>
-
-  <div class="row g-3 mb-3">
-    <div class="col-md-4">
-      <div class="card h-100">
-        <div class="card-body">
-          <div class="small text-muted">Clasificación</div>
-          <div class="fw-bold">{{ incidencia.clasificacion.nombre if incidencia.clasificacion else 'Sin clasificar' }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card h-100">
-        <div class="card-body">
-          <div class="small text-muted">Responsable ({{ incidencia.responsable_tipo|capitalize }})</div>
-          <div class="fw-bold">{{ incidencia.responsable_label }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card h-100">
-        <div class="card-body">
-          <div class="small text-muted">Costo</div>
-          <div class="fw-bold fs-5">${{ '{:,.2f}'.format(incidencia.costo or 0) }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card mb-3">
-    <div class="card-header"><i class="bi bi-kanban me-2"></i>FP a los que pertenece</div>
-    <div class="card-body">
-      {% for p in incidencia.projects %}
-      <span class="badge bg-secondary me-1">
-        {{ p.project.folio if p.project.folio is not none else 's/f' }} — {{ p.project.name }}
-      </span>
-      {% else %}
-      <span class="text-muted">No se asignaron proyectos.</span>
-      {% endfor %}
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-header">
-      <i class="bi bi-clipboard me-2"></i>Informes agrupados
-      <span class="badge bg-info text-dark ms-2">{{ informes|length }}</span>
-    </div>
-    <div class="card-body p-0">
-      {% if informes %}
-      <div class="table-responsive">
-        <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light">
-            <tr>
-              <th style="width:70px;">#</th><th>Motivo</th>
-              <th style="width:160px;">Causante</th><th style="width:160px;">Reportó</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in informes %}
-            <tr>
-              <td>
-                <a href="{{ url_for('incidencias.ver_informe', report_id=r.id) }}"
-                   class="fw-bold text-decoration-none">#{{ r.id }}</a>
-              </td>
-              <td class="small">
-                {{ r.motivo|truncate(120) }}
-                <div class="text-muted">{{ r.created_at.strftime('%d/%m/%Y') }}</div>
-              </td>
-              <td class="small">{{ r.causante_label }}</td>
-              <td class="small">
-                {{ r.reporter.username if r.reporter else '—' }}
-                <div class="text-muted">{{ r.reporter.ROLE_LABELS[r.nivel_autor] }}</div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <div class="p-4 text-center text-muted">Todavía no hay informes vinculados.</div>
+      {% if administra %}
+      <a href="{{ url_for('incidencias.editar', incident_id=incidencia.id) }}" class="btn btn-primary">
+        <i class="bi bi-pencil"></i> Editar
+      </a>
       {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div class="card mb-3">
+        <div class="card-header"><i class="bi bi-card-text"></i>Descripción</div>
+        <div class="card-body">
+          <p class="texto-largo">{{ incidencia.descripcion }}</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <i class="bi bi-clipboard"></i>Informes agrupados
+          <span class="badge bg-info">{{ informes|length }}</span>
+        </div>
+        {% if informes %}
+        <div class="table-responsive">
+          <table class="table table-hover mb-0 align-middle inc-tabla" data-tarjetas>
+            <thead>
+              <tr>
+                <th style="width:70px;" data-titulo>#</th><th>Motivo</th>
+                <th style="width:160px;">Causante</th><th style="width:170px;">Reportó</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in informes %}
+              <tr>
+                <td>
+                  <a href="{{ url_for('incidencias.ver_informe', report_id=r.id) }}"
+                     class="fw-semibold text-decoration-none">#{{ r.id }}</a>
+                </td>
+                <td class="small inc-texto" data-label="">
+                  <a href="{{ url_for('incidencias.ver_informe', report_id=r.id) }}" class="text-body text-decoration-none">{{ r.motivo|truncate(120) }}</a>
+                  <div class="text-muted">{{ r.created_at.strftime('%d/%m/%Y') }}</div>
+                </td>
+                <td class="small">{{ r.causante_label }}</td>
+                <td class="small">
+                  {{ r.reporter.username if r.reporter else '—' }}
+                  <div class="text-muted">{{ r.reporter.ROLE_LABELS[r.nivel_autor] if r.reporter else '' }}</div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty py-4">
+          <div class="empty-icon"><i class="bi bi-clipboard"></i></div>
+          <h6>Sin informes vinculados</h6>
+          <p>Todavía no hay informes vinculados a esta incidencia.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="stat mb-3" style="height: auto;">
+        <span class="stat-icon"><i class="bi bi-cash-coin"></i></span>
+        <div class="stat-label">Costo</div>
+        <div class="stat-value"><small class="ms-0 me-1">$</small>{{ '{:,.2f}'.format(incidencia.costo or 0) }}</div>
+        <div class="stat-foot">Costo de la incidencia</div>
+      </div>
+      <div class="card">
+        <div class="card-header"><i class="bi bi-info-circle"></i>Detalles</div>
+        <div class="card-body">
+          <dl class="props">
+            <dt>Clasificación</dt>
+            <dd>{{ incidencia.clasificacion.nombre if incidencia.clasificacion else 'Sin clasificar' }}</dd>
+
+            <dt>Responsable · {{ tipos_responsable.get(incidencia.responsable_tipo, incidencia.responsable_tipo|capitalize) }}</dt>
+            <dd>{{ incidencia.responsable_label }}</dd>
+
+            <dt>Registró</dt>
+            <dd>{{ incidencia.created_by.username if incidencia.created_by else '—' }}</dd>
+
+            <dt>FP a los que pertenece</dt>
+            <dd>
+              {% if incidencia.projects %}
+              <div class="fp-lista">
+                {% for p in incidencia.projects %}
+                <div class="fp">
+                  <span class="badge bg-primary">FP {{ p.project.folio if p.project.folio is not none else 's/f' }}</span>
+                  <span>{{ p.project.name }}</span>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}
+              <span class="text-muted fw-normal">No se asignaron proyectos.</span>
+              {% endif %}
+            </dd>
+          </dl>
+        </div>
+      </div>
     </div>
   </div>
 </div>

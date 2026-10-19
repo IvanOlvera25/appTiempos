@@ -2,173 +2,260 @@
 {% block title %}Mis vacaciones{% endblock %}
 
 {% block content %}
-<div class="container py-4">
+{% set dias_semana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] %}
+{% set prox = saldo.proximo_aniversario %}
+{% set faltan = (prox - prox.today()).days if prox else none %}
+{% set total_periodo = saldo.num_vacaciones %}
+{% set pct_tomados = ((100 * saldo.vacaciones_tomadas / total_periodo)|round(1)) if total_periodo else 0 %}
+{% set pct_pendientes = ((100 * saldo.vacaciones_pendientes / total_periodo)|round(1)) if total_periodo else 0 %}
 
-  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <div>
-      <h1 class="h4 mb-1">Mis vacaciones</h1>
-      <p class="text-muted mb-0">{{ saldo.nombre }} · {{ saldo.area or 'Sin área' }}</p>
-    </div>
+<style>
+  .periodo-bar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--ad-surface-3); border: 1px solid var(--ad-border); }
+  .periodo-bar > div { height: 100%; }
+  .periodo-bar .tomados { background: var(--ad-info); }
+  .periodo-bar .pendientes { background: var(--ad-warning); }
+  .chart-legend i.libres { background: var(--ad-surface-3); border: 1px solid var(--ad-border-strong); }
+  .autoriza { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; font-size: .8125rem; color: var(--ad-text-3); }
+  @media (max-width: 575.98px) {
+    .tabla-compacta > :not(caption) > * > * { padding: .6rem .65rem; }
+  }
+  .autoriza .persona { display: inline-flex; align-items: center; gap: .4rem; padding: .2rem .65rem .2rem .25rem; border: 1px solid var(--ad-border); border-radius: 999px; background: var(--ad-surface); color: var(--ad-text); font-weight: 500; }
+  .mv-quedan strong { color: var(--ad-text); font-weight: 650; }
+
+  /* Celular: lo primero es poder pedir días con el pulgar */
+  @media (max-width: 767.98px) {
+    .mv-flujo { display: flex; flex-direction: column; }
+    .mv-flujo > .mv-acciones { order: -1; }
+    #solicitar .card-header { flex-wrap: wrap; }
+    #solicitar .mv-quedan { flex: 1 1 100%; margin-left: 0 !important; font-size: .82rem; }
+    #solicitar .nav-tabs .nav-item { flex: 1 1 0; }
+    #solicitar .nav-tabs .nav-link { width: 100%; justify-content: center; min-height: 44px; }
+    #solicitar .btn-primary { min-height: 48px; font-size: 1rem; }
+    .mv-pend-card .empty { padding: 1.25rem 1rem; }
+    .mv-pend-card .empty .empty-icon { display: none; }
+  }
+  @media (max-width: 575.98px) {
+    /* Fechas lado a lado sin que el icono del calendario se corte */
+    #solicitar input[type="date"] { padding-left: .6rem; padding-right: .45rem; }
+    /* Pendientes: fecha y tipo a la izquierda, cancelar a la derecha */
+    .mv-pend, .mv-pend > tbody { display: block; }
+    .mv-pend > thead { display: none; }
+    .mv-pend > tbody > tr {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: .75rem; row-gap: .3rem;
+      align-items: center; padding: .75rem .95rem; border-bottom: 1px solid var(--ad-border);
+    }
+    .mv-pend > tbody > tr:last-child { border-bottom: 0; }
+    .mv-pend > tbody > tr > td { padding: 0 !important; border: 0 !important; text-align: left !important; }
+    .mv-pend > tbody > tr > td:first-child { grid-column: 1; grid-row: 1; }
+    .mv-pend > tbody > tr > td.mv-pend-tipo { grid-column: 1; grid-row: 2; }
+    .mv-pend > tbody > tr > td.mv-pend-accion { grid-column: 2; grid-row: 1 / span 2; }
+    .mv-pend .mv-pend-accion .btn { min-height: 42px; }
+    /* Historial: la fecha como título y el estatus arriba a la derecha */
+    .mv-hist.tabla-tarjetas > tbody > tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: .75rem; align-items: start; padding: .7rem .95rem; }
+    .mv-hist.tabla-tarjetas > tbody > tr > td.td-titulo { grid-column: 1; grid-row: 1; padding: 0 !important; font-size: .9rem; font-weight: 400; }
+    .mv-hist.tabla-tarjetas > tbody > tr > td.mv-hist-estatus { grid-column: 2; grid-row: 1; padding: 0 !important; min-height: 0; }
+    .mv-hist.tabla-tarjetas > tbody > tr > td.mv-hist-estatus::before { display: none; }
+    .mv-hist.tabla-tarjetas > tbody > tr > td.td-span { grid-column: 1 / -1; }
+    .mv-hist.tabla-tarjetas > tbody > tr.row-hidden { display: none; }
+  }
+</style>
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-sun"></i> Vacaciones</div>
+    <h1>Mis vacaciones</h1>
+    <p>{{ saldo.nombre }} · {{ saldo.area or 'Sin área' }}</p>
+  </div>
+  <div class="actions">
     {% if supervisores %}
-    <div class="text-md-end small text-muted">
-      Autoriza:
-      {% for s in supervisores %}<span class="badge bg-light text-dark">{{ s.nombre }}</span>{% endfor %}
+    <div class="autoriza">
+      Autoriza
+      {% for s in supervisores %}
+      <span class="persona"><span class="avatar avatar-sm">{{ iniciales(s.nombre) }}</span>{{ s.nombre }}</span>
+      {% endfor %}
     </div>
     {% endif %}
   </div>
+</div>
 
-  <!-- Saldos -->
-  <div class="row g-3 mb-4">
-    <div class="col-6 col-lg-3">
-      <div class="card h-100 text-center">
-        <div class="card-body">
-          <div class="display-6 fw-bold text-primary">{{ saldo.vacaciones_libres }}</div>
-          <div class="small text-muted">Días que puedes pedir</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-6 col-lg-3">
-      <div class="card h-100 text-center">
-        <div class="card-body">
-          <div class="display-6 fw-bold">{{ saldo.num_vacaciones }}</div>
-          <div class="small text-muted">Días del periodo</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-6 col-lg-3">
-      <div class="card h-100 text-center">
-        <div class="card-body">
-          <div class="display-6 fw-bold text-success">{{ saldo.vacaciones_tomadas }}</div>
-          <div class="small text-muted">Tomados</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-6 col-lg-3">
-      <div class="card h-100 text-center">
-        <div class="card-body">
-          <div class="display-6 fw-bold text-warning">{{ saldo.vacaciones_pendientes }}</div>
-          <div class="small text-muted">Pendientes de autorizar</div>
-        </div>
-      </div>
+<div class="mv-flujo">
+<!-- Saldo -->
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-4 col-xl">
+    <div class="stat">
+      <span class="stat-icon brand"><i class="bi bi-calendar-check"></i></span>
+      <div class="stat-label">Días disponibles</div>
+      <div class="stat-value">{{ saldo.vacaciones_libres }}<small>{{ 'día' if saldo.vacaciones_libres == 1 else 'días' }}</small></div>
+      <div class="stat-foot">Lo que todavía puedes pedir</div>
     </div>
   </div>
-
-  <div class="row g-3 mb-4">
-    <div class="col-12 col-lg-8">
-      <div class="alert alert-light border mb-0">
-        <div class="row text-center">
-          <div class="col-4">
-            <div class="fw-bold">{{ saldo.antiguedad }} año(s)</div>
-            <div class="small text-muted">Antigüedad</div>
-          </div>
-          <div class="col-4">
-            <div class="fw-bold">{{ saldo.inicio_periodo.strftime('%d/%m/%Y') if saldo.inicio_periodo else '—' }}</div>
-            <div class="small text-muted">Inicio del periodo</div>
-          </div>
-          <div class="col-4">
-            <div class="fw-bold">{{ saldo.proximo_aniversario.strftime('%d/%m/%Y') if saldo.proximo_aniversario else '—' }}</div>
-            <div class="small text-muted">Se reinicia</div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-lg-4">
-      <div class="alert alert-light border mb-0 text-center">
-        <div class="fw-bold fs-5">{{ saldo.mediodias_libres }} de {{ saldo.num_mediodia }}</div>
-        <div class="small text-muted">Medios días disponibles</div>
-      </div>
+  <div class="col-6 col-md-4 col-xl">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-check2-circle"></i></span>
+      <div class="stat-label">Tomados</div>
+      <div class="stat-value">{{ saldo.vacaciones_tomadas }}<small>de {{ saldo.num_vacaciones }}</small></div>
+      <div class="stat-foot">Días del periodo actual</div>
     </div>
   </div>
+  <div class="col-6 col-md-4 col-xl">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-hourglass-split"></i></span>
+      <div class="stat-label">Pendientes</div>
+      <div class="stat-value">{{ saldo.vacaciones_pendientes }}<small>{{ 'día' if saldo.vacaciones_pendientes == 1 else 'días' }}</small></div>
+      <div class="stat-foot">Esperando autorización</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-6 col-xl">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-circle-half"></i></span>
+      <div class="stat-label">Medios días</div>
+      <div class="stat-value">{{ saldo.mediodias_libres }}<small>de {{ saldo.num_mediodia }}</small></div>
+      <div class="stat-foot">Disponibles{% if saldo.mediodias_pendientes %} · {{ saldo.mediodias_pendientes }} pendiente{{ 's' if saldo.mediodias_pendientes != 1 }}{% endif %}</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-xl">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-arrow-repeat"></i></span>
+      <div class="stat-label">Próximo periodo</div>
+      {% if faltan is not none and faltan >= 0 %}
+      <div class="stat-value">{{ faltan }}<small>{{ 'día' if faltan == 1 else 'días' }}</small></div>
+      <div class="stat-foot">Tu saldo se renueva el {{ prox.strftime('%d/%m/%Y') }}</div>
+      {% else %}
+      <div class="stat-value">{{ prox.strftime('%d/%m/%Y') if prox else '—' }}</div>
+      <div class="stat-foot">Fecha en que se renueva tu saldo</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
 
+<!-- Uso del periodo -->
+<div class="card mb-4">
+  <div class="card-body py-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+      <div class="small">
+        <span class="fw-semibold">Periodo actual</span>
+        <span class="text-muted">
+          · {{ saldo.inicio_periodo.strftime('%d/%m/%Y') if saldo.inicio_periodo else '—' }} al {{ prox.strftime('%d/%m/%Y') if prox else '—' }}
+          · {{ saldo.antiguedad }} {{ 'año' if saldo.antiguedad == 1 else 'años' }} de antigüedad
+        </span>
+      </div>
+      <div class="chart-legend">
+        <span><i style="background: var(--ad-info)"></i>Tomados {{ saldo.vacaciones_tomadas }}</span>
+        <span><i style="background: var(--ad-warning)"></i>Pendientes {{ saldo.vacaciones_pendientes }}</span>
+        <span><i class="libres"></i>Disponibles {{ saldo.vacaciones_libres }}</span>
+      </div>
+    </div>
+    <div class="periodo-bar" role="img"
+         aria-label="{{ saldo.vacaciones_tomadas }} días tomados, {{ saldo.vacaciones_pendientes }} pendientes y {{ saldo.vacaciones_libres }} disponibles de {{ saldo.num_vacaciones }}">
+      <div class="tomados" style="width: {{ [pct_tomados, 100]|min }}%"></div>
+      <div class="pendientes" style="width: {{ [pct_pendientes, 100 - [pct_tomados, 100]|min]|min }}%"></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4 mv-acciones">
   <!-- Solicitar -->
-  <div class="card mb-4">
-    <div class="card-header"><i class="bi bi-calendar-plus me-2"></i>Solicitar</div>
-    <div class="card-body">
-      <ul class="nav nav-tabs mb-3" role="tablist">
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-dias" type="button">Días completos</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-medio" type="button">Medio día</button></li>
-      </ul>
+  <div class="col-xl-7">
+    <div class="card h-100" id="solicitar">
+      <div class="card-header">
+        <i class="bi bi-calendar-plus"></i>Solicitar
+        <span class="chart-sub ms-auto mv-quedan">Te quedan <strong>{{ saldo.vacaciones_libres }} {{ 'día' if saldo.vacaciones_libres == 1 else 'días' }}</strong> y <strong>{{ saldo.mediodias_libres }} {{ 'medio día' if saldo.mediodias_libres == 1 else 'medios días' }}</strong></span>
+      </div>
+      <div class="card-body">
+        <ul class="nav nav-tabs mb-3" role="tablist">
+          <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-dias" type="button"><i class="bi bi-calendar-range"></i> Días completos</button></li>
+          <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-medio" type="button"><i class="bi bi-circle-half"></i> Medio día</button></li>
+        </ul>
 
-      <div class="tab-content">
-        <div class="tab-pane fade show active" id="tab-dias">
-          <form method="POST" action="{{ url_for('vacaciones.solicitar') }}" class="row g-3">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="tipo" value="VACACION">
-            <div class="col-md-3">
-              <label class="form-label">Desde</label>
-              <input type="date" name="desde" class="form-control" min="{{ hoy }}" required>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Hasta</label>
-              <input type="date" name="hasta" class="form-control" min="{{ hoy }}">
-              <div class="form-text">Déjalo vacío para un solo día.</div>
-            </div>
-            <div class="col-md-3 d-flex align-items-center">
-              <div class="form-check mt-3">
-                <input class="form-check-input" type="checkbox" name="incluir_fines" id="incluir_fines">
-                <label class="form-check-label" for="incluir_fines">Incluir fines de semana</label>
+        <div class="tab-content">
+          <div class="tab-pane fade show active" id="tab-dias">
+            <form method="POST" action="{{ url_for('vacaciones.solicitar') }}" class="row g-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="tipo" value="VACACION">
+              <div class="col-6">
+                <label class="form-label" for="vac_desde">Desde</label>
+                <input type="date" name="desde" id="vac_desde" class="form-control" min="{{ hoy }}" required>
               </div>
-            </div>
-            <div class="col-md-3 d-flex align-items-end">
-              <button class="btn btn-primary w-100" {% if saldo.vacaciones_libres < 1 %}disabled{% endif %}>
-                <i class="bi bi-send"></i> Solicitar
-              </button>
-            </div>
-          </form>
-          {% if saldo.vacaciones_libres < 1 %}
-          <div class="alert alert-warning mt-3 mb-0">Ya no te quedan días disponibles en este periodo.</div>
-          {% endif %}
-        </div>
+              <div class="col-6">
+                <label class="form-label" for="vac_hasta">Hasta</label>
+                <input type="date" name="hasta" id="vac_hasta" class="form-control" min="{{ hoy }}">
+              </div>
+              <div class="col-12 form-text mt-1">Deja «Hasta» vacío para pedir un solo día.</div>
+              <div class="col-12 d-flex flex-wrap align-items-center justify-content-between gap-3">
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" name="incluir_fines" id="incluir_fines">
+                  <label class="form-check-label" for="incluir_fines">Incluir fines de semana</label>
+                </div>
+                <button class="btn btn-primary col-12 col-sm-auto" {% if saldo.vacaciones_libres < 1 %}disabled{% endif %}>
+                  <i class="bi bi-send"></i> Solicitar
+                </button>
+              </div>
+            </form>
+            {% if saldo.vacaciones_libres < 1 %}
+            <div class="alert alert-warning mt-3 mb-0"><i class="bi bi-exclamation-triangle me-1"></i> Ya no te quedan días disponibles en este periodo.</div>
+            {% endif %}
+          </div>
 
-        <div class="tab-pane fade" id="tab-medio">
-          <form method="POST" action="{{ url_for('vacaciones.solicitar') }}" class="row g-3">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="tipo" value="MEDIO_DIA">
-            <div class="col-md-4">
-              <label class="form-label">Fecha</label>
-              <input type="date" name="fecha_medio_dia" class="form-control" min="{{ hoy }}" required>
-            </div>
-            <div class="col-md-5">
-              <label class="form-label">¿Qué mitad de la jornada?</label>
-              <select name="momento" class="form-select" required>
-                <option value="INICIAL">Al inicio (entro más tarde)</option>
-                <option value="FINAL" selected>Al final (salgo más temprano)</option>
-              </select>
-            </div>
-            <div class="col-md-3 d-flex align-items-end">
-              <button class="btn btn-primary w-100" {% if saldo.mediodias_libres < 1 %}disabled{% endif %}>
-                <i class="bi bi-send"></i> Solicitar
-              </button>
-            </div>
-          </form>
+          <div class="tab-pane fade" id="tab-medio">
+            <form method="POST" action="{{ url_for('vacaciones.solicitar') }}" class="row g-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="tipo" value="MEDIO_DIA">
+              <div class="col-sm-6">
+                <label class="form-label" for="vac_medio_fecha">Fecha</label>
+                <input type="date" name="fecha_medio_dia" id="vac_medio_fecha" class="form-control" min="{{ hoy }}" required>
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label" for="vac_momento">¿Qué mitad de la jornada?</label>
+                <select name="momento" id="vac_momento" class="form-select" required>
+                  <option value="INICIAL">Al inicio (entro más tarde)</option>
+                  <option value="FINAL" selected>Al final (salgo más temprano)</option>
+                </select>
+              </div>
+              <div class="col-12 d-flex justify-content-end">
+                <button class="btn btn-primary col-12 col-sm-auto" {% if saldo.mediodias_libres < 1 %}disabled{% endif %}>
+                  <i class="bi bi-send"></i> Solicitar
+                </button>
+              </div>
+            </form>
+            {% if saldo.mediodias_libres < 1 %}
+            <div class="alert alert-warning mt-3 mb-0"><i class="bi bi-exclamation-triangle me-1"></i> Ya no te quedan medios días disponibles en este periodo.</div>
+            {% endif %}
+          </div>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Pendientes -->
-  <div class="card mb-4">
-    <div class="card-header"><i class="bi bi-hourglass-split me-2"></i>Pendientes de autorización</div>
-    <div class="card-body p-0">
+  <div class="col-xl-5">
+    <div class="card h-100 mv-pend-card">
+      <div class="card-header">
+        <i class="bi bi-hourglass-split"></i>Pendientes de autorización
+        {% if pendientes %}<span class="badge bg-warning">{{ pendientes|length }}</span>{% endif %}
+      </div>
       {% if pendientes %}
       <div class="table-responsive">
-        <table class="table table-striped mb-0 align-middle">
-          <thead class="table-light">
-            <tr><th>Fecha</th><th>Tipo</th><th>Solicitada</th><th class="text-end">Acción</th></tr>
+        <table class="table mb-0 align-middle tabla-compacta mv-pend">
+          <thead>
+            <tr><th>Fecha</th><th>Tipo</th><th class="text-end">Acción</th></tr>
           </thead>
           <tbody>
             {% for s in pendientes %}
             <tr>
-              <td>{{ s.fecha.strftime('%d/%m/%Y') }}</td>
-              <td>
+              <td class="text-nowrap">
+                <span class="text-muted small">{{ dias_semana[s.fecha.weekday()] }}</span>
+                <span class="fw-semibold">{{ s.fecha.strftime('%d/%m/%Y') }}</span>
+                {# La fecha de solicitud va debajo: la tarjeta es angosta junto a "Solicitar" #}
+                {% if s.fecha_solicitud %}<div class="small text-muted">Solicitada el {{ s.fecha_solicitud.strftime('%d/%m/%Y') }}</div>{% endif %}
+              </td>
+              <td class="mv-pend-tipo">
                 {% if s.tipo == 'MEDIO_DIA' %}
-                  <span class="badge bg-info text-dark">Medio día ({{ s.momento|lower }})</span>
+                  <span class="badge bg-info"><i class="bi bi-circle-half"></i>Medio día ({{ s.momento|lower }})</span>
                 {% else %}
                   <span class="badge bg-secondary">Día completo</span>
                 {% endif %}
               </td>
-              <td class="text-muted small">{{ s.fecha_solicitud.strftime('%d/%m/%Y') if s.fecha_solicitud else '—' }}</td>
-              <td class="text-end">
+              <td class="text-end mv-pend-accion">
                 <form method="POST" action="{{ url_for('vacaciones.cancelar', tipo=s.tipo, reg_id=s.id) }}"
                       onsubmit="return confirm('¿Cancelar esta solicitud?');">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -181,47 +268,64 @@
         </table>
       </div>
       {% else %}
-      <div class="p-4 text-center text-muted">No tienes solicitudes pendientes.</div>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Historial -->
-  <div class="card">
-    <div class="card-header"><i class="bi bi-clock-history me-2"></i>Historial</div>
-    <div class="card-body p-0">
-      {% if historial %}
-      <div class="table-responsive">
-        <table class="table table-striped mb-0 align-middle">
-          <thead class="table-light">
-            <tr><th>Fecha</th><th>Tipo</th><th>Estatus</th><th>Respondió</th><th>Fecha de respuesta</th></tr>
-          </thead>
-          <tbody>
-            {% for s in historial %}
-            <tr>
-              <td>{{ s.fecha.strftime('%d/%m/%Y') }}</td>
-              <td>
-                {% if s.tipo == 'MEDIO_DIA' %}
-                  <span class="badge bg-info text-dark">Medio día</span>
-                {% else %}
-                  <span class="badge bg-secondary">Día completo</span>
-                {% endif %}
-              </td>
-              <td>
-                {% if s.estatus == 'AUTORIZADO' %}<span class="badge bg-success">Autorizado</span>
-                {% else %}<span class="badge bg-danger">Denegado</span>{% endif %}
-              </td>
-              <td class="small">{{ s.autorizador or '—' }}</td>
-              <td class="small text-muted">{{ s.fecha_respuesta.strftime('%d/%m/%Y') if s.fecha_respuesta else '—' }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="empty my-auto">
+        <div class="empty-icon"><i class="bi bi-check2-circle"></i></div>
+        <h6>No tienes solicitudes pendientes</h6>
+        <p>Lo que pidas aparece aquí hasta que tu supervisor lo responda.</p>
       </div>
-      {% else %}
-      <div class="p-4 text-center text-muted">Todavía no hay vacaciones registradas en este periodo.</div>
       {% endif %}
     </div>
   </div>
 </div>
+
+<!-- Historial -->
+<div class="card">
+  <div class="card-header">
+    <i class="bi bi-clock-history"></i>Historial
+    {% if historial %}<span class="badge bg-secondary">{{ historial|length }}</span>{% endif %}
+  </div>
+  {% if historial %}
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle tabla-compacta mv-hist" data-tarjetas{% if historial|length > 5 %} data-buscable="Buscar fecha, estatus o persona…"{% endif %}>
+      <thead>
+        <tr><th data-titulo>Fecha</th><th class="d-none d-sm-table-cell">Tipo</th><th>Estatus</th><th class="d-none d-md-table-cell">Respondió</th><th class="d-none d-md-table-cell">Fecha de respuesta</th></tr>
+      </thead>
+      <tbody>
+        {% for s in historial %}
+        <tr>
+          <td class="text-nowrap" data-valor="{{ s.fecha.isoformat() }}">
+            <span class="text-muted small">{{ dias_semana[s.fecha.weekday()] }}</span>
+            <span class="fw-semibold">{{ s.fecha.strftime('%d/%m/%Y') }}</span>
+            {# En pantallas chicas el tipo y la respuesta van aquí, debajo de la fecha #}
+            <div class="small text-muted text-wrap d-md-none">
+              <span class="d-sm-none">{{ 'Medio día' if s.tipo == 'MEDIO_DIA' else 'Día completo' }} · </span>{{ s.autorizador or 'Sin respuesta' }}{% if s.fecha_respuesta %} · {{ s.fecha_respuesta.strftime('%d/%m/%Y') }}{% endif %}
+            </div>
+          </td>
+          <td class="d-none d-sm-table-cell">
+            {% if s.tipo == 'MEDIO_DIA' %}
+              <span class="badge bg-info"><i class="bi bi-circle-half"></i>Medio día</span>
+            {% else %}
+              <span class="badge bg-secondary">Día completo</span>
+            {% endif %}
+          </td>
+          <td class="mv-hist-estatus">
+            {% if s.estatus == 'AUTORIZADO' %}<span class="badge bg-success"><i class="bi bi-check-lg"></i>Autorizado</span>
+            {% else %}<span class="badge bg-danger"><i class="bi bi-x-lg"></i>Denegado</span>{% endif %}
+          </td>
+          <td class="small d-none d-md-table-cell">{{ s.autorizador or '—' }}</td>
+          <td class="small text-muted text-nowrap d-none d-md-table-cell" data-valor="{{ s.fecha_respuesta.isoformat() if s.fecha_respuesta else '' }}">{{ s.fecha_respuesta.strftime('%d/%m/%Y') if s.fecha_respuesta else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon"><i class="bi bi-calendar"></i></div>
+    <h6>Sin historial</h6>
+    <p>Todavía no hay vacaciones registradas en este periodo.</p>
+  </div>
+  {% endif %}
+</div>
+</div>{# /.mv-flujo #}
 {% endblock %}

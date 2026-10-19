@@ -1,192 +1,122 @@
 {% extends "layout.html" %}
-{% block title %}Editar Proyecto - Sistema de Gestión Operativa{% endblock %}
+{% block title %}Editar proyecto{% endblock %}
 
 {% block content %}
 <style>
-  .edit-header {
-    background: linear-gradient(135deg, #FF8800 0%, #ff6600 100%);
-    color: white;
-    padding: 2rem 0;
-    margin-bottom: 2rem;
-    border-radius: 0 0 1rem 1rem;
-  }
-
-  .form-card {
-    border: none;
-    border-radius: 1rem;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-  }
-
-  .form-label {
-    font-weight: 600;
-    color: #495057;
-    margin-bottom: 0.5rem;
-  }
-
-  .form-control:focus {
-    border-color: #FF8800;
-    box-shadow: 0 0 0 0.2rem rgba(255, 136, 0, 0.25);
-  }
-
-  .btn-primary {
-    background-color: #FF8800;
-    border-color: #FF8800;
-  }
-
-  .btn-primary:hover {
-    background-color: #e07b00;
-    border-color: #e07b00;
-  }
-
-  .info-box {
-    background-color: #f8f9fa;
-    border-left: 4px solid #FF8800;
-    padding: 1rem;
-    margin-bottom: 1.5rem;
-    border-radius: 0.25rem;
+  /* Celular: "Guardar cambios" primero y a todo lo ancho; Cancelar y Restablecer debajo */
+  @media (max-width: 575.98px) {
+    .form-acciones { width: 100%; flex-wrap: wrap; }
+    .form-acciones > .btn { flex: 1 1 0; }
+    .form-acciones > .btn-primary { flex: 1 1 100%; order: -1; }
   }
 </style>
-
-<!-- Header -->
-<div class="edit-header">
-  <div class="container">
-    <div class="row align-items-center">
-      <div class="col">
-        <nav aria-label="breadcrumb">
-          <ol class="breadcrumb mb-2" style="background: transparent;">
-            <li class="breadcrumb-item"><a href="{{ url_for('main.home') }}" class="text-white-50">Inicio</a></li>
-            <li class="breadcrumb-item"><a href="{{ url_for('main.project_page') }}" class="text-white-50">Proyectos</a></li>
-            <li class="breadcrumb-item text-white active">Editar Proyecto</li>
-          </ol>
-        </nav>
-        <h1 class="mb-0">
-          <i class="bi bi-pencil-square me-2"></i>Editar Proyecto
-        </h1>
-        <p class="mb-0 mt-2 opacity-75">Modifica los detalles del proyecto</p>
-      </div>
+<div style="max-width: 880px">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow"><i class="bi bi-kanban"></i> Proyectos</div>
+      <h1>Editar proyecto</h1>
+      <p>Corrige el FP, el cliente, el nombre o la fecha de entrega.</p>
+    </div>
+    <div class="actions">
+      <a href="{{ url_for('main.project_page') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver a proyectos</a>
     </div>
   </div>
-</div>
 
-<div class="container">
-  <div class="row justify-content-center">
-    <div class="col-lg-8">
-      <!-- Información del proyecto actual -->
-      <div class="info-box">
-        <h5 class="mb-2">
-          <i class="bi bi-info-circle me-2"></i>Información Actual
-        </h5>
-        <div class="row">
-          <div class="col-md-6">
-            <p class="mb-1"><strong>Folio:</strong> {{ project.folio }}</p>
-            <p class="mb-0"><strong>Cliente:</strong> {{ project.client }}</p>
-          </div>
-          <div class="col-md-6">
-            <p class="mb-1"><strong>Nombre:</strong> {{ project.name }}</p>
-            <p class="mb-0"><strong>Estado:</strong>
-              {% if project.active %}
-                <span class="badge bg-success">Activo</span>
-              {% else %}
-                <span class="badge bg-secondary">Inactivo</span>
-              {% endif %}
-            </p>
-          </div>
-        </div>
+  <!-- Información del proyecto actual -->
+  <div class="card mb-3">
+    <div class="card-body d-flex flex-wrap align-items-center gap-3">
+      <span class="stat-icon position-static flex-shrink-0"><i class="bi bi-folder2-open"></i></span>
+      <div class="flex-grow-1" style="min-width: 0;">
+        <div class="small text-muted">Datos actuales</div>
+        <div class="fw-semibold text-truncate">FP {{ project.folio }} · {{ project.name }}</div>
+        <div class="small text-muted">{{ project.client }}</div>
       </div>
-
-      <!-- Formulario de edición -->
-      <div class="card form-card">
-        <div class="card-body p-4">
-          <form method="POST" id="editProjectForm">
-            {{ form.hidden_tag() }}
-
-            <div class="row">
-              <!-- Folio -->
-              <div class="col-md-4 mb-3">
-                <label for="{{ form.folio.id }}" class="form-label">
-                  <i class="bi bi-hash me-1"></i>{{ form.folio.label.text }}
-                  <span class="text-danger">*</span>
-                </label>
-                {{ form.folio(class="form-control", placeholder="Ej: 1234") }}
-                {% if form.folio.errors %}
-                  <div class="text-danger small mt-1">
-                    {% for error in form.folio.errors %}{{ error }}{% endfor %}
-                  </div>
-                {% endif %}
-              </div>
-
-              <!-- Fecha de Entrega -->
-              <div class="col-md-8 mb-3">
-                <label for="{{ form.delivery_date.id }}" class="form-label">
-                  <i class="bi bi-calendar me-1"></i>{{ form.delivery_date.label.text }}
-                </label>
-                {{ form.delivery_date(class="form-control") }}
-                {% if form.delivery_date.errors %}
-                  <div class="text-danger small mt-1">
-                    {% for error in form.delivery_date.errors %}{{ error }}{% endfor %}
-                  </div>
-                {% endif %}
-              </div>
-            </div>
-
-            <!-- Cliente -->
-            <div class="mb-3">
-              <label for="{{ form.client.id }}" class="form-label">
-                <i class="bi bi-building me-1"></i>{{ form.client.label.text }}
-                <span class="text-danger">*</span>
-              </label>
-              {{ form.client(class="form-control", placeholder="Ej: Empresa ABC") }}
-              {% if form.client.errors %}
-                <div class="text-danger small mt-1">
-                  {% for error in form.client.errors %}{{ error }}{% endfor %}
-                </div>
-              {% endif %}
-            </div>
-
-            <!-- Nombre del Proyecto -->
-            <div class="mb-4">
-              <label for="{{ form.name.id }}" class="form-label">
-                <i class="bi bi-folder me-1"></i>{{ form.name.label.text }}
-                <span class="text-danger">*</span>
-              </label>
-              {{ form.name(class="form-control", placeholder="Ej: Proyecto de Marketing Digital") }}
-              {% if form.name.errors %}
-                <div class="text-danger small mt-1">
-                  {% for error in form.name.errors %}{{ error }}{% endfor %}
-                </div>
-              {% endif %}
-            </div>
-
-            <!-- Botones de acción -->
-            <div class="d-flex justify-content-between align-items-center pt-3 border-top">
-              <a href="{{ url_for('main.project_page') }}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left me-2"></i>Cancelar
-              </a>
-              <div>
-                <button type="button" class="btn btn-outline-primary me-2" onclick="resetForm()">
-                  <i class="bi bi-arrow-clockwise me-2"></i>Restablecer
-                </button>
-                <button type="submit" class="btn btn-primary">
-                  <i class="bi bi-check-lg me-2"></i>Guardar Cambios
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <!-- Información adicional -->
-      <div class="mt-4 text-center text-muted">
-        <p class="mb-1">
-          <i class="bi bi-info-circle me-1"></i>
-          Los campos marcados con <span class="text-danger">*</span> son obligatorios
-        </p>
-        <p>
-          <i class="bi bi-clock-history me-1"></i>
-          Última modificación: {{ project.updated_at.strftime('%d/%m/%Y %H:%M') if project.updated_at else 'No disponible' }}
-        </p>
-      </div>
+      {% if project.active %}
+        <span class="badge bg-success"><i class="bi bi-check-circle"></i> Activo</span>
+      {% else %}
+        <span class="badge bg-secondary"><i class="bi bi-pause-circle"></i> Inactivo</span>
+      {% endif %}
     </div>
+  </div>
+
+  <!-- Formulario de edición -->
+  <div class="card">
+    <div class="card-header"><i class="bi bi-pencil-square"></i>Datos del proyecto</div>
+    <form method="POST" id="editProjectForm">
+      {{ form.hidden_tag() }}
+      <div class="card-body">
+        <div class="row g-3">
+          <!-- Folio -->
+          <div class="col-sm-5">
+            <label for="{{ form.folio.id }}" class="form-label">
+              {{ form.folio.label.text }} <span class="text-danger">*</span>
+            </label>
+            {{ form.folio(class="form-control", placeholder="Ej: 1234") }}
+            {% if form.folio.errors %}
+              <div class="text-danger small mt-1">
+                {% for error in form.folio.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Fecha de Entrega -->
+          <div class="col-sm-7">
+            <label for="{{ form.delivery_date.id }}" class="form-label">
+              {{ form.delivery_date.label.text }}
+            </label>
+            {{ form.delivery_date(class="form-control") }}
+            {% if form.delivery_date.errors %}
+              <div class="text-danger small mt-1">
+                {% for error in form.delivery_date.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Cliente -->
+          <div class="col-12">
+            <label for="{{ form.client.id }}" class="form-label">
+              {{ form.client.label.text }} <span class="text-danger">*</span>
+            </label>
+            {{ form.client(class="form-control", placeholder="Ej: Empresa ABC") }}
+            {% if form.client.errors %}
+              <div class="text-danger small mt-1">
+                {% for error in form.client.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Nombre del Proyecto -->
+          <div class="col-12">
+            <label for="{{ form.name.id }}" class="form-label">
+              {{ form.name.label.text }} <span class="text-danger">*</span>
+            </label>
+            {{ form.name(class="form-control", placeholder="Ej: Proyecto de Marketing Digital") }}
+            {% if form.name.errors %}
+              <div class="text-danger small mt-1">
+                {% for error in form.name.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Botones de acción -->
+      <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span class="small text-muted">
+          Los campos con <span class="text-danger">*</span> son obligatorios.
+          {% if project.updated_at %}· Última modificación: {{ project.updated_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}
+        </span>
+        <div class="d-flex gap-2 form-acciones">
+          <a href="{{ url_for('main.project_page') }}" class="btn btn-outline-secondary">Cancelar</a>
+          <button type="button" class="btn btn-outline-secondary" onclick="resetForm()" title="Volver a los datos guardados">
+            <i class="bi bi-arrow-counterclockwise"></i> Restablecer
+          </button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg"></i> Guardar cambios
+          </button>
+        </div>
+      </div>
+    </form>
   </div>
 </div>
 {% endblock %}

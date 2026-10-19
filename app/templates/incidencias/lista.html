@@ -2,97 +2,148 @@
 {% block title %}Incidencias{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+{% set tipos_responsable = {'AREA': 'Área', 'EMPLEADO': 'Trabajador', 'CLIENTE': 'Cliente'} %}
+{% set n_cerradas = incidencias|selectattr('estado', 'equalto', 'CERRADA')|list|length %}
+{% set n_abiertas = incidencias|length - n_cerradas %}
 
-  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <div>
-      <h1 class="h4 mb-1">Incidencias</h1>
-      <p class="text-muted mb-0">Eventos consolidados a partir de los informes de incidencia.</p>
-    </div>
-    <div class="d-flex gap-2">
-      <a href="{{ url_for('incidencias.informes') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-clipboard"></i> Informes
-      </a>
-      {% if administra %}
-      <a href="{{ url_for('incidencias.clasificaciones') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-tags"></i> Clasificaciones
-      </a>
-      <a href="{{ url_for('incidencias.nueva') }}" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Nueva incidencia
-      </a>
-      {% endif %}
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-exclamation-triangle"></i> Incidencias</div>
+    <h1>Incidencias</h1>
+    <p>Eventos consolidados a partir de los informes de incidencia.</p>
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('incidencias.informes') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-clipboard"></i> Informes
+    </a>
+    {% if administra %}
+    <a href="{{ url_for('incidencias.clasificaciones') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-tags"></i> Clasificaciones
+    </a>
+    <a href="{{ url_for('incidencias.nueva') }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i> Nueva incidencia
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+{% if incidencias %}
+<!-- Indicadores -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-collection"></i></span>
+      <div class="stat-label">Incidencias</div>
+      <div class="stat-value">{{ incidencias|length }}</div>
+      <div class="stat-foot">{{ 'Registradas' if administra else 'Las que agrupan informes que puedes ver' }}</div>
     </div>
   </div>
-
-  {% if administra and incidencias %}
-  <div class="alert alert-light border mb-3">
-    <strong>{{ incidencias|length }}</strong> incidencia(s) ·
-    costo acumulado <strong>${{ '{:,.2f}'.format(total_costo) }}</strong>
+  <div class="col-6 col-xl">
+    <div class="stat">
+      <span class="stat-icon{% if n_abiertas %} brand{% endif %}"><i class="bi bi-folder2-open"></i></span>
+      <div class="stat-label">Abiertas</div>
+      <div class="stat-value">{{ n_abiertas }}</div>
+      <div class="stat-foot">En seguimiento</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-check2-circle"></i></span>
+      <div class="stat-label">Cerradas</div>
+      <div class="stat-value">{{ n_cerradas }}</div>
+      <div class="stat-foot">Ya resueltas</div>
+    </div>
+  </div>
+  {% if administra %}
+  <div class="col-6 col-xl">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-cash-coin"></i></span>
+      <div class="stat-label">Costo acumulado</div>
+      <div class="stat-value"><small class="ms-0 me-1">$</small>{{ '{:,.2f}'.format(total_costo) }}</div>
+      <div class="stat-foot">Suma de todas las incidencias</div>
+    </div>
   </div>
   {% endif %}
+</div>
+{% endif %}
 
-  <div class="card">
-    <div class="card-body p-0">
-      {% if incidencias %}
-      <div class="table-responsive">
-        <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light">
-            <tr>
-              <th style="width:70px;">#</th>
-              <th>Descripción</th>
-              <th style="width:160px;">Clasificación</th>
-              <th style="width:180px;">Responsable</th>
-              <th style="width:140px;">FP</th>
-              <th style="width:100px;">Informes</th>
-              <th style="width:120px;" class="text-end">Costo</th>
-              <th style="width:110px;">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for i in incidencias %}
-            <tr>
-              <td>
-                <a href="{{ url_for('incidencias.ver', incident_id=i.id) }}"
-                   class="fw-bold text-decoration-none">#{{ i.id }}</a>
-              </td>
-              <td>
-                <a href="{{ url_for('incidencias.ver', incident_id=i.id) }}"
-                   class="text-decoration-none text-body">{{ i.descripcion|truncate(110) }}</a>
-                <div class="small text-muted">{{ i.created_at.strftime('%d/%m/%Y') }}</div>
-              </td>
-              <td class="small">{{ i.clasificacion.nombre if i.clasificacion else '—' }}</td>
-              <td class="small">
-                <span class="badge bg-light text-dark">{{ i.responsable_tipo|capitalize }}</span>
-                {{ i.responsable_label }}
-              </td>
-              <td class="small">
-                {% for p in i.projects %}
-                <span class="badge bg-secondary">{{ p.project.folio if p.project.folio is not none else '—' }}</span>
-                {% else %}<span class="text-muted">—</span>{% endfor %}
-              </td>
-              <td class="text-center">
-                <span class="badge bg-info text-dark">{{ i.reports|length }}</span>
-              </td>
-              <td class="text-end">${{ '{:,.2f}'.format(i.costo or 0) }}</td>
-              <td>
-                {% if i.estado == 'CERRADA' %}
-                  <span class="badge bg-secondary">Cerrada</span>
-                {% else %}
-                  <span class="badge bg-success">Abierta</span>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <div class="p-5 text-center text-muted">
-        <i class="bi bi-collection fs-1 d-block mb-2"></i>
-        No hay incidencias registradas.
-      </div>
-      {% endif %}
-    </div>
+<style>
+  /* Celular: el folio como título y el texto completo a lo ancho, sin etiqueta */
+  @media (max-width: 575.98px) {
+    .inc-tabla.tabla-tarjetas > tbody > tr > td.td-titulo { font-size: 1rem; }
+    .inc-tabla.tabla-tarjetas > tbody > tr > td.inc-texto { padding-bottom: .5rem !important; line-height: 1.45; }
+    .inc-tabla.tabla-tarjetas > tbody > tr > td.inc-texto .small { margin-top: .15rem; }
+  }
+</style>
+
+<div class="card">
+  {% if incidencias %}
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle inc-tabla" data-buscable="Buscar por descripción, responsable, clasificación o FP…">
+      <thead>
+        <tr>
+          <th style="width:70px;" data-titulo>#</th>
+          <th style="min-width: 300px;">Descripción</th>
+          <th style="width:160px;">Clasificación</th>
+          <th style="width:180px;">Responsable</th>
+          <th style="width:120px;">FP</th>
+          <th style="width:100px;" class="text-center">Informes</th>
+          <th style="width:130px;" class="text-end">Costo</th>
+          <th style="width:110px;">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in incidencias %}
+        <tr>
+          <td data-valor="{{ i.id }}">
+            <a href="{{ url_for('incidencias.ver', incident_id=i.id) }}"
+               class="fw-semibold text-decoration-none">#{{ i.id }}</a>
+          </td>
+          <td class="inc-texto" data-label="">
+            <a href="{{ url_for('incidencias.ver', incident_id=i.id) }}"
+               class="text-decoration-none text-body fw-medium">{{ i.descripcion|truncate(110) }}</a>
+            <div class="small text-muted">{{ i.created_at.strftime('%d/%m/%Y') }}</div>
+          </td>
+          <td class="small">{{ i.clasificacion.nombre if i.clasificacion else '—' }}</td>
+          <td class="small">
+            <div class="text-muted" style="font-size: .7rem; text-transform: uppercase; letter-spacing: .04em;">{{ tipos_responsable.get(i.responsable_tipo, i.responsable_tipo|capitalize) }}</div>
+            {{ i.responsable_label }}
+          </td>
+          <td class="small">
+            <div class="d-flex flex-wrap gap-1">
+              {% for p in i.projects %}
+              <span class="badge bg-secondary" title="{{ p.project.name }}">{{ p.project.folio if p.project.folio is not none else '—' }}</span>
+              {% else %}<span class="text-muted">—</span>{% endfor %}
+            </div>
+          </td>
+          <td class="text-center" data-valor="{{ i.reports|length }}">
+            <span class="badge bg-info">{{ i.reports|length }}</span>
+          </td>
+          <td class="text-end text-nowrap fw-medium" data-valor="{{ i.costo or 0 }}">${{ '{:,.2f}'.format(i.costo or 0) }}</td>
+          <td>
+            {% if i.estado == 'CERRADA' %}
+              <span class="badge bg-secondary">Cerrada</span>
+            {% else %}
+              <span class="badge bg-success"><span class="dot"></span>Abierta</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon"><i class="bi bi-collection"></i></div>
+    <h6>No hay incidencias registradas</h6>
+    <p>
+      {% if administra %}Agrupa los informes que hablan del mismo evento en una incidencia.
+      {% else %}Aquí aparecen las incidencias que agrupan informes que puedes ver.{% endif %}
+    </p>
+    {% if administra %}
+    <a href="{{ url_for('incidencias.nueva') }}" class="btn btn-sm btn-primary mt-3"><i class="bi bi-plus-lg"></i> Nueva incidencia</a>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

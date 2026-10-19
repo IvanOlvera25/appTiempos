@@ -1,42 +1,130 @@
 {% extends "layout.html" %}
-{% block title %}Inicio - Sistema de Gestión Operativa{% endblock %}
+{% block title %}Registro de tiempos{% endblock %}
 {% block content %}
 <style>
-  .dept-btn {
-    min-height: 150px; /* Altura mínima de 150px, ajústala según tus necesidades */
-    font-size: 1.5rem; /* Tamaño de fuente más grande */
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .home { max-width: 1180px; margin: 0 auto; }
+  .home-hero { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem; margin: .5rem 0 1.75rem; }
+  .home-hero h1 { font-size: 2rem; font-weight: 700; letter-spacing: -.03em; margin: 0; }
+  .home-hero p { color: var(--ad-text-3); margin: .4rem 0 0; font-size: .95rem; }
+  .home-clock { text-align: right; }
+  .home-clock .t { font-size: 2rem; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .home-clock .d { color: var(--ad-text-3); font-size: .84rem; text-transform: capitalize; margin-top: .3rem; }
+  .areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }
+  .area-tile {
+    position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 1.25rem;
+    min-height: 168px; padding: 1.25rem;
+    background: var(--ad-surface); border: 1px solid var(--ad-border); border-radius: var(--ad-radius-xl);
+    box-shadow: var(--ad-shadow-xs); color: var(--ad-text);
+    transition: border-color .15s, box-shadow .15s, transform .15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .area-tile:hover { border-color: #f5a56b; box-shadow: var(--ad-shadow-lg); color: var(--ad-text); transform: translateY(-2px); }
+  .area-tile:active { transform: scale(.985); }
+  .area-tile .ic {
+    width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; font-size: 1.5rem;
+    background: var(--ad-brand-soft); color: var(--ad-brand-ink); border: 1px solid var(--ad-brand-soft-2);
+  }
+  .area-tile .nm { font-size: 1.3rem; font-weight: 650; letter-spacing: -.02em; }
+  .area-tile .ft { display: flex; align-items: center; justify-content: space-between; font-size: .8rem; color: var(--ad-text-3); }
+  .area-tile .go { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--ad-surface-3); color: var(--ad-text-2); transition: background-color .15s, color .15s; }
+  .area-tile:hover .go { background: var(--ad-brand); color: #fff; }
+  .area-tile .live-badge { position: absolute; top: 1.25rem; right: 1.25rem; }
+  .mi-registro {
+    display: flex; align-items: center; gap: 1rem; padding: 1.1rem 1.25rem; margin-bottom: .5rem;
+    background: var(--ad-surface); border: 1px solid var(--ad-brand-soft-2); border-left: 4px solid var(--ad-brand);
+    border-radius: var(--ad-radius-xl); box-shadow: var(--ad-shadow-sm); color: var(--ad-text);
+  }
+  .mi-registro:hover { color: var(--ad-text); box-shadow: var(--ad-shadow-md); }
+  .mi-registro .go { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--ad-brand); color: #fff; flex-shrink: 0; }
+  .min-w-0 { min-width: 0; }
+  @media (max-width: 575.98px) {
+    .home-hero { margin: 0 0 1.1rem; }
+    .home-hero h1 { font-size: 1.45rem; }
+    .areas { grid-template-columns: repeat(2, 1fr); gap: .65rem; }
+    .area-tile { min-height: 132px; padding: .95rem; gap: .75rem; border-radius: var(--ad-radius-lg); }
+    .area-tile .ic { width: 42px; height: 42px; font-size: 1.2rem; border-radius: 11px; }
+    .area-tile .nm { font-size: 1.02rem; }
+    .area-tile .ft span:first-child { font-size: .72rem; }
+    .area-tile .go { width: 30px; height: 30px; }
+    .area-tile .live-badge { top: .8rem; right: .8rem; font-size: .66rem; padding: .2rem .45rem; }
+    .area-tile:hover { transform: none; }
   }
 </style>
-<div class="text-center">
-  <h1 class="display-4">Sistema de Gestión Operativa</h1>
-  <p class="lead mt-3">Bienvenido al Sistema de Registro de Tiempos.</p>
 
-  <div class="container mt-5">
-    <div class="row justify-content-center">
-      {# Las áreas se administran en Administración → Áreas de registro #}
-      {% for area in areas %}
-      <div class="col-12 col-md-6 col-lg-4 mb-3">
-        <a href="{{ url_for('main.register_employee', department=area.nombre) }}"
-           class="btn btn-primary btn-lg w-100 dept-btn">
-          {{ area.nombre }}
-        </a>
-      </div>
-      {% else %}
-      <div class="col-12 col-lg-8">
-        <div class="alert alert-warning mb-0">
-          No hay áreas habilitadas para registrar tiempos.
-          {% if current_user.is_authenticated and current_user.is_admin %}
-            <a href="{{ url_for('main.areas_admin') }}" class="alert-link">Configura las áreas aquí</a>.
-          {% else %}
-            Pide a un administrador que las configure.
-          {% endif %}
-        </div>
-      </div>
-      {% endfor %}
+{% set iconos = {
+  'metal': 'bi-tools', 'costura': 'bi-scissors', 'impresion': 'bi-printer', 'impresión': 'bi-printer',
+  'stagging': 'bi-easel2', 'staging': 'bi-easel2', 'montaje': 'bi-hammer', 'transporte': 'bi-truck',
+  'administración': 'bi-briefcase', 'administracion': 'bi-briefcase', 'cad': 'bi-rulers',
+  'desarrollo grafico': 'bi-palette', 'desarrollo gráfico': 'bi-palette', 'almacén': 'bi-box-seam',
+  'almacen': 'bi-box-seam', 'logistica': 'bi-signpost-split', 'logística': 'bi-signpost-split',
+  'carpinteria': 'bi-bricks', 'carpintería': 'bi-bricks', 'pintura': 'bi-brush'
+} %}
+
+<div class="home">
+  <div class="home-hero">
+    <div>
+      <div class="eyebrow"><i class="bi bi-stopwatch"></i> Registro de tiempos</div>
+      <h1>¿En qué área trabajas hoy?</h1>
+      <p>Elige tu área para iniciar o finalizar tu registro.</p>
+    </div>
+    <div class="home-clock d-none d-sm-block">
+      <div class="t" id="homeHora">--:--</div>
+      <div class="d" id="homeFecha"></div>
     </div>
   </div>
+
+  {% if current_user.is_authenticated and current_user.is_employee and current_user.employee %}
+  {% set mi_area = current_user.employee.departamento %}
+  <a class="mi-registro" href="{{ url_for('main.register_employee', department=mi_area if mi_area and mi_area != 'N/A' else None) }}">
+    <span class="avatar avatar-lg avatar-brand">{{ iniciales(current_user.employee.nompropio) }}</span>
+    <span class="min-w-0">
+      <span class="d-block small text-muted">Hola, {{ current_user.employee.nombre }}</span>
+      <span class="d-block fw-semibold fs-6">Registrar mi tiempo{% if mi_area and mi_area != 'N/A' %} en {{ mi_area }}{% endif %}</span>
+    </span>
+    <span class="go ms-auto"><i class="bi bi-arrow-right"></i></span>
+  </a>
+  <div class="section-label">O elige otra área</div>
+  {% endif %}
+
+  {# Las áreas se administran en Configuración → Áreas de registro #}
+  <div class="areas">
+    {% for area in areas %}
+    {% set n = activos_por_area.get(area.nombre, 0) if activos_por_area else 0 %}
+    <a href="{{ url_for('main.register_employee', department=area.nombre) }}" class="area-tile">
+      <span class="ic"><i class="bi {{ iconos.get(area.nombre|lower|trim, 'bi-grid-3x3-gap') }}"></i></span>
+      {% if n %}<span class="badge bg-success live-badge"><span class="dot live"></span>{{ n }} trabajando</span>{% endif %}
+      <div>
+        <div class="nm">{{ area.nombre }}</div>
+        <div class="ft mt-1">
+          <span>{% if n %}{{ n }} {{ 'persona' if n == 1 else 'personas' }} con tiempo activo{% else %}Sin registros activos{% endif %}</span>
+          <span class="go"><i class="bi bi-arrow-right"></i></span>
+        </div>
+      </div>
+    </a>
+    {% else %}
+    <div class="card" style="grid-column: 1 / -1;">
+      <div class="empty">
+        <div class="empty-icon"><i class="bi bi-diagram-3"></i></div>
+        <h6>No hay áreas habilitadas para registrar tiempos</h6>
+        {% if current_user.is_authenticated and current_user.is_admin %}
+          <p><a href="{{ url_for('main.areas_admin') }}">Configura las áreas aquí</a>.</p>
+        {% else %}
+          <p>Pide a un administrador que las configure.</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
 </div>
+
+<script>
+  (function () {
+    const h = document.getElementById('homeHora'), f = document.getElementById('homeFecha');
+    if (!h) return;
+    const fh = new Intl.DateTimeFormat('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Mexico_City' });
+    const ff = new Intl.DateTimeFormat('es-MX', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Mexico_City' });
+    const tick = () => { const d = new Date(); h.textContent = fh.format(d); f.textContent = ff.format(d); };
+    tick(); setInterval(tick, 10000);
+  })();
+</script>
 {% endblock %}

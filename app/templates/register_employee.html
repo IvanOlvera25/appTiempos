@@ -1,129 +1,166 @@
 {% extends "layout.html" %}
+{% block title %}{{ department or 'Registro' }} · ¿Quién eres?{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-  <h2 class="mb-4">Registrar Tiempo (Empleado)</h2>
+{% include '_kiosco_estilos.html' %}
+<style>
+  .k-people { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: .6rem; }
+  .k-person {
+    display: flex; align-items: center; gap: .8rem; width: 100%; text-align: left;
+    padding: .75rem .9rem; min-height: 64px;
+    background: var(--ad-surface); border: 1px solid var(--ad-border); border-radius: var(--ad-radius-lg);
+    box-shadow: var(--ad-shadow-xs); transition: border-color .12s, box-shadow .12s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .k-person:hover { border-color: #f5a56b; box-shadow: var(--ad-shadow-md); }
+  .k-person:active { transform: scale(.99); }
+  .k-person .fw-semibold { font-size: .95rem; line-height: 1.25; color: var(--ad-text); white-space: normal !important; display: -webkit-box !important; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .k-person small { color: var(--ad-text-3); font-size: .76rem; }
+  .k-person .bi-chevron-right { margin-left: auto; color: var(--ad-text-4); }
+  .k-person.trabajando { border-color: var(--ad-success-line); }
+  .k-sep { grid-column: 1 / -1; font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--ad-text-3); margin: .75rem 0 .1rem; }
+  .k-live-item { display: flex; gap: .75rem; padding: .8rem 1rem; border-bottom: 1px solid var(--ad-border); }
+  .k-live-item:last-child { border-bottom: 0; }
+  @media (min-width: 1200px) { .k-side { position: sticky; top: calc(var(--ad-top-h) + 1.25rem); } }
+  .no-sidebar .k-side { top: 84px; }
+</style>
 
-  {% if department %}
-    <div class="alert alert-info text-center">
-      Departamento <strong>{{ department }}</strong>: <span id="activeWorkersCount">{{ active_count }}</span> trabajador(es) con tiempos activos sin finalizar.
-    </div>
-  {% endif %}
+{% set trabajando = active_records | map(attribute='employee_id') | list %}
 
-  <!-- Lista de Empleados Manual -->
-  <div class="card mb-4">
-    <div class="card-header bg-orange text-white">
-      Seleccione un Trabajador
+<div class="kiosco" style="padding-bottom: 2rem;">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow"><i class="bi bi-diagram-3"></i> {{ department or 'Registro de tiempos' }}</div>
+      <h1>¿Quién eres?</h1>
+      <p>Toca tu nombre para registrar o finalizar tu tiempo.</p>
     </div>
-    <div class="card-body p-0">
-      <div id="employeeList" class="list-group list-group-flush" style="max-height:500px; overflow-y:auto;">
+    <div class="actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.home') }}"><i class="bi bi-grid"></i> Cambiar de área</a>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <div class="search-field k-search">
+        <i class="bi bi-search lg"></i>
+        <input type="search" class="form-control form-control-lg" id="buscarPersona" autocomplete="off"
+               placeholder="Busca tu nombre o apellido"
+               data-filtra="#employeeList" data-vacio="#sinPersonas" data-contador="#nPersonas">
+      </div>
+      <div class="d-flex justify-content-between align-items-center mb-2 small text-muted">
+        <span><span id="nPersonas">{{ employees|length }}</span> personas</span>
+        {% if department %}<span><span class="dot live me-1"></span><span id="activeWorkersCount">{{ active_count }}</span> con tiempo activo en {{ department }}</span>{% endif %}
+      </div>
+
+      <div id="employeeList" class="k-people">
+        {% set ns = namespace(otros=false) %}
         {% for emp in employees %}
-        <button type="button"
-                class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                data-id="{{ emp.id }}">
-          <div>
-            <div class="fw-semibold">{{ emp.nombre }} {{ emp.apellido_paterno }} {{ emp.apellido_materno }}</div>
-            <small class="text-muted">{{ emp.nompropio }}</small>
-          </div>
-          <i class="bi bi-chevron-right"></i>
-        </button>
+          {% if department and emp.departamento != department and not ns.otros %}
+            {% set ns.otros = true %}
+            {% if not loop.first %}<div class="k-sep" data-filtrable=" ">Otras áreas</div>{% endif %}
+          {% endif %}
+          <button type="button" class="list-group-item-action k-person {% if emp.id in trabajando %}trabajando{% endif %}"
+                  data-id="{{ emp.id }}"
+                  data-filtrable="{{ emp.nombre }} {{ emp.apellido_paterno }} {{ emp.apellido_materno }} {{ emp.nompropio }} {{ emp.departamento }}">
+            <span class="avatar {{ 'avatar-brand' if emp.departamento == department else '' }}" style="{{ '' if emp.departamento == department else 'background: var(--ad-surface-3); color: var(--ad-text-2);' }}">{{ iniciales(emp.nombre ~ ' ' ~ emp.apellido_paterno) }}</span>
+            <span class="min-w-0">
+              <span class="fw-semibold d-block">{{ emp.nombre }} {{ emp.apellido_paterno }} {{ emp.apellido_materno }}</span>
+              <small class="d-block text-truncate">
+                {% if emp.id in trabajando %}<span class="text-success fw-semibold"><span class="dot live me-1"></span>Trabajando ahora</span> · {% endif %}
+                {{ emp.departamento if emp.departamento and emp.departamento != 'N/A' else emp.nompropio }}
+              </small>
+            </span>
+            <i class="bi bi-chevron-right"></i>
+          </button>
         {% endfor %}
       </div>
+      <div id="sinPersonas" class="empty d-none">
+        <div class="empty-icon"><i class="bi bi-person-x"></i></div>
+        <h6>No encontramos ese nombre</h6>
+        <p>Si eres nuevo o no apareces, avisa a tu jefe de área o a RH.</p>
+      </div>
     </div>
-  </div>
 
-  <!-- Registros Activos del Departamento -->
-  <div class="card">
-    <div class="card-header bg-danger text-white">
-      Registros Activos (<small>{{ department }}</small>)
-    </div>
-    <div class="card-body p-0">
-      {% if active_records %}
-      <ul class="list-group list-group-flush">
-        {% for rec in active_records %}
-        <li class="list-group-item">
-          <div class="fw-semibold">{{ rec.employee.nombre }} {{ rec.employee.apellido_paterno }} {{ rec.employee.apellido_materno }}</div>
-          <div>
-            <small><strong>Proyecto:</strong> {{ rec.project.name }}</small><br>
-            <small><strong>Actividad:</strong> {{ rec.actividad or 'Sin especificar' }}</small>
+    <div class="col-xl-4">
+      <div class="card k-side">
+        <div class="card-header"><span class="dot live me-1"></span>En curso en {{ department or 'el área' }}
+          <span class="badge bg-secondary ms-auto">{{ active_records|length }}</span></div>
+        {% if active_records %}
+        <div style="max-height: 70vh; overflow-y: auto;">
+          {% for rec in active_records %}
+          <div class="k-live-item">
+            <span class="avatar avatar-sm avatar-brand">{{ iniciales(rec.employee.nombre ~ ' ' ~ rec.employee.apellido_paterno) }}</span>
+            <div class="min-w-0">
+              <div class="fw-semibold text-truncate">{{ rec.employee.nombre }} {{ rec.employee.apellido_paterno }} {{ rec.employee.apellido_materno }}</div>
+              <div class="small text-truncate"><span class="text-muted">{% if rec.project.folio is not none %}FP {{ rec.project.folio }} · {% endif %}</span>{{ rec.project.name }}</div>
+              <div class="small text-muted text-truncate">{{ rec.actividad or 'Sin especificar' }} · desde {{ rec.start_time|mx('%H:%M') }}</div>
+            </div>
           </div>
-        </li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p class="text-center text-muted m-3">No hay registros activos en este departamento.</p>
-      {% endif %}
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty"><div class="empty-icon"><i class="bi bi-cup-hot"></i></div><p>No hay registros activos en esta área.</p></div>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Toast: selección exitosa -->
+<!-- Aviso: persona elegida -->
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
-  <div id="selectionSuccessToast" class="toast align-items-center text-bg-warning border-0" role="alert" aria-live="assertive" aria-atomic="true">
+  <div id="selectionSuccessToast" class="toast align-items-center border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="d-flex">
-      <div class="toast-body">
-        Empleado <strong id="selectedEmployeeName"></strong> seleccionado.
-      </div>
-      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+      <div class="toast-body"><i class="bi bi-person-check text-success me-1"></i> <strong id="selectedEmployeeName"></strong> seleccionado.</div>
+      <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
     </div>
   </div>
 </div>
 
-<!-- Toast: cuenta regresiva y captura -->
+<!-- Aviso: cuenta regresiva -->
 <div class="position-fixed top-50 start-50 translate-middle p-3" style="z-index: 1100;">
-  <div id="countdownToast" class="toast text-bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true" style="opacity:1; min-width:320px;">
-    <div class="toast-header text-bg-dark border-0">
-      <strong class="me-auto text-white">¡Sonríe!</strong>
-    </div>
-    <div class="toast-body d-flex flex-column align-items-center text-white">
-      <h4>Capturando foto en...</h4>
-      <h3 id="countdownTimer" class="display-6 fw-bold"></h3>
+  <div id="countdownToast" class="toast k-countdown border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-body text-center">
+      <i class="bi bi-person-check"></i>
+      <h4>Abriendo tu registro…</h4>
+      <div id="countdownTimer" class="k-count"></div>
     </div>
   </div>
 </div>
 
-<!-- Overlay de flash -->
-<div id="flashOverlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:white;opacity:0;pointer-events:none;z-index:2000;transition:opacity .2s;"></div>
+<div id="flashOverlay" style="position:fixed;inset:0;background:white;opacity:0;pointer-events:none;z-index:2000;transition:opacity .2s;"></div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', function () {
     const dept = {{ department|tojson }};
-    const baseUrl = dept === 'Impresion'
-      ? "{{ url_for('main.register_project_imp') }}"
-      : "{{ url_for('main.register_project') }}";
+    // La ruta decide qué pantalla sigue según el flujo configurado del área
+    const baseUrl = "{{ url_for(next_route) if next_route else url_for('main.register_project') }}";
 
     document.querySelectorAll('#employeeList .list-group-item-action').forEach(item => {
-      item.addEventListener('click', function() {
+      item.addEventListener('click', function () {
         const empId = this.dataset.id;
         const empName = this.querySelector('.fw-semibold').innerText;
 
-        // Toast de selección
         document.getElementById('selectedEmployeeName').textContent = empName;
-        new bootstrap.Toast(
-          document.getElementById('selectionSuccessToast'),
-          { delay: 2000 }
-        ).show();
+        new bootstrap.Toast(document.getElementById('selectionSuccessToast'), { delay: 2000 }).show();
 
-        // Cuenta regresiva
         const countdownToastEl = document.getElementById('countdownToast');
-        const countdownTimer   = document.getElementById('countdownTimer');
-        const countdownToast   = new bootstrap.Toast(countdownToastEl, { autohide: false });
+        const countdownTimer = document.getElementById('countdownTimer');
+        const countdownToast = new bootstrap.Toast(countdownToastEl, { autohide: false });
         let count = 1;
         countdownTimer.textContent = count;
         countdownToast.show();
         const interval = setInterval(() => {
-          count--; if (count > 0) {
+          count--;
+          if (count > 0) {
             countdownTimer.textContent = count;
           } else {
             clearInterval(interval);
             countdownToast.hide();
-            // Flash
             const overlay = document.getElementById('flashOverlay');
             overlay.style.opacity = 1;
             setTimeout(() => overlay.style.opacity = 0, 200);
-            // Redirigir
             window.location.href = `${baseUrl}?department=${encodeURIComponent(dept)}&employee_id=${empId}`;
           }
         }, 1000);

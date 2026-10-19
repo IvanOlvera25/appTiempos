@@ -1,80 +1,147 @@
 {% extends "layout.html" %}
-{% block title %}Mis Adicionales - Sistema de Gestión Operativa{% endblock %}
+{% block title %}Mis adicionales{% endblock %}
 
 {% block content %}
-<div class="adic-wrap">
+<style>
+  .adic-wrap { max-width: 760px; margin: 0 auto; }
 
-  <!-- Encabezado -->
-  <div class="adic-header">
+  /* Indicadores compactos (caben tres en un celular) */
+  .adic-kpis .stat { padding: .85rem 1rem; gap: .2rem; }
+  .adic-kpis .stat-value { font-size: 1.4rem; }
+  @media (max-width: 575.98px) {
+    .adic-kpis .stat { padding: .7rem .6rem; }
+    /* Montos de cinco cifras ($12,345.67) caben en tres columnas aun a 360 px */
+    .adic-kpis .stat-value { font-size: clamp(.92rem, 4.3vw, 1.05rem); letter-spacing: -.01em; white-space: nowrap; }
+    .adic-kpis .stat-label { font-size: .72rem; }
+  }
+
+  /* Barra del mes */
+  .adic-monthlabel { flex: 1; text-align: center; font-weight: 650; font-size: 1rem; text-transform: capitalize; color: var(--ad-text); }
+  .adic-navbtn { width: 40px; height: 40px; padding: 0; }
+
+  /* Calendario */
+  .adic-weekdays, .adic-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .adic-weekdays { margin-bottom: 4px; }
+  .adic-weekdays span { text-align: center; font-size: .68rem; font-weight: 600; color: var(--ad-text-4); text-transform: uppercase; letter-spacing: .04em; padding: .2rem 0; }
+  .adic-day {
+    position: relative; aspect-ratio: 1 / 1; min-height: 42px;
+    border: 1px solid var(--ad-border); border-radius: var(--ad-radius); background: var(--ad-surface);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    padding: 2px; font-size: .84rem; color: var(--ad-text-2); font-variant-numeric: tabular-nums;
+  }
+  .adic-day.is-empty { border-color: transparent; background: transparent; }
+  .adic-day.is-today { box-shadow: inset 0 0 0 2px var(--ad-brand); color: var(--ad-brand-ink); font-weight: 650; }
+  .adic-day-num { line-height: 1; }
+  .adic-day.has-data { cursor: pointer; font-weight: 650; color: var(--ad-text); transition: border-color .12s, box-shadow .12s; }
+  .adic-day.has-data:hover { box-shadow: var(--ad-shadow-sm); }
+  .adic-day.has-data.pend { background: var(--ad-warning-soft); border-color: var(--ad-warning-line); }
+  .adic-day.has-data.pag  { background: var(--ad-success-soft); border-color: var(--ad-success-line); }
+  .adic-day.has-data:focus-visible { outline: 0; box-shadow: 0 0 0 3px var(--ad-brand-ring); }
+  .adic-badge { min-width: 20px; padding: 0 6px; border-radius: 999px; font-size: .66rem; font-weight: 700; line-height: 1.5; color: #fff; text-align: center; }
+  .adic-day.pend .adic-badge { background: var(--ad-warning); }
+  .adic-day.pag  .adic-badge { background: var(--ad-success); }
+
+  .adic-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; font-size: .75rem; color: var(--ad-text-3); }
+  .adic-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+  .adic-dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  .adic-dot-pend { background: var(--ad-warning); }
+  .adic-dot-pag { background: var(--ad-success); }
+
+  /* Lista del mes */
+  .adic-item { display: flex; align-items: center; gap: .75rem; padding: .7rem 1rem; border-top: 1px solid var(--ad-border); cursor: pointer; }
+  .adic-item:first-child { border-top: 0; }
+  .adic-item:hover { background: var(--ad-surface-2); }
+  .adic-item-date { flex: 0 0 44px; text-align: center; border: 1px solid var(--ad-border); background: var(--ad-surface-2); border-radius: var(--ad-radius); padding: .3rem 0; }
+  .adic-item-day { display: block; font-weight: 650; font-size: 1rem; line-height: 1.1; color: var(--ad-text); }
+  .adic-item-mon { display: block; font-size: .62rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ad-text-3); }
+  .adic-item-main { flex: 1; min-width: 0; }
+  .adic-item-title { font-weight: 600; font-size: .86rem; color: var(--ad-text); }
+  .adic-item-sub { font-size: .75rem; color: var(--ad-text-3); display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin-top: .15rem; }
+  .adic-item-amount { font-weight: 650; font-size: .9rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  /* Modal */
+  .adic-detail { border: 1px solid var(--ad-border); border-radius: var(--ad-radius-lg); padding: .8rem .9rem; margin-bottom: .6rem; }
+  .adic-detail-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .45rem; }
+  .adic-detail-qty { font-weight: 600; }
+  .adic-detail-cost { font-weight: 650; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+  .adic-detail-row { display: flex; justify-content: space-between; align-items: center; gap: .5rem; font-size: .82rem; padding: .15rem 0; color: var(--ad-text-2); }
+  .adic-detail-row span:first-child { color: var(--ad-text-3); }
+  .adic-total { display: flex; justify-content: space-between; align-items: center; padding: .75rem .9rem; border-radius: var(--ad-radius-lg); background: var(--ad-brand-soft); border: 1px solid var(--ad-brand-soft-2); color: var(--ad-brand-ink); font-weight: 650; }
+</style>
+
+<div class="adic-wrap">
+  <div class="page-head">
     <div>
-      <h2 class="adic-title">Mis Adicionales</h2>
-      <p class="adic-subtitle">{{ employee.nompropio }} · Nº {{ employee.n_empleado }}</p>
+      <div class="eyebrow"><i class="bi bi-calendar2-plus"></i> Mi panel</div>
+      <h1>Mis adicionales</h1>
+      <p>{{ employee.nompropio }} · Nº {{ employee.n_empleado }}</p>
     </div>
   </div>
 
   {% if load_error %}
   <div class="alert alert-warning d-flex align-items-start gap-2">
-    <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+    <i class="bi bi-exclamation-triangle mt-1"></i>
     <div>{{ load_error }}</div>
   </div>
   {% endif %}
 
   <!-- Resumen del mes -->
-  <div class="adic-summary">
-    <div class="adic-chip">
-      <span class="adic-chip-value" id="sumCantidad">0</span>
-      <span class="adic-chip-label">Adicionales</span>
+  <div class="row g-2 mb-3 adic-kpis">
+    <div class="col-4">
+      <div class="stat">
+        <div class="stat-label">Adicionales</div>
+        <div class="stat-value" id="sumCantidad">0</div>
+      </div>
     </div>
-    <div class="adic-chip">
-      <span class="adic-chip-value" id="sumCosto">$0</span>
-      <span class="adic-chip-label">Total del mes</span>
+    <div class="col-4">
+      <div class="stat">
+        <div class="stat-label">Total del mes</div>
+        <div class="stat-value" id="sumCosto">$0</div>
+      </div>
     </div>
-    <div class="adic-chip">
-      <span class="adic-chip-value" id="sumPendiente">$0</span>
-      <span class="adic-chip-label">Por pagar</span>
+    <div class="col-4">
+      <div class="stat">
+        <div class="stat-label">Por pagar</div>
+        <div class="stat-value" id="sumPendiente">$0</div>
+      </div>
     </div>
   </div>
 
   <!-- Calendario -->
-  <div class="adic-card">
-    <div class="adic-monthbar">
-      <button type="button" class="adic-navbtn" id="prevMonth" aria-label="Mes anterior">
+  <div class="card mb-3">
+    <div class="card-header">
+      <button type="button" class="btn btn-outline-secondary btn-icon adic-navbtn" id="prevMonth" aria-label="Mes anterior">
         <i class="bi bi-chevron-left"></i>
       </button>
       <div class="adic-monthlabel" id="monthLabel">—</div>
-      <button type="button" class="adic-navbtn" id="nextMonth" aria-label="Mes siguiente">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="todayBtn" title="Ir al mes actual">Hoy</button>
+      <button type="button" class="btn btn-outline-secondary btn-icon adic-navbtn" id="nextMonth" aria-label="Mes siguiente">
         <i class="bi bi-chevron-right"></i>
       </button>
     </div>
-
-    <div class="adic-weekdays">
-      <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+    <div class="card-body p-2 p-sm-3">
+      <div class="adic-weekdays">
+        <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+      </div>
+      <div class="adic-grid" id="calendarGrid"></div>
     </div>
-
-    <div class="adic-grid" id="calendarGrid"></div>
-
-    <div class="adic-legend">
+    <div class="card-footer adic-legend">
       <span><i class="adic-dot adic-dot-pend"></i>Por pagar</span>
       <span><i class="adic-dot adic-dot-pag"></i>Pagado</span>
-      <span class="adic-legend-hint"><i class="bi bi-hand-index-thumb"></i>Toca un día para ver el detalle</span>
+      <span class="ms-auto"><i class="bi bi-hand-index-thumb"></i>Toca un día para ver el detalle</span>
     </div>
   </div>
 
   <!-- Listado del mes -->
-  <div class="adic-card">
-    <div class="adic-listhead">
-      <h6 class="mb-0 fw-semibold">Detalle del mes</h6>
-      <button type="button" class="adic-todaybtn" id="todayBtn">
-        <i class="bi bi-calendar-event me-1"></i>Hoy
-      </button>
-    </div>
+  <div class="card">
+    <div class="card-header"><i class="bi bi-list-ul"></i>Detalle del mes</div>
     <div id="monthList"></div>
   </div>
 </div>
 
 <!-- Modal de detalle del día -->
 <div class="modal fade" id="dayModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable adic-modal">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <div>
@@ -85,188 +152,11 @@
       </div>
       <div class="modal-body" id="dayModalBody"></div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-outline-secondary w-100" data-bs-dismiss="modal">Cerrar</button>
       </div>
     </div>
   </div>
 </div>
-
-<style>
-  .adic-wrap { max-width: 720px; margin: 0 auto; padding-bottom: 2rem; }
-
-  .adic-header { margin-bottom: 1rem; }
-  .adic-title { font-weight: 700; font-size: 1.5rem; margin-bottom: .15rem; }
-  .adic-subtitle { color: #6c757d; font-size: .9rem; margin: 0; }
-
-  /* Resumen */
-  .adic-summary {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: .5rem;
-    margin-bottom: 1rem;
-  }
-  .adic-chip {
-    background: #fff;
-    border: 1px solid #eceff3;
-    border-radius: 14px;
-    padding: .7rem .4rem;
-    text-align: center;
-    box-shadow: 0 1px 3px rgba(0,0,0,.05);
-  }
-  .adic-chip-value { display: block; font-weight: 700; font-size: 1.1rem; color: #212529; line-height: 1.2; }
-  .adic-chip-label { display: block; font-size: .7rem; color: #6c757d; margin-top: .15rem; }
-
-  /* Tarjetas */
-  .adic-card {
-    background: #fff;
-    border: 1px solid #eceff3;
-    border-radius: 16px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.05);
-    padding: .85rem;
-    margin-bottom: 1rem;
-  }
-
-  /* Barra de mes */
-  .adic-monthbar {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: .75rem;
-  }
-  .adic-monthlabel {
-    font-weight: 700; font-size: 1.05rem; text-transform: capitalize; text-align: center; flex: 1;
-  }
-  .adic-navbtn {
-    width: 44px; height: 44px; flex: 0 0 44px;
-    border: 1px solid #e3e6ea; background: #f8f9fa; color: #495057;
-    border-radius: 12px; font-size: 1.1rem; line-height: 1;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .adic-navbtn:active { background: #FF8800; border-color: #FF8800; color: #fff; }
-
-  /* Encabezado de días */
-  .adic-weekdays {
-    display: grid; grid-template-columns: repeat(7, 1fr);
-    gap: 4px; margin-bottom: 4px;
-  }
-  .adic-weekdays span {
-    text-align: center; font-size: .7rem; font-weight: 700;
-    color: #adb5bd; text-transform: uppercase; padding: .2rem 0;
-  }
-
-  /* Rejilla */
-  .adic-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-
-  .adic-day {
-    position: relative;
-    aspect-ratio: 1 / 1;
-    min-height: 44px;
-    border: 1px solid #f0f2f5;
-    border-radius: 12px;
-    background: #fff;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    padding: 2px;
-    font-size: .85rem; color: #495057;
-  }
-  .adic-day.is-empty { border-color: transparent; background: transparent; }
-  .adic-day.is-out { color: #ced4da; }
-  .adic-day.is-today { border-color: #FF8800; border-width: 2px; font-weight: 700; }
-
-  .adic-day-num { line-height: 1; }
-
-  .adic-day.has-data { cursor: pointer; font-weight: 700; color: #212529; }
-  .adic-day.has-data.pend { background: #fff4e6; border-color: #ffd8a8; }
-  .adic-day.has-data.pag  { background: #e9f9ef; border-color: #b7e4c7; }
-  .adic-day.has-data:active { transform: scale(.95); }
-
-  .adic-badge {
-    margin-top: 3px;
-    min-width: 20px;
-    padding: 1px 5px;
-    border-radius: 999px;
-    font-size: .68rem;
-    font-weight: 700;
-    color: #fff;
-    line-height: 1.4;
-  }
-  .adic-day.pend .adic-badge { background: #FF8800; }
-  .adic-day.pag  .adic-badge { background: #2f9e5f; }
-
-  /* Leyenda */
-  .adic-legend {
-    display: flex; flex-wrap: wrap; gap: .75rem;
-    margin-top: .85rem; padding-top: .75rem;
-    border-top: 1px solid #f1f3f5;
-    font-size: .75rem; color: #6c757d;
-  }
-  .adic-legend span { display: inline-flex; align-items: center; gap: .3rem; }
-  .adic-legend-hint { margin-left: auto; }
-  .adic-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-  .adic-dot-pend { background: #FF8800; }
-  .adic-dot-pag { background: #2f9e5f; }
-
-  /* Listado */
-  .adic-listhead {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: .6rem;
-  }
-  .adic-todaybtn {
-    border: 1px solid #e3e6ea; background: #f8f9fa; color: #495057;
-    border-radius: 10px; padding: .35rem .7rem; font-size: .8rem; font-weight: 600;
-  }
-  .adic-item {
-    display: flex; align-items: center; gap: .7rem;
-    padding: .65rem .2rem;
-    border-top: 1px solid #f1f3f5;
-  }
-  .adic-item:first-child { border-top: none; }
-  .adic-item-date {
-    flex: 0 0 46px; text-align: center;
-    background: #f8f9fa; border-radius: 10px; padding: .3rem 0;
-  }
-  .adic-item-day { display: block; font-weight: 700; font-size: 1rem; line-height: 1; }
-  .adic-item-mon { display: block; font-size: .62rem; text-transform: uppercase; color: #868e96; }
-  .adic-item-main { flex: 1; min-width: 0; }
-  .adic-item-title { font-weight: 600; font-size: .9rem; }
-  .adic-item-sub { font-size: .75rem; color: #868e96; }
-  .adic-item-amount { font-weight: 700; font-size: .9rem; white-space: nowrap; }
-
-  .adic-empty { text-align: center; color: #adb5bd; padding: 1.5rem .5rem; }
-  .adic-empty i { font-size: 2rem; display: block; margin-bottom: .5rem; }
-
-  /* Modal */
-  .adic-detail {
-    border: 1px solid #f0f2f5; border-radius: 12px;
-    padding: .75rem; margin-bottom: .6rem; background: #fcfcfd;
-  }
-  .adic-detail-top {
-    display: flex; align-items: center; justify-content: space-between; gap: .5rem;
-    margin-bottom: .5rem;
-  }
-  .adic-detail-qty { font-weight: 700; font-size: 1rem; }
-  .adic-detail-cost { font-weight: 700; font-size: 1.05rem; color: #212529; }
-  .adic-detail-row {
-    display: flex; justify-content: space-between; gap: .5rem;
-    font-size: .82rem; padding: .18rem 0; color: #495057;
-  }
-  .adic-detail-row span:first-child { color: #868e96; }
-  .adic-total {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: .75rem; border-radius: 12px; background: #fff4e6;
-    font-weight: 700;
-  }
-  .adic-status {
-    font-size: .7rem; font-weight: 700; padding: .15rem .5rem;
-    border-radius: 999px; text-transform: uppercase;
-  }
-  .adic-status.pend { background: #ffe8cc; color: #b35a00; }
-  .adic-status.pag  { background: #d3f9d8; color: #1f7a3f; }
-
-  @media (max-width: 380px) {
-    .adic-day { font-size: .78rem; }
-    .adic-badge { font-size: .62rem; }
-    .adic-chip-value { font-size: .95rem; }
-  }
-</style>
 {% endblock %}
 
 {% block scripts %}
@@ -283,6 +173,9 @@
     style: 'currency', currency: 'MXN', minimumFractionDigits: 0, maximumFractionDigits: 2
   });
   const num = (n) => (Math.round(n * 100) / 100).toString();
+  const estatusBadge = (pagado) => pagado
+    ? '<span class="badge bg-success">Pagado</span>'
+    : '<span class="badge bg-warning">Por pagar</span>';
 
   // Agrupar por fecha (YYYY-MM-DD)
   const porDia = {};
@@ -372,9 +265,10 @@
   function renderLista(y, m) {
     const items = itemsDelMes(y, m).slice().sort((a, b) => a.fecha.localeCompare(b.fecha));
     if (!items.length) {
-      monthList.innerHTML = `<div class="adic-empty">
-          <i class="bi bi-calendar2-x"></i>
-          No tienes adicionales autorizados en este mes.
+      monthList.innerHTML = `<div class="empty">
+          <div class="empty-icon"><i class="bi bi-calendar2-x"></i></div>
+          <h6>Sin adicionales este mes</h6>
+          <p>No tienes adicionales autorizados en ${MESES[m]} ${y}.</p>
         </div>`;
       return;
     }
@@ -389,8 +283,8 @@
         <div class="adic-item-main">
           <div class="adic-item-title">${num(a.cantidad)} adicional${a.cantidad === 1 ? '' : 'es'}</div>
           <div class="adic-item-sub">
-            <span class="adic-status ${pagado ? 'pag' : 'pend'}">${pagado ? 'Pagado' : 'Por pagar'}</span>
-            ${a.fecha_pago ? ' · Pago: ' + fechaCorta(a.fecha_pago) : ''}
+            ${estatusBadge(pagado)}
+            ${a.fecha_pago ? '<span>Pago: ' + fechaCorta(a.fecha_pago) + '</span>' : ''}
           </div>
         </div>
         <div class="adic-item-amount">${money.format(a.costo)}</div>
@@ -430,7 +324,7 @@
         </div>
         <div class="adic-detail-row">
           <span>Estatus</span>
-          <span class="adic-status ${pagado ? 'pag' : 'pend'}">${pagado ? 'Pagado' : 'Por pagar'}</span>
+          ${estatusBadge(pagado)}
         </div>
       </div>`;
     }).join('');

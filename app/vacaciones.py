@@ -20,7 +20,7 @@ from datetime import date, timedelta
 import pymysql
 from flask import current_app
 
-from .rh import rh_conn
+from .rh import rh_conn, rh_conn_lectura
 
 ESTATUS = ('PENDIENTE', 'AUTORIZADO', 'DENEGADO')
 TIPOS_MEDIO_DIA = ('INICIAL', 'FINAL')
@@ -55,7 +55,7 @@ def _ejecutar_escritura(sql, params):
 
 
 def _consultar(sql, params=()):
-    conn = rh_conn()
+    conn = rh_conn_lectura()
     try:
         with conn.cursor() as cur:
             cur.execute(sql, params)
@@ -209,6 +209,22 @@ def supervisores_de(rh_id):
          WHERE s.rhID = %s AND s.activo = 1
          ORDER BY r.nomPropio
     """, (rh_id,))
+
+
+def detalle_supervisores():
+    """{rhID empleado: supervisores_de(rhID)} de toda la plantilla en una sola consulta."""
+    filas = _consultar("""
+        SELECT s.rhID, s.regID, s.supRhID AS rh_id, r.nomPropio AS nombre, s.timestamp
+          FROM Supervisores s
+          LEFT JOIN registro r ON r.id = s.supRhID
+         WHERE s.activo = 1
+         ORDER BY r.nomPropio
+    """)
+    detalle = {}
+    for f in filas:
+        detalle.setdefault(f['rhID'], []).append(
+            {'regID': f['regID'], 'rh_id': f['rh_id'], 'nombre': f['nombre'], 'timestamp': f['timestamp']})
+    return detalle
 
 
 def mapa_supervisores():

@@ -460,8 +460,12 @@ def supervisores():
 
     empleados = vac.listar_empleados()
     mapa = vac.mapa_supervisores()
-    detalle = {e['rh_id']: vac.supervisores_de(e['rh_id']) for e in empleados} \
-        if request.args.get('detalle') else {}
+    # Una sola consulta para todos (antes era una por persona y tardaba más de un minuto)
+    if request.args.get('detalle'):
+        todos = vac.detalle_supervisores()
+        detalle = {e['rh_id']: todos.get(e['rh_id'], []) for e in empleados}
+    else:
+        detalle = {}
 
     filtro = (request.args.get('q') or '').strip().lower()
     if filtro:

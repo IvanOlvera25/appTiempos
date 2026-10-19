@@ -1,748 +1,229 @@
 <!-- app/templates/layout.html -->
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
-  <!-- Especifica la codificación de caracteres -->
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="AD17">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="description" content="AD17 · Sistema de Gestión Operativa">
+  <meta name="theme-color" content="{{ '#ffffff' if current_user.is_authenticated else '#0c111d' }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <title>{% block title %}Sistema de Gestión Operativa{% endblock %} · AD17</title>
 
-  <!-- Configuración del viewport para diseño responsivo -->
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <!-- Meta tags opcionales -->
-  <meta name="description" content="Sistema de Gestión Operativa">
-
-  <!-- Título de la página -->
-  <title>{% block title %}Sistema de Gestión Operativa{% endblock %}</title>
-
-  <!-- Preconexiones para reducir latencia CDN -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <link rel="preconnect" href="https://code.jquery.com" crossorigin>
-  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-  <link rel="dns-prefetch" href="https://code.jquery.com">
-
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
-  <!-- Bootstrap Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-
-  <!-- Select2 CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-
-  <!-- Select2 Bootstrap Theme -->
-  <link href="https://cdn.jsdelivr.net/npm/@ttskch/select2-bootstrap4-theme@1.5.2/dist/select2-bootstrap4.min.css"
-    rel="stylesheet" />
-
-  <!-- Estilos Personalizados -->
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@ttskch/select2-bootstrap4-theme@1.5.2/dist/select2-bootstrap4.min.css" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/custom.css') }}" rel="stylesheet">
 
-  <!-- jQuery (debe cargarse síncrono para scripts inline que dependen de él) -->
+  <!-- jQuery síncrono: varias vistas lo usan en scripts en línea -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-
-  <!-- Estilos Inline para Personalizaciones Rápidas -->
-  <style>
-    /* Estilos para Select2 */
-    .select2-container--bootstrap4 .select2-selection--single {
-      height: calc(1.5em + .75rem + 2px);
-      padding: .375rem .75rem;
-      font-size: 1rem;
-      line-height: 1.5;
-      border: 1px solid #ced4da;
-      border-radius: 0.25rem;
-    }
-
-    .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
-      color: #495057;
-      line-height: 1.5;
-    }
-
-    .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
-      height: calc(1.5em + .75rem + 2px);
-      right: 0.75rem;
-    }
-
-    /* Estilos para las tarjetas de proyectos */
-    .project-card {
-      transition: transform 0.2s, box-shadow 0.2s;
-      cursor: pointer;
-    }
-
-    .project-card:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-    }
-
-    .project-card.selected {
-      border: 2px solid #FF8800;
-      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
-    }
-
-    /* Estilos para videos */
-    video {
-      border-radius: 0.25rem;
-    }
-
-    /* Mejorar la apariencia de los botones */
-    .btn-primary {
-      background-color: #FF8800;
-      border-color: #FF8800;
-    }
-
-    .btn-primary:hover {
-      background-color: #e07b00;
-      border-color: #e07b00;
-    }
-
-    .btn-secondary {
-      background-color: #6c757d;
-      border-color: #6c757d;
-    }
-
-    .btn-secondary:hover {
-      background-color: #5a6268;
-      border-color: #545b62;
-    }
-
-    .btn-success {
-      background-color: #28a745;
-      border-color: #28a745;
-    }
-
-    .btn-success:hover {
-      background-color: #218838;
-      border-color: #1e7e34;
-    }
-
-    .btn-danger {
-      background-color: #dc3545;
-      border-color: #dc3545;
-    }
-
-    .btn-danger:hover {
-      background-color: #c82333;
-      border-color: #bd2130;
-    }
-
-    /* Ajustes para el formulario */
-    form label {
-      font-weight: 500;
-    }
-
-    .form-control[readonly] {
-      background-color: #e9ecef;
-      cursor: not-allowed;
-    }
-
-    .countdown-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.7);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 9999;
-    }
-
-    .countdown-text {
-      color: #fff;
-      font-size: 3rem;
-      text-align: center;
-      max-width: 80%;
-      line-height: 1.2;
-    }
-
-    .flash-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: transparent;
-      pointer-events: none;
-      z-index: 2000;
-      display: none;
-    }
-
-    @keyframes flashit {
-      0% {
-        background-color: rgba(255, 255, 255, 1);
-      }
-
-      100% {
-        background-color: transparent;
-      }
-    }
-
-    .flash-active {
-      display: block;
-      animation: flashit 0.3s forwards;
-    }
-
-    @keyframes pulseScale {
-      0% {
-        transform: scale(1);
-      }
-
-      50% {
-        transform: scale(1.3);
-      }
-
-      100% {
-        transform: scale(1);
-      }
-    }
-
-    .countdown-pulse {
-      animation: pulseScale 0.5s ease-in-out;
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       PROFESSIONAL LOADER OVERLAY
-       ═══════════════════════════════════════════════════════════ */
-    .loader-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(135deg, rgba(0, 0, 0, 0.85) 0%, rgba(30, 30, 30, 0.95) 100%);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 99999;
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-    }
-
-    .loader-overlay.active {
-      display: flex;
-    }
-
-    .loader-content {
-      text-align: center;
-      color: #fff;
-    }
-
-    .loader-spinner {
-      width: 80px;
-      height: 80px;
-      border: 4px solid rgba(255, 136, 0, 0.2);
-      border-top: 4px solid #FF8800;
-      border-radius: 50%;
-      animation: loaderSpin 1s linear infinite;
-      margin: 0 auto 24px;
-    }
-
-    @keyframes loaderSpin {
-      0% {
-        transform: rotate(0deg);
-      }
-
-      100% {
-        transform: rotate(360deg);
-      }
-    }
-
-    .loader-text {
-      font-size: 1.5rem;
-      font-weight: 600;
-      margin-bottom: 8px;
-      color: #fff;
-    }
-
-    .loader-subtext {
-      font-size: 1rem;
-      color: rgba(255, 255, 255, 0.7);
-      margin-bottom: 16px;
-    }
-
-    .loader-progress {
-      width: 200px;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 2px;
-      overflow: hidden;
-      margin: 0 auto;
-    }
-
-    .loader-progress-bar {
-      width: 0%;
-      height: 100%;
-      background: linear-gradient(90deg, #FF8800, #ffaa44);
-      border-radius: 2px;
-      animation: loaderProgress 3.5s ease-out forwards;
-    }
-
-    @keyframes loaderProgress {
-      0% {
-        width: 0%;
-      }
-
-      20% {
-        width: 25%;
-      }
-
-      50% {
-        width: 60%;
-      }
-
-      80% {
-        width: 85%;
-      }
-
-      100% {
-        width: 100%;
-      }
-    }
-
-    .loader-dots {
-      display: inline-flex;
-      gap: 6px;
-      margin-top: 16px;
-    }
-
-    .loader-dot {
-      width: 10px;
-      height: 10px;
-      background: #FF8800;
-      border-radius: 50%;
-      animation: loaderDotPulse 1.4s ease-in-out infinite;
-    }
-
-    .loader-dot:nth-child(2) {
-      animation-delay: 0.2s;
-    }
-
-    .loader-dot:nth-child(3) {
-      animation-delay: 0.4s;
-    }
-
-    @keyframes loaderDotPulse {
-
-      0%,
-      80%,
-      100% {
-        transform: scale(0.6);
-        opacity: 0.5;
-      }
-
-      40% {
-        transform: scale(1);
-        opacity: 1;
-      }
-    }
-  </style>
+  <script>
+    // Estado del menú lateral (en escritorio): se aplica antes de pintar para que no "brinque"
+    try { var m = localStorage.getItem('ad17.sidebar'); if (m === 'mini' || m === 'hidden') document.documentElement.classList.add('pre-' + m); } catch (e) {}
+  </script>
+  {% block head_extra %}{% endblock %}
 </head>
 
-<body>
-  <nav class="navbar navbar-expand-lg navbar-custom sticky-top">
-    <div class="container">
-      <a class="navbar-brand" href="{{ url_for('main.home') }}">
-        <i class="bi bi-buildings-fill"></i>Sistema de Gestión Operativa
+{% set con_menu = current_user.is_authenticated %}
+<body class="{{ 'has-sidebar has-bottom-nav' if con_menu else 'no-sidebar' }}">
+<script>
+  (function (h, b) {
+    if (h.classList.contains('pre-mini')) b.classList.add('sidebar-mini');
+    if (h.classList.contains('pre-hidden')) b.classList.add('sidebar-hidden');
+  })(document.documentElement, document.body);
+</script>
+
+{% set secciones = menu_para(current_user) if con_menu else [] %}
+{% if con_menu %}
+  <!-- ═══════════ Barra lateral ═══════════ -->
+  <aside class="app-sidebar" id="appSidebar" aria-label="Menú principal">
+    <div class="side-head">
+      <a class="side-brand" href="{{ url_for('main.home') }}">
+        <span class="brand-mark">AD17</span>
+        <span class="brand-text"><strong>Gestión Operativa</strong><span>Tiempos · Personal · Proyectos</span></span>
       </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
-        aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-        <i class="bi bi-list"></i>
-      </button>
+      <button type="button" class="side-close" data-sidebar-close aria-label="Cerrar menú"><i class="bi bi-x-lg"></i></button>
+    </div>
 
-      <div class="collapse navbar-collapse" id="navbarNav">
-        <ul class="navbar-nav ms-auto align-items-lg-center" style="gap:0.2rem;">
+    <button type="button" class="side-search" data-cmdk-open>
+      <i class="bi bi-search"></i><span>Buscar…</span><span class="kbd" data-kbd-mod>⌘K</span>
+    </button>
 
-          <!-- Inicio -->
-          <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'main.home' %}active-link{% endif %}"
-               href="{{ url_for('main.home') }}">
-              <i class="bi bi-house-door"></i>Inicio
-            </a>
-          </li>
+    <nav class="side-nav">
+      {% for seccion in secciones %}
+      <div class="side-section">
+        {% if seccion.title %}<div class="side-title">{{ seccion.title }}</div>{% endif %}
+        {% for item in seccion['items'] %}
+        <a class="side-link {% if item.active %}active{% endif %}" href="{{ item.url }}"
+           {% if item.active %}aria-current="page"{% endif %} title="{{ item.label }}">
+          <i class="bi {{ item.icon }}"></i><span>{{ item.label }}</span>
+        </a>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </nav>
 
-          <!-- Mapa (No visible para perfiles de empleado) -->
-          {% if not (current_user.is_authenticated and current_user.is_employee) %}
-          <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'main.map' %}active-link{% endif %}"
-               href="{{ url_for('main.map') }}">
-              <i class="bi bi-map"></i>Mapa
-            </a>
-          </li>
-          {% endif %}
-
-          {% if current_user.is_authenticated %}
-          <!-- Separador visual -->
-          <li class="nav-divider d-none d-lg-flex"></li>
-          {% endif %}
-
-          <!-- Empleados — directo en navbar (solo admin) -->
-          {% if current_user.is_authenticated and current_user.has_admin_privileges %}
-          <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'main.manage_employees' %}active-link{% endif %}"
-               href="{{ url_for('main.manage_employees') }}">
-              <i class="bi bi-people"></i>Empleados
-            </a>
-          </li>
-
-          <!-- Adicionales — admin y líderes de proyecto -->
-          <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'main.adicionales_admin' %}active-link{% endif %}"
-               href="{{ url_for('main.adicionales_admin') }}">
-              <i class="bi bi-calendar2-plus"></i>Adicionales
-            </a>
-          </li>
-
-          <!-- Costos — directo en navbar (solo admin) -->
-          {% if current_user.is_admin %}
-          <li class="nav-item">
-            <a class="nav-link {% if request.endpoint in ['main.costs_dashboard', 'main.create_cost', 'main.edit_cost'] %}active-link{% endif %}"
-               href="{{ url_for('main.costs_dashboard') }}">
-              <i class="bi bi-currency-dollar"></i>Costos
-            </a>
-          </li>
-          {% endif %}
-
-          <!-- Dropdown Administración -->
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.endpoint in ['main.admin_dashboard', 'main.add_project', 'main.project_page', 'main.edit_project', 'main.project_analysis', 'main.manage_users', 'main.areas_admin', 'main.activities_admin'] %}active-link{% endif %}"
-               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-speedometer2"></i>Administración
-            </a>
-            <ul class="dropdown-menu dropdown-menu-end">
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'main.admin_dashboard' %}active-link{% endif %}"
-                   href="{{ url_for('main.admin_dashboard') }}">
-                  <i class="bi bi-bar-chart-line"></i>Dashboard
-                </a>
-              </li>
-              <li><hr class="dropdown-divider"></li>
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'main.add_project' %}active-link{% endif %}"
-                   href="{{ url_for('main.add_project') }}">
-                  <i class="bi bi-plus-circle"></i>Agregar Proyecto
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item {% if request.endpoint in ['main.project_page', 'main.edit_project'] %}active-link{% endif %}"
-                   href="{{ url_for('main.project_page') }}">
-                  <i class="bi bi-kanban"></i>Proyectos
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'main.project_analysis' %}active-link{% endif %}"
-                   href="{{ url_for('main.project_analysis') }}">
-                  <i class="bi bi-graph-up"></i>Análisis Proyectos
-                </a>
-              </li>
-              {% if current_user.is_admin %}
-              <li><hr class="dropdown-divider"></li>
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'main.areas_admin' %}active-link{% endif %}"
-                   href="{{ url_for('main.areas_admin') }}">
-                  <i class="bi bi-diagram-3"></i>Áreas de registro
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'main.activities_admin' %}active-link{% endif %}"
-                   href="{{ url_for('main.activities_admin') }}">
-                  <i class="bi bi-list-task"></i>Actividades
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'main.manage_users' %}active-link{% endif %}"
-                   href="{{ url_for('main.manage_users') }}">
-                  <i class="bi bi-person-gear"></i>Usuarios
-                </a>
-              </li>
-              {% endif %}
-            </ul>
-          </li>
-          {% endif %}
-
-          <!-- Menú Gerente de Área -->
-          {% if current_user.is_authenticated and current_user.is_area_manager %}
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.endpoint in ['main.area_status', 'main.area_records'] %}active-link{% endif %}" href="#" role="button"
-               data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-diagram-3"></i>Mi Área
-            </a>
-            <ul class="dropdown-menu dropdown-menu-end">
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'main.area_status' %}active-link{% endif %}"
-                   href="{{ url_for('main.area_status') }}">
-                  <i class="bi bi-activity"></i>Estado del Área
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'main.area_records' %}active-link{% endif %}"
-                   href="{{ url_for('main.area_records') }}">
-                  <i class="bi bi-clock-history"></i>Registros de Área
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'main.adicionales_admin' %}active-link{% endif %}"
-                   href="{{ url_for('main.adicionales_admin') }}">
-                  <i class="bi bi-calendar2-plus"></i>Adicionales del Área
-                </a>
-              </li>
-            </ul>
-          </li>
-          {% endif %}
-
-          <!-- Vacaciones: disponible para cualquier usuario autenticado -->
-          {% if current_user.is_authenticated %}
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.blueprint == 'vacaciones' %}active-link{% endif %}"
-               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-calendar-heart"></i>Vacaciones
-            </a>
-            <ul class="dropdown-menu dropdown-menu-end">
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'vacaciones.mis_vacaciones' %}active-link{% endif %}"
-                   href="{{ url_for('vacaciones.mis_vacaciones') }}">
-                  <i class="bi bi-person-check"></i>Mis vacaciones
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'vacaciones.equipo' %}active-link{% endif %}"
-                   href="{{ url_for('vacaciones.equipo') }}">
-                  <i class="bi bi-people"></i>Mi equipo
-                </a>
-              </li>
-              {% if current_user.is_admin or current_user.is_rh %}
-              <li><hr class="dropdown-divider"></li>
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'vacaciones.admin' %}active-link{% endif %}"
-                   href="{{ url_for('vacaciones.admin') }}">
-                  <i class="bi bi-calendar3"></i>Toda la plantilla
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'vacaciones.supervisores' %}active-link{% endif %}"
-                   href="{{ url_for('vacaciones.supervisores') }}">
-                  <i class="bi bi-diagram-2"></i>Supervisores
-                </a>
-              </li>
-              {% endif %}
-            </ul>
-          </li>
-          {% endif %}
-
-          <!-- Incidencias: todos los perfiles menos "Empleado" -->
-          {% if current_user.is_authenticated and current_user.puede_reportar_incidencias %}
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle {% if request.blueprint == 'incidencias' %}active-link{% endif %}"
-               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-exclamation-triangle"></i>Incidencias
-            </a>
-            <ul class="dropdown-menu dropdown-menu-end">
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'incidencias.informes' %}active-link{% endif %}"
-                   href="{{ url_for('incidencias.informes') }}">
-                  <i class="bi bi-clipboard"></i>Informes
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item" href="{{ url_for('incidencias.nuevo_informe') }}">
-                  <i class="bi bi-plus-circle"></i>Nuevo informe
-                </a>
-              </li>
-              <li><hr class="dropdown-divider"></li>
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'incidencias.lista' %}active-link{% endif %}"
-                   href="{{ url_for('incidencias.lista') }}">
-                  <i class="bi bi-collection"></i>Incidencias
-                </a>
-              </li>
-              {% if current_user.administra_incidencias %}
-              <li>
-                <a class="dropdown-item" href="{{ url_for('incidencias.nueva') }}">
-                  <i class="bi bi-plus-square"></i>Nueva incidencia
-                </a>
-              </li>
-              {% endif %}
-              {% if current_user.is_admin %}
-              <li>
-                <a class="dropdown-item {% if request.endpoint == 'incidencias.clasificaciones' %}active-link{% endif %}"
-                   href="{{ url_for('incidencias.clasificaciones') }}">
-                  <i class="bi bi-tags"></i>Clasificaciones
-                </a>
-              </li>
-              {% endif %}
-            </ul>
-          </li>
-          {% endif %}
-
-          <!-- Panel del empleado regular -->
-          {% if current_user.is_authenticated and not current_user.has_admin_privileges and not current_user.is_area_manager %}
-          <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'main.my_dashboard' %}active-link{% endif %}"
-               href="{{ url_for('main.my_dashboard') }}">
-              <i class="bi bi-person-circle"></i>Mi Panel
-            </a>
-          </li>
+    <div class="side-foot">
+      <div class="dropdown dropup">
+        <a href="#" class="side-user" data-bs-toggle="dropdown" aria-expanded="false">
+          <span class="avatar">{{ iniciales(current_user.employee.nompropio if current_user.employee else current_user.username) }}</span>
+          <span class="who">
+            <strong>{{ current_user.employee.nompropio if current_user.employee else current_user.username }}</strong>
+            <span>{{ current_user.role_label }}</span>
+          </span>
+          <i class="bi bi-chevron-expand ms-auto who"></i>
+        </a>
+        <ul class="dropdown-menu">
+          <li><h6 class="dropdown-header">{{ current_user.username }}</h6></li>
           {% if current_user.employee_id %}
-          <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'main.my_adicionales' %}active-link{% endif %}"
-               href="{{ url_for('main.my_adicionales') }}">
-              <i class="bi bi-calendar2-plus"></i>Mis Adicionales
-            </a>
-          </li>
+          <li><a class="dropdown-item" href="{{ url_for('vacaciones.mis_vacaciones') }}"><i class="bi bi-sun"></i>Mis vacaciones</a></li>
           {% endif %}
-          {% endif %}
-
-          <!-- Auth links -->
-          {% if current_user.is_authenticated %}
-          <li class="nav-item">
-            <a class="nav-link nav-link-logout" href="{{ url_for('main.logout') }}">
-              <i class="bi bi-box-arrow-right"></i>Salir
-            </a>
-          </li>
-          {% else %}
-          <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'main.login' %}active-link{% endif %}"
-               href="{{ url_for('main.login') }}">
-              <i class="bi bi-box-arrow-in-right"></i>Iniciar Sesión
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if request.endpoint == 'main.register' %}active-link{% endif %}"
-               href="{{ url_for('main.register') }}">
-              <i class="bi bi-person-plus"></i>Registrar
-            </a>
-          </li>
-          {% endif %}
-
+          <li class="d-none d-lg-block"><button class="dropdown-item" type="button" data-sidebar-mini><i class="bi bi-layout-sidebar-inset"></i>Modo compacto</button></li>
+          <li class="d-none d-lg-block"><button class="dropdown-item" type="button" data-sidebar-toggle><i class="bi bi-eye-slash"></i>Ocultar menú<span class="kbd ms-auto">[</span></button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item text-danger" href="{{ url_for('main.logout') }}"><i class="bi bi-box-arrow-right text-danger"></i>Cerrar sesión</a></li>
         </ul>
       </div>
     </div>
-  </nav>
+  </aside>
+  <div class="side-backdrop" data-sidebar-close></div>
+{% endif %}
 
-  <!-- Contenedor principal -->
-  <div class="container mt-4">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    {% for category, message in messages %}
-    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-      {{ message }}
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+<div class="app-shell">
+  {% if con_menu %}
+  <!-- ═══════════ Barra superior ═══════════ -->
+  <header class="app-topbar">
+    <button class="topbar-btn menu-toggle" type="button" data-sidebar-toggle aria-controls="appSidebar" aria-expanded="true"
+            aria-label="Ocultar o mostrar el menú" title="Ocultar o mostrar el menú ( [ )">
+      <i class="bi bi-list"></i>
+    </button>
+    {% set seccion_actual, pagina_actual = migas(secciones) %}
+    <div class="topbar-crumbs">
+      {% block breadcrumb %}
+        {% if seccion_actual and seccion_actual != pagina_actual %}<span class="d-none d-sm-inline">{{ seccion_actual }}</span><span class="sep d-none d-sm-inline">/</span>{% endif %}
+        <span class="here">{{ pagina_actual or self.title() }}</span>
+      {% endblock %}
     </div>
-    {% endfor %}
-    {% endif %}
-    {% endwith %}
+    <button type="button" class="topbar-search" data-cmdk-open aria-label="Buscar">
+      <i class="bi bi-search"></i><span class="lbl">Buscar páginas, proyectos, personas…</span>
+      <span class="kbd d-none d-md-inline-flex" data-kbd-mod>⌘K</span>
+    </button>
+    <span class="topbar-clock d-none d-xl-inline" id="topbarClock"></span>
+    <div class="dropdown">
+      <button class="topbar-user" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Cuenta">
+        <span class="avatar avatar-sm">{{ iniciales(current_user.employee.nompropio if current_user.employee else current_user.username) }}</span>
+        <i class="bi bi-chevron-down small text-muted d-none d-sm-inline"></i>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li class="px-3 pt-2 pb-1">
+          <div class="fw-semibold">{{ current_user.employee.nompropio if current_user.employee else current_user.username }}</div>
+          <div class="small text-muted">{{ current_user.role_label }}{% if current_user.area_manager_department %} · {{ current_user.area_manager_department }}{% endif %}</div>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        <li><button class="dropdown-item" type="button" data-cmdk-open><i class="bi bi-search"></i>Buscar<span class="kbd ms-auto" data-kbd-mod>⌘K</span></button></li>
+        <li><a class="dropdown-item text-danger" href="{{ url_for('main.logout') }}"><i class="bi bi-box-arrow-right text-danger"></i>Cerrar sesión</a></li>
+      </ul>
+    </div>
+  </header>
+  {% else %}
+  <!-- ═══════════ Barra pública (kiosco / sin sesión) ═══════════ -->
+  <header class="app-publicbar">
+    <a class="side-brand" href="{{ url_for('main.home') }}">
+      <span class="brand-mark">AD17</span>
+      <span class="brand-text"><strong>Gestión Operativa</strong><span>Registro de tiempos</span></span>
+    </a>
+    <nav>
+      <a class="public-link {% if request.endpoint == 'main.home' %}active{% endif %}" href="{{ url_for('main.home') }}"><i class="bi bi-stopwatch"></i><span class="d-none d-sm-inline">Registro</span></a>
+      <a class="public-link {% if request.endpoint == 'main.register' %}active{% endif %}" href="{{ url_for('main.register') }}"><i class="bi bi-person-plus"></i><span class="d-none d-md-inline">Registrarse</span></a>
+      <a class="public-link cta" href="{{ url_for('main.login') }}"><i class="bi bi-box-arrow-in-right"></i><span class="d-none d-sm-inline">Iniciar sesión</span><span class="d-sm-none">Entrar</span></a>
+    </nav>
+  </header>
+  {% endif %}
 
-    <!-- Contenido de la página -->
+  <main class="app-main" id="main">
     {% block content %}{% endblock %}
-  </div>
+  </main>
+</div>
 
-  <!-- Bootstrap JS Bundle (Incluye Popper) -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% if con_menu %}
+<!-- ═══════════ Barra inferior (celulares) ═══════════ -->
+<nav class="bottom-nav" aria-label="Accesos rápidos">
+  {% for item in barra_inferior(current_user, secciones) %}
+  <a class="bn-item {% if item.active %}active{% endif %}" href="{{ item.url }}" {% if item.active %}aria-current="page"{% endif %}>
+    <i class="bi {{ item.icon }}"></i><span>{{ item.label }}</span>
+  </a>
+  {% endfor %}
+  <button type="button" class="bn-item" data-cmdk-open><i class="bi bi-search"></i><span>Buscar</span></button>
+  <button type="button" class="bn-item" data-sidebar-toggle aria-controls="appSidebar"><i class="bi bi-grid-3x3-gap"></i><span>Menú</span></button>
+</nav>
+{% endif %}
 
-  <!-- Select2 JS -->
-  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- ═══════════ Notificaciones (mensajes flash) ═══════════ -->
+<div class="toast-stack" id="toastStack" aria-live="polite">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+    {% set cat = 'warning' if category in ('warning', 'primary') else ('danger' if category in ('danger', 'error') else ('success' if category == 'success' else 'info')) %}
+    <div class="ad-toast {{ cat }}" role="{{ 'alert' if cat in ('danger', 'warning') else 'status' }}" data-autohide="{{ 'false' if cat in ('danger', 'warning') else '7000' }}">
+      <span class="t-icon"><i class="bi {{ {'success': 'bi-check-lg', 'danger': 'bi-x-octagon', 'warning': 'bi-exclamation-triangle', 'info': 'bi-info-circle'}[cat] }}"></i></span>
+      <div class="t-body">{{ message }}</div>
+      <button type="button" class="btn-close" aria-label="Cerrar" data-toast-close></button>
+    </div>
+  {% endfor %}
+  {% endwith %}
+</div>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       PROFESSIONAL LOADER OVERLAY
-       ═══════════════════════════════════════════════════════════ -->
-  <div id="loaderOverlay" class="loader-overlay">
-    <div class="loader-content">
-      <div class="loader-spinner"></div>
-      <div class="loader-text" id="loaderText">Procesando...</div>
-      <div class="loader-subtext" id="loaderSubtext">Por favor espere</div>
-      <div class="loader-progress">
-        <div class="loader-progress-bar" id="loaderProgressBar"></div>
-      </div>
-      <div class="loader-dots">
-        <div class="loader-dot"></div>
-        <div class="loader-dot"></div>
-        <div class="loader-dot"></div>
-      </div>
+<!-- ═══════════ Paleta de comandos ═══════════ -->
+<div class="cmdk" id="cmdk" role="dialog" aria-modal="true" aria-label="Buscar">
+  <div class="cmdk-backdrop" data-cmdk-close></div>
+  <div class="cmdk-panel">
+    <div class="cmdk-input-wrap">
+      <i class="bi bi-search"></i>
+      <input class="cmdk-input" id="cmdkInput" type="text" autocomplete="off" spellcheck="false"
+             placeholder="{{ 'Busca una página, un FP, una persona o un informe…' if current_user.is_authenticated and current_user.has_admin_privileges else 'Busca una página o acción…' }}">
+      <span class="spinner-border spinner-border-sm text-muted cmdk-loading"></span>
+      <span class="kbd">Esc</span>
+      <button type="button" class="cmdk-cerrar" data-cmdk-close>Cancelar</button>
+    </div>
+    <div class="cmdk-list" id="cmdkList"></div>
+    <div class="cmdk-foot">
+      <span><span class="kbd">↑</span><span class="kbd">↓</span> navegar</span>
+      <span><span class="kbd">↵</span> abrir</span>
+      <span class="ms-auto d-none d-sm-inline">Tip: escribe los dígitos de un FP</span>
     </div>
   </div>
+</div>
+<script type="application/json" id="cmdkData">{{ {
+  'paginas': secciones | map(attribute='items') | list,
+  'secciones': secciones | map(attribute='title') | list,
+  'acciones': acciones_para(current_user),
+  'remoto': url_for('main.api_buscar') if current_user.is_authenticated else None,
+} | tojson }}</script>
 
-  <script>
-    // ═══════════════════════════════════════════════════════════
-    // GLOBAL LOADER UTILITY FUNCTIONS
-    // ═══════════════════════════════════════════════════════════
-    window.AD17Loader = {
-      overlay: null,
-      textEl: null,
-      subtextEl: null,
-      progressBar: null,
-      isShowing: false,
+<!-- ═══════════ Indicador de carga global ═══════════ -->
+<div id="loaderOverlay" class="loader-overlay">
+  <div class="loader-content">
+    <div class="loader-spinner"></div>
+    <div class="loader-text" id="loaderText">Procesando...</div>
+    <div class="loader-subtext" id="loaderSubtext">Por favor espere</div>
+    <div class="loader-progress"><div class="loader-progress-bar" id="loaderProgressBar"></div></div>
+  </div>
+</div>
 
-      init: function () {
-        this.overlay = document.getElementById('loaderOverlay');
-        this.textEl = document.getElementById('loaderText');
-        this.subtextEl = document.getElementById('loaderSubtext');
-        this.progressBar = document.getElementById('loaderProgressBar');
-      },
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+{% if current_user.is_authenticated %}<script>window.AD17_AREAS = {{ orden_areas() | tojson }};</script>{% endif %}
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
 
-      show: function (text, subtext) {
-        if (this.isShowing) return;
-        if (!this.overlay) this.init();
-
-        this.isShowing = true;
-        this.textEl.textContent = text || 'Procesando...';
-        this.subtextEl.textContent = subtext || 'Por favor espere';
-
-        // Reset and restart progress bar animation
-        this.progressBar.style.animation = 'none';
-        this.progressBar.offsetHeight; // Trigger reflow
-        this.progressBar.style.animation = 'loaderProgress 3.5s ease-out forwards';
-
-        this.overlay.classList.add('active');
-        document.body.style.overflow = 'hidden';
-      },
-
-      hide: function () {
-        if (!this.overlay) this.init();
-        this.isShowing = false;
-        this.overlay.classList.remove('active');
-        document.body.style.overflow = '';
-      },
-
-      // Specific loaders for common actions
-      showTimeStart: function () {
-        this.show('Iniciando registro...', 'Registrando tu tiempo de trabajo');
-      },
-
-      showTimeEnd: function () {
-        this.show('Finalizando registro...', 'Guardando tu tiempo trabajado');
-      },
-
-      showProjectAdd: function () {
-        this.show('Agregando proyecto...', 'Guardando información del proyecto');
-      }
-    };
-
-    // Initialize on DOM ready
-    document.addEventListener('DOMContentLoaded', function () {
-      AD17Loader.init();
-    });
-
-    // Also init with jQuery if available
-    if (typeof $ !== 'undefined') {
-      $(function () { AD17Loader.init(); });
-    }
-
-    // Sombra dinámica en la navbar al hacer scroll
-    (function () {
-      const nav = document.querySelector('.navbar-custom');
-      if (!nav) return;
-      function onScroll() {
-        if (window.scrollY > 10) {
-          nav.style.boxShadow = '0 4px 28px rgba(0,0,0,0.22)';
-        } else {
-          nav.style.boxShadow = '0 2px 16px rgba(224,109,0,0.35)';
-        }
-      }
-      window.addEventListener('scroll', onScroll, { passive: true });
-    })();
-  </script>
-
-  <!-- Bloque para scripts adicionales -->
-  {% block scripts %}{% endblock %}
+{% block scripts %}{% endblock %}
 </body>
-
 </html>

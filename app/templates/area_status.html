@@ -1,85 +1,227 @@
 {% extends "layout.html" %}
-{% block title %}Estatus de Area - Sistema de Gestión Operativa{% endblock %}
+{% block title %}Estado de {{ area }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
-    <div>
-      <h2 class="fw-bold mb-1">Estatus de {{ area }}</h2>
-      <p class="text-muted mb-0">Personal del área y personal de otras áreas trabajando actualmente aquí</p>
-    </div>
-    <a class="btn btn-primary" href="{{ url_for('main.area_records') }}">
-      <i class="bi bi-list-ul me-1"></i>Ver registros
-    </a>
-  </div>
+<style>
+  #tablaEstado .reg { line-height: 1.35; }
+  #tablaEstado .reg + .reg { margin-top: .55rem; padding-top: .55rem; border-top: 1px dashed var(--ad-border); }
+  #tablaEstado .fp { font-size: .7rem; font-weight: 600; color: var(--ad-text-2); background: var(--ad-surface-3); border: 1px solid var(--ad-border); border-radius: 5px; padding: 0 .3rem; margin-right: .3rem; }
+  #tablaEstado tr.trabajando > td:first-child { box-shadow: inset 3px 0 0 var(--ad-success); }
+  #tablaEstado .avatar.inactivo { background: var(--ad-surface-3); color: var(--ad-text-3); border: 1px solid var(--ad-border); }
+  #tablaEstado .reg-hora, #tablaEstado .area-inline { display: none; }
 
-  <div class="card shadow-sm">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-      <h6 class="mb-0 fw-semibold">Personal visible</h6>
-      <span class="badge bg-info">{{ employees|length }} empleados</span>
-    </div>
-    <div class="card-body p-0">
-      {% if employees %}
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th class="ps-4">Empleado</th>
-              <th>Area registrada</th>
-              <th>Estatus actual en {{ area }}</th>
-              <th>Proyecto / Actividad</th>
-              <th>Inicio</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for emp in employees %}
-            {% set active_records = active_by_employee.get(emp.id, []) %}
-            {% if active_records %}
-              {% for record in active_records %}
-              <tr>
-                {% if loop.first %}
-                <td class="ps-4" rowspan="{{ active_records|length }}">
-                  <div class="fw-semibold">{{ emp.nompropio }}</div>
-                  <small class="text-muted">{{ emp.puesto or 'Sin puesto' }}</small>
-                </td>
-                <td rowspan="{{ active_records|length }}">
-                  {{ emp.departamento }}
-                  {% if emp.departamento != area %}
-                  <span class="badge bg-warning text-dark ms-1">Otra área</span>
-                  {% endif %}
-                </td>
-                {% endif %}
-                <td><span class="badge bg-success">Activo</span></td>
-                <td>
-                  <div class="fw-medium">{{ record.project.name if record.project else 'Sin proyecto' }}</div>
-                  <small class="text-muted">{{ record.actividad or 'Sin actividad' }}</small>
-                </td>
-                <td>{{ record.start_time_mx.strftime('%d/%m/%Y %H:%M') if record.start_time_mx else '' }}</td>
-              </tr>
-              {% endfor %}
-            {% else %}
-            <tr>
-              <td class="ps-4">
-                <div class="fw-semibold">{{ emp.nompropio }}</div>
-                <small class="text-muted">{{ emp.puesto or 'Sin puesto' }}</small>
-              </td>
-              <td>{{ emp.departamento }}</td>
-              <td><span class="badge bg-secondary">Sin registro activo en {{ area }}</span></td>
-              <td class="text-muted">—</td>
-              <td class="text-muted">—</td>
-            </tr>
-            {% endif %}
-            {% endfor %}
-          </tbody>
-        </table>
+  /* Tableta (y escritorio angosto): sin columnas de área e inicio; la hora va con el proyecto */
+  @media (max-width: 1199.98px) {
+    #tablaEstado .c-area, #tablaEstado .c-inicio { display: none; }
+    #tablaEstado .area-inline { display: block; margin-top: .3rem; }
+    #tablaEstado .reg-hora { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem .6rem; margin-top: .15rem; font-size: .8rem; color: var(--ad-text-3); }
+    #tablaEstado .reg-hora .desde { display: inline-flex; align-items: center; gap: .3rem; }
+    #tablaEstado .reg-hora strong { color: var(--ad-text); font-weight: 600; }
+  }
+  @media (min-width: 576px) and (max-width: 1199.98px) {
+    #tablaEstado .c-persona { min-width: 220px; }
+    #tablaEstado td.c-reg { width: 100%; max-width: 0; }
+    #tablaEstado .c-reg .text-truncate { max-width: 100% !important; }
+  }
+
+  /* Celular: una tarjeta por persona; quien trabaja, en qué y desde cuándo */
+  @media (max-width: 575.98px) {
+    #tablaEstado.tabla-tarjetas > tbody > tr:not(.no-matches) {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: .75rem; row-gap: .5rem;
+      align-items: start; padding: .85rem .95rem;
+    }
+    #tablaEstado.tabla-tarjetas > tbody > tr.row-hidden { display: none; }
+    #tablaEstado.tabla-tarjetas > tbody > tr:not(.no-matches) > td {
+      padding: 0 !important; min-height: 0; text-align: left !important; box-shadow: none;
+    }
+    #tablaEstado.tabla-tarjetas > tbody > tr > td::before { display: none; }
+    #tablaEstado.tabla-tarjetas > tbody > tr.trabajando { box-shadow: inset 3px 0 0 var(--ad-success); }
+    #tablaEstado .c-persona { grid-column: 1; grid-row: 1; font-size: .9375rem; font-weight: 400; }
+    #tablaEstado .c-persona .avatar { width: 36px; height: 36px; font-size: .74rem; }
+    #tablaEstado .c-persona .fw-semibold { font-size: .9375rem; line-height: 1.25; }
+    #tablaEstado .c-estado { grid-column: 2; grid-row: 1; }
+    #tablaEstado .c-area, #tablaEstado .c-inicio { display: none !important; }
+    #tablaEstado tr:not(.trabajando) .c-reg { display: none !important; }
+    #tablaEstado .c-reg { grid-column: 1 / -1; }
+    #tablaEstado .c-reg .reg {
+      padding: .65rem .75rem; border-radius: var(--ad-radius);
+      background: var(--ad-success-soft); border: 1px solid var(--ad-success-line);
+    }
+    #tablaEstado .c-reg .reg + .reg { margin-top: .5rem; border-top: 1px solid var(--ad-success-line); }
+    #tablaEstado .c-reg .text-truncate { max-width: none !important; white-space: normal; overflow: visible; }
+    #tablaEstado .c-reg .reg > .fw-medium { font-weight: 600; color: var(--ad-text); }
+    #tablaEstado .c-reg .fp { background: var(--ad-surface); }
+    #tablaEstado .reg-hora {
+      display: flex; flex-wrap: wrap; align-items: center; gap: .15rem .75rem;
+      margin-top: .45rem; padding-top: .45rem; border-top: 1px solid var(--ad-success-line);
+      font-size: .8125rem; color: var(--ad-success-ink);
+    }
+    #tablaEstado .reg-hora strong { font-size: .95rem; font-weight: 700; color: inherit; }
+    #tablaEstado .reg-hora .desde { display: inline-flex; align-items: center; gap: .35rem; }
+    #tablaEstado .reg-hora .lleva { margin-left: auto; color: var(--ad-text-2); }
+    #tablaEstado .reg-hora .lleva.text-danger { color: var(--ad-danger-ink) !important; font-weight: 600; }
+  }
+</style>
+
+{# Conteos para los indicadores #}
+{% set ns = namespace(trabajando=0, registros=0, otras=0) %}
+{% for emp in employees %}
+  {% set act = active_by_employee.get(emp.id, []) %}
+  {% if act %}
+    {% set ns.trabajando = ns.trabajando + 1 %}
+    {% set ns.registros = ns.registros + act|length %}
+    {% if emp.departamento != area %}{% set ns.otras = ns.otras + 1 %}{% endif %}
+  {% endif %}
+{% endfor %}
+
+{% macro fila(emp, active_records, area, now_mx) %}
+<tr class="{{ 'trabajando' if active_records else '' }}">
+  <td class="c-persona">
+    <div class="d-flex align-items-center gap-2">
+      <span class="avatar avatar-sm {{ 'avatar-brand' if active_records else 'inactivo' }}">{{ iniciales(emp.nompropio) }}</span>
+      <div class="lh-sm">
+        <div class="fw-semibold">{{ emp.nompropio }}</div>
+        <div class="small text-muted">{{ emp.puesto or 'Sin puesto' }}</div>
+        {% if active_records and emp.departamento != area %}
+        <div class="area-inline"><span class="badge bg-warning">Otra área · {{ emp.departamento }}</span></div>
+        {% endif %}
       </div>
-      {% else %}
-      <div class="text-center py-5 text-muted">
-        <i class="bi bi-people" style="font-size:3rem;"></i>
-        <p class="mt-3 mb-0">No hay personal visible para esta área.</p>
+    </div>
+  </td>
+  <td class="c-area">
+    {{ emp.departamento }}
+    {% if active_records and emp.departamento != area %}
+    <span class="badge bg-warning ms-1">Otra área</span>
+    {% endif %}
+  </td>
+  <td class="c-estado text-nowrap" data-valor="{{ '0' if active_records else '1' }}">
+    {% if active_records %}
+      <span class="badge bg-success"><span class="dot"></span>Trabajando</span>
+    {% else %}
+      <span class="badge bg-light">Sin registro<span class="d-none d-sm-inline"> activo</span></span>
+    {% endif %}
+  </td>
+  <td class="c-reg">
+    {% for record in active_records %}
+    <div class="reg">
+      <div class="fw-medium text-truncate" style="max-width: 300px;" title="{{ record.project.name if record.project else 'Sin proyecto' }}">
+        {% if record.project and record.project.folio %}<span class="fp">FP {{ record.project.folio }}</span>{% endif %}{{ record.project.name if record.project else 'Sin proyecto' }}
+      </div>
+      <div class="small text-muted text-truncate" style="max-width: 300px;">{{ record.actividad or 'Sin actividad' }}</div>
+      {% if record.start_time_mx %}
+      {% set mins = ((now_mx - record.start_time_mx).total_seconds() // 60)|int %}
+      <div class="reg-hora">
+        <span class="desde"><i class="bi bi-clock"></i> Desde <strong>{{ record.start_time_mx.strftime('%H:%M') if record.start_time_mx.date() == now_mx.date() else record.start_time_mx.strftime('%d/%m %H:%M') }}</strong></span>
+        <span class="lleva {{ 'text-danger' if mins >= 600 else '' }}">lleva {% if mins >= 60 %}{{ mins // 60 }} h {% endif %}{{ mins % 60 }} min{% if mins >= 600 %} <i class="bi bi-exclamation-triangle-fill" title="Lleva 10 horas o más abierto"></i>{% endif %}</span>
       </div>
       {% endif %}
     </div>
+    {% else %}
+    <span class="text-muted">—</span>
+    {% endfor %}
+  </td>
+  <td class="c-inicio text-nowrap" data-valor="{{ active_records[0].start_time_mx.isoformat() if active_records and active_records[0].start_time_mx else '' }}">
+    {% for record in active_records %}
+    <div class="reg">
+      {% if record.start_time_mx %}
+        {% set mins = ((now_mx - record.start_time_mx).total_seconds() // 60)|int %}
+        <div>{{ record.start_time_mx.strftime('%H:%M') if record.start_time_mx.date() == now_mx.date() else record.start_time_mx.strftime('%d/%m/%Y %H:%M') }}</div>
+        <div class="small {{ 'text-danger' if mins >= 600 else 'text-muted' }}" {% if mins >= 600 %}title="Lleva 10 horas o más abierto"{% endif %}>lleva {% if mins >= 60 %}{{ mins // 60 }} h {% endif %}{{ mins % 60 }} min</div>
+      {% endif %}
+    </div>
+    {% else %}
+    <span class="text-muted">—</span>
+    {% endfor %}
+  </td>
+</tr>
+{% endmacro %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><span class="dot live"></span> Mi área · ahora</div>
+    <h1>Estado de {{ area }}</h1>
+    <p>Personal del área y personal de otras áreas trabajando actualmente aquí.</p>
   </div>
+  <div class="actions">
+    <span class="small text-muted d-none d-md-inline">Actualizado {{ now_mx.strftime('%H:%M') }}</span>
+    <button type="button" class="btn btn-outline-secondary" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i> Actualizar</button>
+    <a class="btn btn-primary" href="{{ url_for('main.area_records') }}">
+      <i class="bi bi-list-ul"></i> Ver registros
+    </a>
+  </div>
+</div>
+
+<!-- Indicadores -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">
+    <div class="stat">
+      <span class="stat-icon brand"><i class="bi bi-person-workspace"></i></span>
+      <div class="stat-label">Trabajando ahora</div>
+      <div class="stat-value">{{ ns.trabajando }}<small>de {{ employees|length }}</small></div>
+      <div class="stat-foot">{% if ns.trabajando %}<span class="dot live"></span>{% endif %}{{ ns.registros }} {{ 'registro abierto' if ns.registros == 1 else 'registros abiertos' }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-pause-circle"></i></span>
+      <div class="stat-label">Sin registro activo</div>
+      <div class="stat-value">{{ employees|length - ns.trabajando }}</div>
+      <div class="stat-foot">en {{ area }} en este momento</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-arrow-left-right"></i></span>
+      <div class="stat-label">De otras áreas</div>
+      <div class="stat-value">{{ ns.otras }}</div>
+      <div class="stat-foot">trabajando ahora en {{ area }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-people"></i></span>
+      <div class="stat-label">Personal visible</div>
+      <div class="stat-value">{{ employees|length }}</div>
+      <div class="stat-foot">activos del área y visitantes</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <i class="bi bi-people"></i>Personal visible
+    <span class="badge bg-secondary">{{ employees|length }}</span>
+    <span class="small text-muted fw-normal ms-auto d-none d-md-inline">Primero quien está trabajando</span>
+    <span class="small text-muted fw-normal ms-auto d-md-none"><i class="bi bi-arrow-clockwise"></i> {{ now_mx.strftime('%H:%M') }}</span>
+  </div>
+  {% if employees %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle" id="tablaEstado" data-buscable="Buscar persona, puesto, proyecto o actividad…">
+      <thead>
+        <tr>
+          <th data-titulo>Persona</th>
+          <th class="c-area">Área registrada</th>
+          <th>Estado en {{ area }}</th>
+          <th>Proyecto / actividad</th>
+          <th class="c-inicio">Inicio</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for emp in employees if active_by_employee.get(emp.id) %}
+          {{ fila(emp, active_by_employee.get(emp.id, []), area, now_mx) }}
+        {% endfor %}
+        {% for emp in employees if not active_by_employee.get(emp.id) %}
+          {{ fila(emp, [], area, now_mx) }}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon"><i class="bi bi-people"></i></div>
+    <h6>No hay personal visible</h6>
+    <p>No hay empleados activos en {{ area }} ni personal de otras áreas trabajando aquí.</p>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

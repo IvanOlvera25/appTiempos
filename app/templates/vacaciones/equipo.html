@@ -2,79 +2,172 @@
 {% block title %}Vacaciones de mi equipo{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+{% set dias_semana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] %}
+{# Indicadores a partir de la misma rejilla del calendario (solo lo autorizado) #}
+{% set ns = namespace(hoy=[], personas=[], dias=0, hoy_visible=false) %}
+{% for semana in semanas %}{% for dia in semana %}
+  {% if dia.hoy and dia.del_mes %}{% set ns.hoy_visible = true %}{% endif %}
+  {% for e in dia.eventos if e.estatus == 'AUTORIZADO' %}
+    {% if dia.hoy %}{% set ns.hoy = ns.hoy + [e.empleado] %}{% endif %}
+    {% if dia.del_mes %}
+      {% if e.rh_id not in ns.personas %}{% set ns.personas = ns.personas + [e.rh_id] %}{% endif %}
+      {% set ns.dias = ns.dias + (0.5 if e.tipo == 'MEDIO_DIA' else 1) %}
+    {% endif %}
+  {% endfor %}
+{% endfor %}{% endfor %}
 
-  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <div>
-      <h1 class="h4 mb-1">Vacaciones de mi equipo</h1>
-      <p class="text-muted mb-0">
-        {{ total_equipo }} persona(s) a tu cargo. El calendario incluye también
-        tus propias vacaciones, para que veas los empalmes.
-      </p>
-    </div>
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-people"></i> Vacaciones</div>
+    <h1>Vacaciones de mi equipo</h1>
+    <p>
+      {{ total_equipo }} {{ 'persona' if total_equipo == 1 else 'personas' }} a tu cargo. El calendario incluye también
+      tus propias vacaciones, para que veas los empalmes.
+    </p>
+  </div>
+  <div class="actions">
     <a href="{{ url_for('vacaciones.mis_vacaciones') }}" class="btn btn-outline-secondary">
       <i class="bi bi-person"></i> Mis vacaciones
     </a>
   </div>
+</div>
 
-  <!-- Pendientes por responder -->
-  <div class="card mb-4 {% if pendientes %}border-warning{% endif %}">
-    <div class="card-header d-flex align-items-center">
-      <i class="bi bi-hourglass-split me-2"></i>Solicitudes por responder
-      {% if pendientes %}<span class="badge bg-warning text-dark ms-2">{{ pendientes|length }}</span>{% endif %}
+<style>
+  /* Celular: si hay solicitudes por responder, van antes que los indicadores */
+  @media (max-width: 767.98px) {
+    .eq-flujo.con-pendientes { display: flex; flex-direction: column; }
+    .eq-flujo.con-pendientes > .eq-pend-card { order: -1; }
+  }
+  @media (max-width: 575.98px) {
+    .eq-pend.tabla-tarjetas > tbody > tr { padding: .85rem .95rem .95rem; }
+    .eq-pend.tabla-tarjetas > tbody > tr > td.eq-resp-td { padding-top: .6rem !important; }
+    .eq-pend.tabla-tarjetas > tbody > tr > td.td-titulo .small { font-weight: 400; }
+    .eq-resp { display: flex !important; width: 100%; gap: .5rem !important; }
+    .eq-resp > form { flex: 1 1 0; }
+    .eq-resp .btn { width: 100%; min-height: 46px; font-size: .95rem; }
+  }
+  /* Tableta: los botones quedan solo con icono para que la tabla quepa, pero con área de toque cómoda */
+  @media (min-width: 576px) and (max-width: 1199.98px) {
+    .eq-resp .btn { min-width: 42px; min-height: 40px; }
+    .eq-resp { gap: .4rem !important; }
+  }
+</style>
+
+<div class="eq-flujo{% if pendientes %} con-pendientes{% endif %}">
+<!-- Indicadores -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">
+    <div class="stat">
+      <span class="stat-icon{% if pendientes %} brand{% endif %}"><i class="bi bi-hourglass-split"></i></span>
+      <div class="stat-label">Por responder</div>
+      <div class="stat-value">{{ pendientes|length }}<small>{{ 'solicitud' if pendientes|length == 1 else 'solicitudes' }}</small></div>
+      <div class="stat-foot">{{ 'De tu equipo, en cualquier fecha' if pendientes else 'Todo al día' }}</div>
     </div>
-    <div class="card-body p-0">
-      {% if pendientes %}
-      <div class="table-responsive">
-        <table class="table table-striped mb-0 align-middle">
-          <thead class="table-light">
-            <tr><th>Empleado</th><th>Fecha</th><th>Tipo</th><th>Solicitada</th><th class="text-end">Respuesta</th></tr>
-          </thead>
-          <tbody>
-            {% for s in pendientes %}
-            <tr>
-              <td><strong>{{ s.empleado }}</strong><br><span class="small text-muted">{{ s.area }}</span></td>
-              <td>{{ s.fecha.strftime('%d/%m/%Y') }}</td>
-              <td>
-                {% if s.tipo == 'MEDIO_DIA' %}
-                  <span class="badge bg-info text-dark">Medio día ({{ s.momento|lower }})</span>
-                {% else %}
-                  <span class="badge bg-secondary">Día completo</span>
-                {% endif %}
-              </td>
-              <td class="small text-muted">{{ s.fecha_solicitud.strftime('%d/%m/%Y') if s.fecha_solicitud else '—' }}</td>
-              <td class="text-end">
-                <div class="d-inline-flex gap-1">
-                  <form method="POST" action="{{ url_for('vacaciones.responder', tipo=s.tipo, reg_id=s.id) }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="accion" value="autorizar">
-                    <input type="hidden" name="volver" value="{{ request.full_path }}">
-                    <button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Autorizar</button>
-                  </form>
-                  <form method="POST" action="{{ url_for('vacaciones.responder', tipo=s.tipo, reg_id=s.id) }}"
-                        onsubmit="return confirm('¿Denegar la solicitud de {{ s.empleado }} para el {{ s.fecha.strftime('%d/%m/%Y') }}?');">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="accion" value="denegar">
-                    <input type="hidden" name="volver" value="{{ request.full_path }}">
-                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg"></i> Denegar</button>
-                  </form>
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-sun"></i></span>
+      <div class="stat-label">De vacaciones hoy</div>
+      {% if ns.hoy_visible %}
+      <div class="stat-value">{{ ns.hoy|length }}<small>{{ 'persona' if ns.hoy|length == 1 else 'personas' }}</small></div>
+      <div class="stat-foot text-truncate d-block" title="{{ ns.hoy|join(', ') }}">{{ ns.hoy|join(', ') if ns.hoy else 'Nadie falta hoy' }}</div>
       {% else %}
-      <div class="p-4 text-center text-muted">No hay solicitudes pendientes.</div>
+      <div class="stat-value">—</div>
+      <div class="stat-foot">Regresa al mes actual para verlo</div>
       {% endif %}
     </div>
   </div>
-
-  {% include 'vacaciones/_calendario.html' %}
-
-  <!-- Saldos del equipo -->
-  {% set titulo_saldos = 'Saldos' %}
-  {% include 'vacaciones/_saldos.html' %}
+  <div class="col-6 col-xl-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-calendar-check"></i></span>
+      <div class="stat-label">Días autorizados en el mes</div>
+      <div class="stat-value">{{ '%g'|format(ns.dias) }}<small>{{ 'día' if ns.dias == 1 else 'días' }}</small></div>
+      <div class="stat-foot">{{ ns.personas|length }} {{ 'persona' if ns.personas|length == 1 else 'personas' }} en {{ nav.titulo }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-people"></i></span>
+      <div class="stat-label">Personas a cargo</div>
+      <div class="stat-value">{{ total_equipo }}</div>
+      <div class="stat-foot">Según la asignación de RH</div>
+    </div>
+  </div>
 </div>
+
+<!-- Pendientes por responder -->
+<div class="card mb-4 eq-pend-card">
+  <div class="card-header">
+    <i class="bi bi-hourglass-split"></i>Solicitudes por responder
+    {% if pendientes %}<span class="badge bg-warning">{{ pendientes|length }}</span>{% endif %}
+  </div>
+  {% if pendientes %}
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle eq-pend" data-tarjetas>
+      <thead>
+        <tr><th data-titulo>Empleado</th><th>Fecha</th><th>Tipo</th><th class="d-none d-xl-table-cell">Solicitada</th><th class="text-end">Respuesta</th></tr>
+      </thead>
+      <tbody>
+        {% for s in pendientes %}
+        <tr>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <span class="avatar avatar-sm">{{ iniciales(s.empleado) }}</span>
+              <div class="lh-sm">
+                <div class="fw-semibold">{{ s.empleado }}</div>
+                <div class="small text-muted">{{ s.area }}</div>
+              </div>
+            </div>
+          </td>
+          <td class="text-nowrap">
+            <span class="text-muted small">{{ dias_semana[s.fecha.weekday()] }}</span>
+            <span class="fw-semibold">{{ s.fecha.strftime('%d/%m/%Y') }}</span>
+            {# En celular y tableta la fecha de solicitud va aquí (la columna solo cabe en escritorio) #}
+            {% if s.fecha_solicitud %}<div class="small text-muted d-xl-none">Solicitada el {{ s.fecha_solicitud.strftime('%d/%m/%Y') }}</div>{% endif %}
+          </td>
+          <td>
+            {% if s.tipo == 'MEDIO_DIA' %}
+              <span class="badge bg-info"><i class="bi bi-circle-half"></i>Medio día ({{ s.momento|lower }})</span>
+            {% else %}
+              <span class="badge bg-secondary">Día completo</span>
+            {% endif %}
+          </td>
+          <td class="small text-muted text-nowrap d-none d-xl-table-cell">{{ s.fecha_solicitud.strftime('%d/%m/%Y') if s.fecha_solicitud else '—' }}</td>
+          <td class="text-end eq-resp-td" data-label="">
+            <div class="d-inline-flex gap-1 eq-resp">
+              <form method="POST" action="{{ url_for('vacaciones.responder', tipo=s.tipo, reg_id=s.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="accion" value="autorizar">
+                <input type="hidden" name="volver" value="{{ request.full_path }}">
+                <button class="btn btn-sm btn-success" title="Autorizar" aria-label="Autorizar"><i class="bi bi-check-lg"></i><span class="d-sm-none d-xl-inline"> Autorizar</span></button>
+              </form>
+              <form method="POST" action="{{ url_for('vacaciones.responder', tipo=s.tipo, reg_id=s.id) }}"
+                    onsubmit="return confirm('¿Denegar la solicitud de {{ s.empleado }} para el {{ s.fecha.strftime('%d/%m/%Y') }}?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="accion" value="denegar">
+                <input type="hidden" name="volver" value="{{ request.full_path }}">
+                <button class="btn btn-sm btn-outline-danger" title="Denegar" aria-label="Denegar"><i class="bi bi-x-lg"></i><span class="d-sm-none d-xl-inline"> Denegar</span></button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty py-4">
+    <div class="empty-icon"><i class="bi bi-check2-circle"></i></div>
+    <h6>No hay solicitudes pendientes</h6>
+    <p>Cuando alguien de tu equipo pida vacaciones aparecerá aquí para que la autorices o la deniegues.</p>
+  </div>
+  {% endif %}
+</div>
+</div>{# /.eq-flujo #}
+
+{% include 'vacaciones/_calendario.html' %}
+
+<!-- Saldos del equipo -->
+{% set titulo_saldos = 'Saldos del equipo' %}
+{% include 'vacaciones/_saldos.html' %}
 {% endblock %}

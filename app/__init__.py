@@ -31,6 +31,51 @@ def _threads_available() -> bool:
         return True
 
 
+_COMPRIMIBLES = {'text/html', 'application/json', 'text/css', 'application/javascript',
+                 'text/javascript', 'image/svg+xml', 'text/plain'}
+
+
+def _configurar_entrega(app):
+    """
+    Respuestas más ligeras para el navegador.
+
+    - gzip en HTML y JSON: las páginas con tablas grandes pesaban cientos de KB
+      (o varios MB) y bajan a una fracción.
+    - CSS/JS/imágenes propios con `?v=<fecha de modificación>` en la URL: el
+      navegador los guarda un año y, al desplegar una versión nueva, la URL
+      cambia sola y se descarga la nueva.
+    """
+    import gzip
+    from flask import request
+
+    @app.url_defaults
+    def _version_estaticos(endpoint, values):
+        if endpoint == 'static' and 'filename' in values and 'v' not in values:
+            try:
+                values['v'] = int(os.stat(os.path.join(app.static_folder, values['filename'])).st_mtime)
+            except OSError:
+                pass
+
+    @app.after_request
+    def _comprimir_y_cachear(resp):
+        if request.endpoint == 'static' and request.args.get('v'):
+            resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        if (resp.direct_passthrough or resp.is_streamed
+                or not 200 <= resp.status_code < 300
+                or resp.mimetype not in _COMPRIMIBLES
+                or 'Content-Encoding' in resp.headers
+                or 'gzip' not in request.headers.get('Accept-Encoding', '').lower()):
+            return resp
+        datos = resp.get_data()
+        if len(datos) < 1400:
+            return resp
+        resp.set_data(gzip.compress(datos, compresslevel=6))
+        resp.headers['Content-Encoding'] = 'gzip'
+        resp.headers['Content-Length'] = str(len(resp.get_data()))
+        resp.vary.add('Accept-Encoding')
+        return resp
+
+
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
@@ -135,6 +180,8 @@ def create_app():
         @login_manager.user_loader
         def load_user(user_id):
             return User.query.get(int(user_id))
+
+    _configurar_entrega(app)
 
     # ---------------- CLI Commands (dejas tus comandos tal cual) ----------------
     # (Aquí sigue tu código de import_employees e import_employees_remote sin cambios)

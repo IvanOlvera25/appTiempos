@@ -12,7 +12,7 @@ from .forms import RegistrationForm, LoginForm
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import pytz
-from sqlalchemy import func, text  # Para MySQL TIMESTAMPDIFF
+from sqlalchemy import case, func, text  # Para MySQL TIMESTAMPDIFF
 from wtforms.validators import DataRequired, Length, ValidationError
 from werkzeug.security import generate_password_hash, check_password_hash
 from . import db, csrf
@@ -20,6 +20,7 @@ from flask_login import login_required, current_user, login_user, logout_user
 from sqlalchemy.exc import IntegrityError
 import pymysql
 from pytz import timezone
+import time
 import traceback
 import unicodedata
 
@@ -40,6 +41,92 @@ def inject_areas():
         current_app.logger.warning("inject_areas: no se pudo leer areas_config: %s", e)
         areas = []
     return {'areas': areas, 'area_departments': [a.nombre for a in areas]}
+
+
+@main.app_template_filter('mx')
+def filtro_hora_mx(dt, formato='%d/%m %H:%M'):
+    """Fecha UTC de la base a hora de la Ciudad de México: {{ r.start_time|mx }}"""
+    local = _to_mx(dt)
+    return local.strftime(formato) if local else ''
+
+
+@main.app_context_processor
+def inject_navegacion():
+    """Menú lateral y atajos; se calculan solo si la plantilla los usa."""
+    from .navegacion import acciones_para, barra_inferior, iniciales, menu_para, migas
+
+    def orden_areas():
+        """Todas las áreas en su orden configurado: fija el color de cada una en las gráficas."""
+        try:
+            return [a.nombre for a in get_areas(solo_activas=False)]
+        except Exception:
+            return []
+
+    return {'menu_para': menu_para, 'acciones_para': acciones_para,
+            'migas': migas, 'iniciales': iniciales, 'orden_areas': orden_areas,
+            'barra_inferior': barra_inferior}
+
+
+@main.route('/api/buscar')
+@login_required
+def api_buscar():
+    """Búsqueda global de la paleta de comandos: proyectos, personas e informes."""
+    from sqlalchemy import String, cast, or_
+
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify(resultados=[])
+    like = f'%{q}%'
+    resultados = []
+
+    if current_user.has_admin_privileges:
+        filtros = [Project.name.ilike(like), Project.client.ilike(like)]
+        folio = q.upper().replace('FP', '').strip()
+        if folio.isdigit():
+            filtros.append(cast(Project.folio, String).like(f'{int(folio)}%'))
+        proyectos = (Project.query.filter(or_(*filtros))
+                     .order_by(Project.active.desc(), Project.folio.desc()).limit(6).all())
+        for p in proyectos:
+            resultados.append({
+                'group': 'Proyectos', 'icon': 'bi-kanban',
+                'title': f'FP {p.folio} · {p.name}' if p.folio is not None else p.name,
+                'sub': (p.client or '') + ('' if p.active else ' · inactivo'),
+                # El análisis solo lo muestra la plantilla a administradores
+                'url': (url_for('main.project_analysis', project_search=p.id) if current_user.is_admin
+                        else url_for('main.edit_project', project_id=p.id)),
+            })
+
+        personas = (Employee.query
+                    .filter(Employee.active.is_(True))
+                    .filter(or_(Employee.nompropio.ilike(like),
+                                func.concat(Employee.nombre, ' ', Employee.apellido_paterno).ilike(like),
+                                Employee.n_empleado.like(f'{q}%')))
+                    .order_by(Employee.nompropio).limit(6).all())
+        for e in personas:
+            resultados.append({
+                'group': 'Personas', 'icon': 'bi-person',
+                'title': e.nompropio,
+                'sub': ' · '.join(x for x in (e.departamento, e.puesto) if x and x != 'N/A'),
+                'url': url_for('main.manage_employees', employee_id=e.id),
+            })
+
+    if current_user.puede_reportar_incidencias:
+        from .models import IncidentReport
+        from .routes_incidencias import informes_visibles
+        filtros = [IncidentReport.motivo.ilike(like)]
+        if q.lstrip('#').isdigit():
+            filtros.append(IncidentReport.id == int(q.lstrip('#')))
+        informes = (informes_visibles().filter(or_(*filtros))
+                    .order_by(IncidentReport.created_at.desc()).limit(5).all())
+        for i in informes:
+            resultados.append({
+                'group': 'Informes de incidencia', 'icon': 'bi-clipboard-check',
+                'title': f'Informe #{i.id}',
+                'sub': (i.motivo or '')[:90],
+                'url': url_for('incidencias.ver_informe', report_id=i.id),
+            })
+
+    return jsonify(resultados=resultados)
 
 
 def _require_area_manager():
@@ -107,10 +194,19 @@ def _cerrar_registros_previos(employee_id, department, project_id):
 
 @main.route('/')
 def home():
-    # Si el usuario autenticado es empleado, lo brincamos directo
-
-    return render_template('home.html')
+    # Personas con un registro abierto por área, para los mosaicos de inicio
+    try:
+        activos = dict(
+            db.session.query(TimeRecord.departamento, func.count(func.distinct(TimeRecord.employee_id)))
+            .filter(TimeRecord.end_time.is_(None))
+            .group_by(TimeRecord.departamento).all()
+        )
+    except Exception as e:  # el inicio no debe caerse por un conteo
+        current_app.logger.warning("home: no se pudieron contar los activos: %s", e)
+        activos = {}
+    return render_template('home.html', activos_por_area=activos)
 @main.route('/list_employees')
+@login_required
 def list_employees():
     employees = Employee.query.all()
     return render_template('list_employees.html', employees=employees)
@@ -259,6 +355,13 @@ def register_project():
             for record in active_records:
                 active_activities.setdefault(record.project_id, []).append(record.actividad or 'Sin especificar')
 
+        # Lo que la persona tiene abierto ahora, para mostrarlo junto a "Finalizar"
+        registro_abierto = None
+        if employee_id:
+            registro_abierto = (TimeRecord.query
+                                .filter_by(employee_id=int(employee_id), end_time=None)
+                                .order_by(TimeRecord.start_time.desc()).first())
+
         # Contador de registros activos en el departamento
         if department:
             active_count = db.session.query(TimeRecord).filter(
@@ -286,7 +389,9 @@ def register_project():
             active_count=active_count,
             form=form,
             general_activities=general_activities,
-            active_activities=active_activities  # por si tu template lo usa
+            active_activities=active_activities,  # por si tu template lo usa
+            registro_abierto=registro_abierto,
+            ahora=datetime.utcnow(),
         )
 
     # ───────── POST ─────────
@@ -595,11 +700,15 @@ def get_gantt_data():
         current_app.logger.debug(f"Filtro de departamento: '{department_filter}'")
         current_app.logger.debug(f"Tipo de vista: {view_type}")
 
-        # Query base
-        query = TimeRecord.query.filter(
-            TimeRecord.start_time >= start_of_week_utc,
-            TimeRecord.start_time < end_of_week_utc
-        ).join(Employee).join(Project)
+        # Query base. Persona y proyecto vienen en la misma consulta: antes se
+        # pedían por separado para cada registro (cientos de viajes a la base).
+        from sqlalchemy.orm import contains_eager
+        query = (TimeRecord.query
+                 .join(Employee, Employee.id == TimeRecord.employee_id)
+                 .join(Project, Project.id == TimeRecord.project_id)
+                 .options(contains_eager(TimeRecord.employee), contains_eager(TimeRecord.project))
+                 .filter(TimeRecord.start_time >= start_of_week_utc.replace(tzinfo=None),
+                         TimeRecord.start_time < end_of_week_utc.replace(tzinfo=None)))
 
         def create_record_dict(record):
             start_time_utc_iso = record.start_time.isoformat() + 'Z'
@@ -629,23 +738,22 @@ def get_gantt_data():
         gantt_data = []
 
         if view_type == 'employee':
-            # CORRECCIÓN: Aplicar filtro de departamento correctamente
+            # Filtro de área: personas cuya área es esa (con todos sus registros)
+            # Una sola consulta: los registros de la semana de esas personas
             if department_filter:
-                # Filtrar empleados por su departamento
-                employees_query = Employee.query.filter(
-                    Employee.departamento == department_filter
-                ).order_by(Employee.nompropio)
-                current_app.logger.debug(f"Filtrando empleados por departamento: {department_filter}")
-            else:
-                employees_query = Employee.query.order_by(Employee.nompropio)
+                query = query.filter(Employee.departamento == department_filter)
+            por_empleado = {}
+            for r in query.order_by(TimeRecord.start_time).all():
+                por_empleado.setdefault(r.employee_id, []).append(r)
 
-            employees = employees_query.all()
-            current_app.logger.debug(f"Empleados encontrados: {len(employees)}")
+            employees = sorted({r[0].employee.id: r[0].employee for r in por_empleado.values()}.values(),
+                               # mismo orden que MySQL: sin distinguir acentos ni mayúsculas
+                               key=lambda e: unicodedata.normalize('NFD', e.nompropio or '')
+                               .encode('ascii', 'ignore').decode().lower())
+            current_app.logger.debug(f"Empleados con registros: {len(employees)}")
 
             for employee in employees:
-                emp_records = query.filter(TimeRecord.employee_id == employee.id).all()
-                current_app.logger.debug(f"Empleado {employee.nompropio}: {len(emp_records)} registros")
-
+                emp_records = por_empleado.get(employee.id, [])
                 if emp_records:
                     gantt_data.append({
                         'label': employee.nompropio,
@@ -774,7 +882,10 @@ def add_project():
 
 
 @main.route('/worker_analysis', methods=['GET'])
+@login_required
 def worker_analysis():
+    if not current_user.has_admin_privileges:
+        return jsonify({"error": "Acceso denegado"}), 403
     employee_id = request.args.get('employee_id')
     if not employee_id:
         return jsonify({"error": "No se proporcionó el ID del empleado"}), 400
@@ -840,185 +951,204 @@ def admin_dashboard():
         flash('Acceso denegado.', 'danger')
         return redirect(url_for('main.home'))
 
-    # 1. Trabajadores Activos por Proyecto
-    active_workers_query = db.session.query(
-        Project.name,
-        func.count(TimeRecord.id)
-    ).join(TimeRecord).filter(TimeRecord.end_time == None).group_by(Project.name).all()
-    active_workers = {pname: count for (pname, count) in active_workers_query}
+    # Las métricas y gráficas se cargan de /api/dashboard/metricas según el
+    # periodo y los filtros; aquí solo va lo que la página necesita al abrir.
+    proyectos = Project.query.order_by(Project.active.desc(), Project.folio.desc()).all()
+    employees = Employee.query.filter_by(active=True).order_by(Employee.nompropio).all()
 
-    # 2. Tiempo Invertido por Proyecto (en Horas) con TIMESTAMPDIFF
-    time_invested_query = db.session.query(
-        Project.name,
-        func.sum(
-            func.timestampdiff(text('SECOND'), TimeRecord.start_time, TimeRecord.end_time) / 3600.0
-        )
-    ).join(TimeRecord).filter(TimeRecord.end_time != None).group_by(Project.name).all()
-    time_invested = {pname: round(hours or 0, 2) for (pname, hours) in time_invested_query}
-
-    # 3. Horas Invertidas por Departamento - CORREGIDO
-    dept_invested_data = {}
-    all_projects = Project.query.order_by(Project.id).all()
-    for proj in all_projects:
-        dept_invested_data[proj.id] = {}
-
-    # Query corregido para obtener departamento del TimeRecord directamente
-    dept_query = (
-        db.session.query(
-            Project.id.label("proj_id"),
-            TimeRecord.departamento.label("dept"),
-            func.sum(
-                func.timestampdiff(text('SECOND'), TimeRecord.start_time, TimeRecord.end_time) / 3600.0
-            ).label("total_hrs")
-        )
-        .join(TimeRecord, Project.id == TimeRecord.project_id)
-        .filter(TimeRecord.end_time != None)
-        .filter(TimeRecord.departamento != None)
-        .group_by(Project.id, TimeRecord.departamento)
-        .all()
-    )
-
-    current_app.logger.debug("Debug - Datos de departamentos obtenidos:")
-    for row in dept_query:
-        proj_id = row.proj_id
-        dept = row.dept or "Sin Departamento"
-        total_hrs = row.total_hrs or 0
-        dept_invested_data[proj_id][dept] = round(total_hrs, 2)
-        current_app.logger.debug(f"Proyecto {proj_id}: {dept} = {total_hrs} horas")
-
-    # 4. Horas Invertidas por Actividad (Por Proyecto) - MEJORADO
-    activity_query = (
-        db.session.query(
-            Project.name.label("project_name"),
-            TimeRecord.actividad,
-            func.sum(
-                func.timestampdiff(text('SECOND'), TimeRecord.start_time, TimeRecord.end_time) / 3600.0
-            ).label("hours")
-        )
-        .join(Project, Project.id == TimeRecord.project_id)
-        .filter(TimeRecord.end_time != None)
-        .filter(TimeRecord.actividad != None)
-        .filter(TimeRecord.actividad != '')
-        .group_by(Project.name, TimeRecord.actividad)
-        .all()
-    )
-
-    activity_metrics = {}
-    current_app.logger.debug("Debug - Datos de actividades obtenidos:")
-    for row in activity_query:
-        proj_name = row.project_name
-        act = row.actividad or "Sin especificar"
-        hrs = round(row.hours or 0, 2)
-
-        if proj_name not in activity_metrics:
-            activity_metrics[proj_name] = {}
-        activity_metrics[proj_name][act] = hrs
-        current_app.logger.debug(f"Proyecto {proj_name}: {act} = {hrs} horas")
-
-    # 5. Horas Invertidas por Actividad (Por Día) - últimos 30 días
-    from datetime import datetime, timedelta
-
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-    daily_query = (
-        db.session.query(
-            func.date(TimeRecord.start_time).label("date"),
-            func.sum(
-                func.timestampdiff(text('SECOND'), TimeRecord.start_time, TimeRecord.end_time) / 3600.0
-            ).label("hours")
-        )
-        .filter(
-            TimeRecord.end_time != None,
-            TimeRecord.start_time >= thirty_days_ago
-        )
-        .group_by(func.date(TimeRecord.start_time))
-        .all()
-    )
-    daily_activity_metrics = {}
-    for row in daily_query:
-        date_str = row.date.strftime('%Y-%m-%d')
-        daily_activity_metrics[date_str] = round(row.hours or 0, 2)
-
-    # 6. Obtener todos los empleados para análisis
-    employees = Employee.query.order_by(Employee.nombre, Employee.apellido_paterno).all()
-
-    # 7. Estadísticas adicionales
-    projects_count = Project.query.filter_by(active=True).count()
-    total_employees = Employee.query.count()
-
-    # 8. Registros recientes con mejor información
+    # Últimos 20 por id; persona y proyecto se traen aparte por id. Con JOIN,
+    # MySQL recorría toda la tabla para ordenar (≈0.5 s).
+    from sqlalchemy.orm import selectinload
     records = (
         TimeRecord.query
-        .join(Employee)
-        .join(Project)
+        .options(selectinload(TimeRecord.employee), selectinload(TimeRecord.project))
         .order_by(TimeRecord.id.desc())
         .limit(20)
         .all()
     )
+    for r in records:
+        r.start_time_mx = _to_mx(r.start_time)
 
-    # 9. Métricas de eficiencia
-    # Total de horas trabajadas hoy
-    today = datetime.utcnow().date()
-    today_hours_query = db.session.query(
-        func.sum(
-            func.timestampdiff(text('SECOND'), TimeRecord.start_time, TimeRecord.end_time) / 3600.0
-        )
-    ).filter(
-        TimeRecord.end_time != None,
-        func.date(TimeRecord.start_time) == today
-    ).scalar()
-
-    today_hours = round(today_hours_query or 0, 2)
-
-    # 10. Trabajadores activos ahora mismo
-    active_workers_now = db.session.query(
-        func.count(func.distinct(TimeRecord.employee_id))
-    ).filter(TimeRecord.end_time == None).scalar() or 0
-
-    # 11. Proyectos con actividad reciente (últimos 7 días)
-    week_ago = datetime.utcnow() - timedelta(days=7)
-    active_projects_week = db.session.query(
-        func.count(func.distinct(TimeRecord.project_id))
-    ).filter(TimeRecord.start_time >= week_ago).scalar() or 0
-
-    dashboard_data = {
-        'active_workers': active_workers,
-        'time_invested': time_invested,
-        'total_active_workers': active_workers_now,
-        'today_hours': today_hours,
-        'active_projects_week': active_projects_week
-    }
-
-    # Debug: Imprimir datos para verificar
-    current_app.logger.debug(f"Active workers: {active_workers}")
-    current_app.logger.debug(f"Time invested: {time_invested}")
-    current_app.logger.debug(f"Department data: {dept_invested_data}")
-    current_app.logger.debug(f"Activity metrics: {activity_metrics}")
-
+    # Áreas configuradas (activas o no) más las que aparezcan en el último año;
+    # recorrer toda la historia solo para este selector era de lo más lento
+    hace_un_anio = datetime.utcnow() - timedelta(days=365)
     departments = (
         db.session.query(TimeRecord.departamento)
+        .filter(TimeRecord.start_time >= hace_un_anio)
         .filter(TimeRecord.departamento.isnot(None))
         .filter(TimeRecord.departamento != '')
         .distinct()
-        .order_by(TimeRecord.departamento)
         .all()
     )
-    unique_departments = [dept[0] for dept in departments if dept[0]]
-
+    unique_departments = sorted({d[0] for d in departments if d[0]}
+                                | {a.nombre for a in get_areas(solo_activas=False)})
 
     return render_template(
         'admin_dashboard.html',
-        dashboard_data=dashboard_data,
-        projects_count=projects_count,
-        total_employees=total_employees,
-        records=records,
-        all_projects=all_projects,
+        projects_count=Project.query.filter_by(active=True).count(),
+        all_projects=proyectos,
         employees=employees,
-        dept_invested_data=dept_invested_data,
-        activity_metrics=activity_metrics,
-        daily_activity_metrics=daily_activity_metrics,
-        today_hours=today_hours,
-        active_workers_now=active_workers_now,unique_departments=unique_departments
+        records=records,
+        unique_departments=unique_departments,
     )
+
+
+# Duración de un registro en segundos. Los abiertos cuentan hasta ahora, pero
+# con tope de 12 h para que uno olvidado no infle las cifras.
+_SQL_SEGUNDOS = """
+    GREATEST(CASE WHEN tr.end_time IS NULL
+                  THEN LEAST(TIMESTAMPDIFF(SECOND, tr.start_time, UTC_TIMESTAMP()), 43200)
+                  ELSE TIMESTAMPDIFF(SECOND, tr.start_time, tr.end_time) END, 0)
+"""
+
+
+# Las métricas del dashboard se recalculan cada 2 min en cada dashboard abierto;
+# se guardan 60 s por combinación de filtros (el botón Actualizar pide frescas).
+_CACHE_METRICAS = {}
+_CACHE_METRICAS_SEG = 60
+
+
+@main.route('/api/dashboard/metricas')
+@login_required
+def api_dashboard_metricas():
+    """Métricas del dashboard para un periodo, en hora de la Ciudad de México."""
+    if not current_user.has_admin_privileges:
+        return jsonify({'error': 'Acceso denegado'}), 403
+
+    mx = pytz.timezone('America/Mexico_City')
+    dias = request.args.get('dias', 7, type=int)
+    dias = dias if dias in (1, 7, 14, 30, 90) else 7
+    area = (request.args.get('area') or '').strip()
+    project_id = request.args.get('project_id', type=int)
+
+    clave = (dias, area, project_id)
+    guardado = _CACHE_METRICAS.get(clave)
+    if guardado and not request.args.get('fresco') and time.monotonic() - guardado[0] < _CACHE_METRICAS_SEG:
+        return jsonify(guardado[1])
+    datos = _calcular_metricas(mx, dias, area, project_id)
+    if len(_CACHE_METRICAS) > 200:
+        _CACHE_METRICAS.clear()
+    _CACHE_METRICAS[clave] = (time.monotonic(), datos)
+    return jsonify(datos)
+
+
+def _calcular_metricas(mx, dias, area, project_id):
+
+    hoy = datetime.now(mx).date()
+    desde = hoy - timedelta(days=dias - 1)
+
+    def a_utc(d):
+        return mx.localize(datetime.combine(d, datetime.min.time())).astimezone(pytz.UTC).replace(tzinfo=None)
+
+    ini_utc, fin_utc = a_utc(desde), a_utc(hoy + timedelta(days=1))
+    ant_ini_utc = a_utc(desde - timedelta(days=dias))
+
+    filtros, params = '', {'ini': ini_utc, 'fin': fin_utc}
+    if area:
+        filtros += ' AND tr.departamento = :area'
+        params['area'] = area
+    if project_id:
+        filtros += ' AND tr.project_id = :pid'
+        params['pid'] = project_id
+
+    # Desplazamiento fijo: México dejó el horario de verano en 2022
+    # Primero se agrupa y después se ponen los nombres: unir proyectos y personas
+    # sobre cada registro crudo hacía la consulta 3-5 veces más lenta.
+    filas = db.session.execute(text(f"""
+        SELECT t.dia, t.area, t.project_id, p.folio, p.name AS proyecto,
+               t.actividad, t.employee_id, e.nompropio AS persona, t.seg, t.n
+          FROM (
+            SELECT DATE(DATE_SUB(tr.start_time, INTERVAL 6 HOUR)) AS dia,
+                   COALESCE(NULLIF(TRIM(tr.departamento), ''), 'Sin área') AS area,
+                   tr.project_id,
+                   COALESCE(NULLIF(TRIM(tr.actividad), ''), 'Sin especificar') AS actividad,
+                   tr.employee_id,
+                   SUM({_SQL_SEGUNDOS}) AS seg, COUNT(*) AS n
+              FROM time_records tr
+             WHERE tr.start_time >= :ini AND tr.start_time < :fin {filtros}
+             GROUP BY dia, area, tr.project_id, actividad, tr.employee_id
+          ) t
+          JOIN projects p ON p.id = t.project_id
+          JOIN employees e ON e.id = t.employee_id
+    """), params).mappings().all()
+
+    anterior = db.session.execute(text(f"""
+        SELECT COALESCE(SUM({_SQL_SEGUNDOS}), 0) AS seg
+          FROM time_records tr
+         WHERE tr.start_time >= :ini AND tr.start_time < :fin {filtros}
+    """), {**params, 'ini': ant_ini_utc, 'fin': ini_utc}).scalar() or 0
+
+    activos_q = db.session.query(TimeRecord.departamento, func.count(func.distinct(TimeRecord.employee_id))) \
+        .filter(TimeRecord.end_time.is_(None))
+    if area:
+        activos_q = activos_q.filter(TimeRecord.departamento == area)
+    if project_id:
+        activos_q = activos_q.filter(TimeRecord.project_id == project_id)
+    activos_por_area = {(a or 'Sin área'): n for a, n in activos_q.group_by(TimeRecord.departamento).all()}
+
+    def h(seg):
+        return round(float(seg or 0) / 3600, 2)
+
+    etiquetas = [(desde + timedelta(days=i)) for i in range(dias)]
+    por_dia_area, por_area, por_proyecto, por_actividad, por_persona = {}, {}, {}, {}, {}
+    act_seg, act_n = {}, {}
+    total_seg = hoy_seg = 0
+    registros = 0
+    proyectos_vistos, personas_vistas = set(), set()
+    for f in filas:
+        seg = float(f['seg'] or 0)
+        total_seg += seg
+        registros += int(f['n'])
+        dia = f['dia']
+        if dia == hoy:
+            hoy_seg += seg
+        por_dia_area.setdefault(f['area'], {}).setdefault(dia, 0)
+        por_dia_area[f['area']][dia] += seg
+        por_area[f['area']] = por_area.get(f['area'], 0) + seg
+        nombre_proy = f"FP {f['folio']} · {f['proyecto']}" if f['folio'] is not None else f['proyecto']
+        por_proyecto[nombre_proy] = por_proyecto.get(nombre_proy, 0) + seg
+        por_actividad[f['actividad']] = por_actividad.get(f['actividad'], 0) + seg
+        por_persona[f['persona']] = por_persona.get(f['persona'], 0) + seg
+        act_seg[f['actividad']] = act_seg.get(f['actividad'], 0) + seg
+        act_n[f['actividad']] = act_n.get(f['actividad'], 0) + int(f['n'])
+        proyectos_vistos.add(f['project_id'])
+        personas_vistas.add(f['employee_id'])
+
+    # Orden estable de áreas (el configurado en Áreas de registro) para que
+    # cada una conserve su color al cambiar filtros o periodo
+    areas_orden = [a.nombre for a in get_areas(solo_activas=False)]
+    areas_orden += sorted((set(por_area) | set(activos_por_area)) - set(areas_orden))
+
+    promedio_actividad = {a: round(act_seg[a] / act_n[a] / 60, 1)
+                          for a in act_seg if act_n[a] >= 3}
+
+    return {
+        'periodo': {'desde': desde.isoformat(), 'hasta': hoy.isoformat(), 'dias': dias},
+        'kpis': {
+            'horas_periodo': h(total_seg),
+            'horas_anterior': h(anterior),
+            'horas_hoy': h(hoy_seg),
+            'personas_ahora': sum(activos_por_area.values()),
+            'personas_periodo': len(personas_vistas),
+            'proyectos_periodo': len(proyectos_vistos),
+            'proyectos_activos': Project.query.filter_by(active=True).count(),
+            'registros': registros,
+            'promedio_registro_min': round(total_seg / registros / 60, 1) if registros else 0,
+        },
+        'areas_orden': areas_orden,
+        'serie_dias': {
+            'labels': [d.isoformat() for d in etiquetas],
+            'areas': [{'area': a, 'data': [h(por_dia_area[a].get(d, 0)) for d in etiquetas]}
+                      for a in sorted(por_dia_area, key=lambda x: -por_area[x])],
+        },
+        'por_area': {k: h(v) for k, v in por_area.items()},
+        'por_proyecto': {k: h(v) for k, v in por_proyecto.items()},
+        'por_actividad': {k: h(v) for k, v in por_actividad.items()},
+        'por_persona': {k: h(v) for k, v in por_persona.items()},
+        'promedio_actividad': promedio_actividad,
+        'activos_por_area': activos_por_area,
+    }
+
 
 # Reemplaza la función get_active_records en tu routes.py con esta versión corregida:
 
@@ -1065,10 +1195,14 @@ def get_active_records():
         project_filter = request.args.get('project_id', type=int)
 
         # Query base igual al de registros recientes, pero filtrando solo activos
+        # Persona y proyecto vienen en la misma consulta (antes, dos más por registro;
+        # el dashboard la repite cada 30 s)
+        from sqlalchemy.orm import contains_eager
         query = (
             TimeRecord.query
             .join(Employee)
             .join(Project)
+            .options(contains_eager(TimeRecord.employee), contains_eager(TimeRecord.project))
             .filter(TimeRecord.end_time == None)  # Solo registros activos
             .order_by(TimeRecord.start_time.desc())
         )
@@ -1345,7 +1479,7 @@ def login():
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
         if user and check_password_hash(user.password, form.password.data):
-            remember = request.form.get('remember', False) == 'on'
+            remember = bool(form.remember.data)  # el checkbox de WTForms envía 'y', no 'on'
             login_user(user, remember=remember)
             flash('Inicio de sesión exitoso', 'success')
 
@@ -1470,10 +1604,13 @@ def area_records():
     page = request.args.get('page', 1, type=int)
     per_page = 25
 
+    # Sin JOIN: aquí no se filtra por campos de persona o proyecto, y unirlos
+    # sobre toda la tabla volvía lentas la cuenta y la página. Persona y proyecto
+    # de las 25 filas se traen aparte por id.
+    from sqlalchemy.orm import selectinload
     query = (
         TimeRecord.query
-        .join(Employee, TimeRecord.employee_id == Employee.id)
-        .join(Project, TimeRecord.project_id == Project.id)
+        .options(selectinload(TimeRecord.employee), selectinload(TimeRecord.project))
         .filter(TimeRecord.departamento == area)
     )
 
@@ -1491,7 +1628,7 @@ def area_records():
 
     records = (
         query
-        .order_by(TimeRecord.start_time.desc())
+        .order_by(TimeRecord.start_time.desc(), TimeRecord.id.desc())  # id: desempate estable
         .paginate(page=page, per_page=per_page, error_out=False)
     )
     for record in records.items:
@@ -1601,20 +1738,25 @@ def manage_employees():
     # Obtener empleados con conteo de registros y horas totales, ordenados por actividad
     sec_diff = func.timestampdiff(text('SECOND'), TimeRecord.start_time, TimeRecord.end_time)
 
+    # Se agrupa primero la tabla de registros y luego se une a las personas:
+    # agrupar el JOIN completo era casi tres veces más lento.
+    por_empleado = (
+        db.session.query(
+            TimeRecord.employee_id.label('employee_id'),
+            func.count(TimeRecord.id).label('record_count'),
+            func.sum(case((TimeRecord.end_time.isnot(None), sec_diff), else_=literal(0))).label('total_seconds')
+        )
+        .group_by(TimeRecord.employee_id)
+        .subquery()
+    )
     employees_with_stats = (
         db.session.query(
             Employee,
-            func.count(TimeRecord.id).label('record_count'),
-            func.coalesce(func.sum(
-                case(
-                    (TimeRecord.end_time.isnot(None), sec_diff),
-                    else_=literal(0)
-                )
-            ), 0).label('total_seconds')
+            func.coalesce(por_empleado.c.record_count, 0).label('record_count'),
+            func.coalesce(por_empleado.c.total_seconds, 0).label('total_seconds')
         )
-        .outerjoin(TimeRecord, Employee.id == TimeRecord.employee_id)
-        .group_by(Employee.id)
-        .order_by(func.count(TimeRecord.id).desc(), Employee.nompropio)
+        .outerjoin(por_empleado, por_empleado.c.employee_id == Employee.id)
+        .order_by(func.coalesce(por_empleado.c.record_count, 0).desc(), Employee.nompropio)
         .all()
     )
 
@@ -1657,7 +1799,8 @@ def manage_employees():
             use_date_filter = True
 
         elif period == 'month' and filter_month:
-            y, m = map(int, filter_month.split('-'))
+            # la vista /map se llama map() y tapa la función de Python en este módulo
+            y, m = (int(x) for x in filter_month.split('-'))
             start_local = MX_TZ.localize(datetime(y, m, 1, 0, 0, 0))
             if m == 12:
                 end_local = MX_TZ.localize(datetime(y + 1, 1, 1, 0, 0, 0))
@@ -1694,9 +1837,11 @@ def manage_employees():
                 )
 
             # Historial de registros paginado
+            from sqlalchemy.orm import selectinload
             time_records = (
                 base_query
-                .order_by(TimeRecord.start_time.desc())
+                .options(selectinload(TimeRecord.project))  # el proyecto de las 25 filas, en una consulta
+                .order_by(TimeRecord.start_time.desc(), TimeRecord.id.desc())
                 .paginate(page=records_page, per_page=25, error_out=False)
             )
 
@@ -1967,12 +2112,18 @@ def finalize_active_record(employee_id, project_id):
         return jsonify({"success": False, "message": "No se encontró registro activo."}), 404
 
 @main.route('/projects')
+@login_required
 def project_page():
+    # Igual que el resto de páginas de proyectos (antes respondía sin sesión)
+    if not current_user.has_admin_privileges:
+        flash('Acceso denegado.', 'danger')
+        return redirect(url_for('main.home'))
     all_projects = Project.query.order_by(Project.id).all()
     return render_template('projects.html', all_projects=all_projects)
 
 
 @main.route('/search_fp', methods=['GET'])
+@login_required  # puede dar de alta proyectos del catálogo remoto: solo con sesión
 def search_fp():
     fp = request.args.get('fp', '').strip()
     current_app.logger.debug("search_fp: FP recibido: '%s'", fp)
@@ -2228,44 +2379,66 @@ def project_analysis():
     time_by_dept = {}
     time_by_activity = {}
 
+    # El historial muestra los más recientes; un FP grande (el 0 tiene miles de
+    # registros) pesaba varios MB. Con ?historial=todo se ven todos.
+    LIMITE_HISTORIAL = 500
+    historial_completo = request.args.get('historial') == 'todo'
+    total_registros = en_curso_total = 0
+    serie_tiempo = {}
+
     if selected_project:
+        from sqlalchemy.orm import joinedload
+        # Solo las columnas que hacen falta: armar miles de objetos completos era lento
         finalized_records = db.session.query(
-            TimeRecord,
-            Employee.nombre,
-            Employee.apellido_paterno
+            TimeRecord.start_time, TimeRecord.end_time,
+            TimeRecord.departamento, TimeRecord.actividad,
+            Employee.nombre, Employee.apellido_paterno
         ).join(Employee, TimeRecord.employee_id == Employee.id)\
          .filter(
             TimeRecord.project_id == selected_project.id,
             TimeRecord.end_time != None
         ).all()
 
-        time_records = TimeRecord.query.filter_by(project_id=selected_project.id)\
-                                     .order_by(TimeRecord.start_time.desc()).all()
+        conteo = (db.session.query(func.count(TimeRecord.id),
+                                   func.sum(case((TimeRecord.end_time.is_(None), 1), else_=0)))
+                  .filter(TimeRecord.project_id == selected_project.id).one())
+        total_registros, en_curso_total = int(conteo[0] or 0), int(conteo[1] or 0)
+
+        consulta_historial = (TimeRecord.query
+                              .options(joinedload(TimeRecord.employee))
+                              .filter_by(project_id=selected_project.id)
+                              .order_by(TimeRecord.start_time.desc()))
+        if not historial_completo:
+            consulta_historial = consulta_historial.limit(LIMITE_HISTORIAL)
+        time_records = consulta_historial.all()
 
         if finalized_records:
             total_seconds = 0
 
-            # ===== CORRECCIÓN DEFINITIVA AQUÍ =====
-            min_start = min(r.start_time for r, _, _ in finalized_records)
-            max_end = max(r.end_time for r, _, _ in finalized_records)
-            # ======================================
+            min_start = min(r.start_time for r in finalized_records)
+            max_end = max(r.end_time for r in finalized_records)
 
             analysis_data['start_date'] = min_start.strftime('%d/%m/%Y')
             analysis_data['end_date'] = max_end.strftime('%d/%m/%Y')
             analysis_data['duration_days'] = (max_end.date() - min_start.date()).days + 1
 
-            for record_obj, nombre, paterno in finalized_records:
-                duration_hours = (record_obj.end_time - record_obj.start_time).total_seconds() / 3600.0
+            for start_time, end_time, departamento, actividad, nombre, paterno in finalized_records:
+                duration_hours = (end_time - start_time).total_seconds() / 3600.0
                 total_seconds += (duration_hours * 3600.0)
 
                 worker_name = f"{nombre} {paterno}"
                 time_by_worker[worker_name] = time_by_worker.get(worker_name, 0) + duration_hours
 
-                dept_name = record_obj.departamento or 'No especificado'
+                dept_name = departamento or 'No especificado'
                 time_by_dept[dept_name] = time_by_dept.get(dept_name, 0) + duration_hours
 
-                activity_name = record_obj.actividad or 'No especificada'
+                activity_name = actividad or 'No especificada'
                 time_by_activity[activity_name] = time_by_activity.get(activity_name, 0) + duration_hours
+
+                # Para la gráfica en el tiempo: horas por día (hora de México) y área
+                if duration_hours > 0:
+                    clave = (_to_mx(start_time).strftime('%Y-%m-%d'), departamento or 'N/A')
+                    serie_tiempo[clave] = serie_tiempo.get(clave, 0) + duration_hours
 
             analysis_data['total_hours'] = round(total_seconds / 3600.0, 2)
             analysis_data['num_participants'] = len(time_by_worker)
@@ -2283,7 +2456,12 @@ def project_analysis():
         search_term=search_term,
         time_by_worker=time_by_worker,
         time_by_dept=time_by_dept,
-        time_by_activity=time_by_activity
+        time_by_activity=time_by_activity,
+        serie_tiempo=[{'dia': d, 'area': a, 'h': round(h, 3)} for (d, a), h in sorted(serie_tiempo.items())],
+        total_registros=total_registros,
+        en_curso_total=en_curso_total,
+        historial_completo=historial_completo,
+        limite_historial=LIMITE_HISTORIAL,
     )
 
 @main.route('/my_dashboard')
@@ -2396,7 +2574,12 @@ def my_dashboard():
 # Adicionales del empleado (BD remota AD17_Adicionales)
 # =========================================================================
 def _adicionales_conn():
-    """Conexión a la BD remota de adicionales (credenciales configurables)."""
+    """Conexión de lectura (reutilizable) a la BD remota de adicionales."""
+    return rh.conexion_lectura('adicionales', _adicionales_conn_nueva)
+
+
+def _adicionales_conn_nueva():
+    """Conexión nueva a la BD remota de adicionales (credenciales configurables)."""
     cfg = current_app.config
     return pymysql.connect(
         host=cfg.get('ADICIONALES_DB_HOST', 'ad17solutions.dscloud.me'),
@@ -2832,12 +3015,14 @@ def costs_dashboard():
     page     = request.args.get('page', 1, type=int)
     per_page = 25
 
-    # Query base
-    query = (
-        TimeRecord.query
-        .join(Employee, TimeRecord.employee_id == Employee.id)
-        .join(Project,  TimeRecord.project_id  == Project.id)
-    )
+    # Query base. Proyecto y persona solo se unen si hay búsqueda por texto:
+    # unirlos sobre todos los registros hacía cada consulta 3-4 veces más lenta.
+    # (Las llaves foráneas garantizan que todo registro tiene ambos.)
+    query = TimeRecord.query
+    if search_filter:
+        query = (query
+                 .join(Employee, TimeRecord.employee_id == Employee.id)
+                 .join(Project,  TimeRecord.project_id  == Project.id))
 
     # Filtros básicos
     if project_filter:
@@ -2926,7 +3111,9 @@ def costs_dashboard():
             )
 
     # Orden y paginación
-    query = query.order_by(TimeRecord.start_time.desc())
+    # El id desempata registros que iniciaron en el mismo segundo (p. ej. los que
+    # abre el cierre automático a medianoche); sin él la paginación no era estable
+    query = query.order_by(TimeRecord.start_time.desc(), TimeRecord.id.desc())
     records = query.paginate(page=page, per_page=per_page, error_out=False)
 
     # Conversión a CDMX para mostrar
@@ -2968,16 +3155,15 @@ def costs_dashboard():
     projects = Project.query.order_by(Project.name).all()
 
     # Estadísticas
-    total_records = query.count()
-    total_time_query = query.filter(TimeRecord.end_time.isnot(None))
-    total_seconds = db.session.query(
-        func.sum(
-            func.timestampdiff(text('SECOND'), TimeRecord.start_time, TimeRecord.end_time)
-        )
-    ).filter(
-        TimeRecord.id.in_(total_time_query.with_entities(TimeRecord.id))
-    ).scalar() or 0
-    total_hours = round(total_seconds / 3600, 2)
+    # La paginación ya contó los registros; la suma va directa, sin subconsulta
+    total_records = records.total
+    total_seconds = (query.order_by(None)
+                     .filter(TimeRecord.end_time.isnot(None))
+                     .with_entities(func.sum(func.timestampdiff(text('SECOND'),
+                                                                TimeRecord.start_time,
+                                                                TimeRecord.end_time)))
+                     .scalar()) or 0
+    total_hours = round(float(total_seconds) / 3600, 2)
 
     return render_template(
         'costs/dashboard.html',

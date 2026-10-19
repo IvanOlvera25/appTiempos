@@ -1,211 +1,244 @@
 {# manage_users.html #}
 {% extends "layout.html" %}
 
-{% block title %}Gestión de Usuarios - Sistema de Gestión Operativa{% endblock %}
+{% block title %}Usuarios y accesos{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-  <!-- Encabezado con título y botón de creación -->
-  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
-    <div>
-      <h1 class="h2 text-dark font-weight-bold mb-1">
-        <i class="bi bi-people-fill text-primary"></i> Gestión de Usuarios y Roles
-      </h1>
-      <p class="text-muted mb-0">Administra las cuentas de acceso, roles del sistema y restablece contraseñas.</p>
-    </div>
-    <div class="mt-2 mt-sm-0">
-      <button class="btn btn-primary btn-lg shadow-sm" data-bs-toggle="modal" data-bs-target="#createUserModal">
-        <i class="bi bi-person-plus-fill me-2"></i> Nuevo Usuario
-      </button>
+<style>
+  .reg-codes { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+  .reg-code { display: flex; align-items: center; gap: .65rem; padding: .85rem 1.15rem; border-left: 1px solid var(--ad-border); }
+  .reg-code:first-child { border-left: 0; }
+  .reg-code .rc-label { font-size: .75rem; color: var(--ad-text-3); }
+  .reg-code code { font-size: .9rem; font-weight: 600; color: var(--ad-text); background: var(--ad-surface-3); border: 1px solid var(--ad-border); padding: .05rem .4rem; border-radius: 5px; }
+  @media (max-width: 575.98px) { .reg-code { border-left: 0; border-top: 1px solid var(--ad-border); } .reg-code:first-child { border-top: 0; } }
+  .btn-txt-movil { display: none; }
+  /* Celular: códigos en dos columnas; cada usuario es una tarjeta con botones grandes */
+  @media (max-width: 575.98px) {
+    .reg-codes { grid-template-columns: 1fr 1fr; }
+    .reg-code { padding: .75rem .95rem; gap: .55rem; min-width: 0; }
+    .reg-code:nth-child(2) { border-top: 0; }
+    .reg-code:nth-child(even) { border-left: 1px solid var(--ad-border); }
+    .usr-tabla.tabla-tarjetas > tbody > tr > td.td-titulo .usr-nombre { max-width: none !important; white-space: normal; overflow-wrap: anywhere; }
+    .usr-tabla.tabla-tarjetas > tbody > tr > td.td-acciones { padding-top: .5rem !important; }
+    .usr-tabla .usr-botones { display: flex !important; width: 100%; gap: .4rem !important; }
+    .usr-tabla .usr-botones > .btn { min-height: 42px; flex: 1 1 0; }
+    .usr-tabla .usr-botones > .btn.btn-icon { width: auto; height: 42px; }
+    .usr-tabla .usr-botones > .btn-outline-danger { flex: 0 0 42px; width: 42px; }
+    .usr-tabla .btn-txt-movil { display: inline; margin-left: .35rem; }
+    .usr-tabla.tabla-tarjetas > tbody > tr:hover > * { --bs-table-bg-state: transparent; }
+    .usr-tabla.tabla-tarjetas > tbody > tr > td.td-titulo .text-muted { font-weight: 400; }
+  }
+  /* Tableta: los cinco códigos en un solo renglón (icono arriba) */
+  @media (min-width: 576px) and (max-width: 1199.98px) {
+    .reg-codes { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .reg-code { flex-direction: column; align-items: flex-start; gap: .45rem; padding: .8rem .9rem; }
+  }
+  /* Tableta: sin la columna Alta, "Editar" solo con icono y celdas más juntas para que quepan las acciones */
+  @media (min-width: 576px) and (max-width: 1199.98px) {
+    .usr-tabla > :not(caption) > tr > * { padding-left: .4rem; padding-right: .4rem; }
+    .usr-tabla .col-alta { display: none; }
+    .usr-tabla .usr-nombre { max-width: 135px !important; }
+    .usr-tabla .usr-botones .txt-editar { display: none; }
+  }
+</style>
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-shield-lock"></i> Configuración</div>
+    <h1>Usuarios y accesos</h1>
+    <p>Cuentas de acceso, su rol en el sistema, el empleado de RH ligado y el cambio de contraseñas.</p>
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+      <i class="bi bi-person-plus"></i> Nuevo usuario
+    </button>
+  </div>
+</div>
+
+<!-- Indicadores -->
+{% set sin_empleado = users|rejectattr('employee')|list|length %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="stat">
+      <span class="stat-icon brand"><i class="bi bi-people"></i></span>
+      <div class="stat-label">Usuarios</div>
+      <div class="stat-value">{{ users|length }}</div>
+      <div class="stat-foot">Cuentas registradas</div>
     </div>
   </div>
-
-  <!-- Información de Códigos de Registro -->
-  <div class="row mb-4">
-    <div class="col-12">
-      <div class="card border-0 shadow-sm bg-light">
-        <div class="card-body py-3 px-4">
-          <div class="row align-items-center">
-            <div class="col-md-3 mb-2 mb-md-0 border-end-md">
-              <span class="text-uppercase text-muted small font-weight-bold d-block">Códigos de Registro</span>
-              <strong class="text-dark">Claves requeridas para auto-registro:</strong>
-            </div>
-            <div class="col-md-3 col-sm-4 mb-2 mb-sm-0">
-              <div class="d-flex align-items-center">
-                <div class="bg-primary-subtle text-primary rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width:36px; height:36px;">
-                  <i class="bi bi-shield-lock-fill"></i>
-                </div>
-                <div>
-                  <span class="text-muted small d-block">Administrador</span>
-                  <code class="text-primary font-weight-bold" style="font-size:1rem;">{{ admin_code }}</code>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-3 col-sm-4 mb-2 mb-sm-0">
-              <div class="d-flex align-items-center">
-                <div class="bg-success-subtle text-success rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width:36px; height:36px;">
-                  <i class="bi bi-briefcase-fill"></i>
-                </div>
-                <div>
-                  <span class="text-muted small d-block">Líder de Proyecto</span>
-                  <code class="text-success font-weight-bold" style="font-size:1rem;">{{ leader_code }}</code>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-3 col-sm-4 mb-2 mb-sm-0">
-              <div class="d-flex align-items-center">
-                <div class="bg-warning-subtle text-warning rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width:36px; height:36px;">
-                  <i class="bi bi-building-fill"></i>
-                </div>
-                <div>
-                  <span class="text-muted small d-block">Jefe de Área</span>
-                  <code class="text-warning font-weight-bold" style="font-size:1rem;">{{ area_manager_code }}</code>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-3 col-sm-4 mb-2 mb-sm-0">
-              <div class="d-flex align-items-center">
-                <div class="bg-info-subtle text-info rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width:36px; height:36px;">
-                  <i class="bi bi-people-fill"></i>
-                </div>
-                <div>
-                  <span class="text-muted small d-block">RH</span>
-                  <code class="text-info font-weight-bold" style="font-size:1rem;">{{ rh_code }}</code>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-3 col-sm-4">
-              <div class="d-flex align-items-center">
-                <div class="bg-secondary-subtle text-secondary rounded-circle p-2 me-2 d-inline-flex align-items-center justify-content-center" style="width:36px; height:36px;">
-                  <i class="bi bi-briefcase"></i>
-                </div>
-                <div>
-                  <span class="text-muted small d-block">Ejecutivo</span>
-                  <code class="text-secondary font-weight-bold" style="font-size:1rem;">{{ ejecutivo_code }}</code>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-shield-lock"></i></span>
+      <div class="stat-label">Administradores</div>
+      <div class="stat-value">{{ users|selectattr('is_admin')|list|length }}</div>
+      <div class="stat-foot">Acceso total</div>
     </div>
   </div>
-
-  <!-- Tabla de Usuarios -->
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-white py-3 border-0">
-      <h5 class="card-title text-dark font-weight-bold mb-0">Usuarios Registrados</h5>
+  <div class="col-6 col-lg-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-diagram-3"></i></span>
+      <div class="stat-label">Líderes y jefes de área</div>
+      {% set ns = namespace(n=0) %}{% for u in users %}{% if not u.is_admin and not u.is_rh and (u.is_project_leader or u.is_area_manager) %}{% set ns.n = ns.n + 1 %}{% endif %}{% endfor %}
+      <div class="stat-value">{{ ns.n }}</div>
+      <div class="stat-foot">Supervisan proyectos o áreas</div>
     </div>
-    <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th scope="col" class="ps-4">Usuario / Correo</th>
-            <th scope="col">Nombre Asignado</th>
-            <th scope="col">Rol</th>
-            <th scope="col">Detalle / Área</th>
-            <th scope="col">Fecha de Registro</th>
-            <th scope="col" class="text-end pe-4">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for u in users %}
-          <tr>
-            <td class="ps-4">
-              <div class="d-flex align-items-center">
-                <div class="avatar-circle me-3 text-white d-flex align-items-center justify-content-center rounded-circle font-weight-bold fs-6" 
-                     style="background-color: {% if u.is_admin %}#dc3545{% elif u.is_rh %}#0dcaf0{% elif u.is_project_leader %}#198754{% elif u.is_area_manager %}#ffc107{% elif u.is_ejecutivo %}#6c757d{% else %}#0d6efd{% endif %}; width: 40px; height: 40px;">
-                  {{ u.username[0]|upper }}
-                </div>
-                <div>
-                  <span class="text-dark font-weight-bold d-block">{{ u.username }}</span>
-                  <span class="text-muted small">ID: {{ u.id }}</span>
-                </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-person-exclamation"></i></span>
+      <div class="stat-label">Sin empleado ligado</div>
+      <div class="stat-value">{{ sin_empleado }}</div>
+      <div class="stat-foot">{% if sin_empleado %}No tienen saldo de vacaciones{% else %}Todas las cuentas están ligadas{% endif %}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Códigos de registro -->
+<div class="card mb-4">
+  <div class="card-header"><i class="bi bi-key"></i>Códigos de auto-registro
+    <span class="chart-sub ms-auto">Claves que pide la pantalla de registro para cada rol</span>
+  </div>
+  <div class="reg-codes">
+    <div class="reg-code">
+      <span class="stat-icon position-static flex-shrink-0"><i class="bi bi-shield-lock"></i></span>
+      <div><div class="rc-label">Administrador</div><code>{{ admin_code }}</code></div>
+    </div>
+    <div class="reg-code">
+      <span class="stat-icon position-static flex-shrink-0"><i class="bi bi-briefcase"></i></span>
+      <div><div class="rc-label">Líder de proyecto</div><code>{{ leader_code }}</code></div>
+    </div>
+    <div class="reg-code">
+      <span class="stat-icon position-static flex-shrink-0"><i class="bi bi-building"></i></span>
+      <div><div class="rc-label">Jefe de área</div><code>{{ area_manager_code }}</code></div>
+    </div>
+    <div class="reg-code">
+      <span class="stat-icon position-static flex-shrink-0"><i class="bi bi-people"></i></span>
+      <div><div class="rc-label">RH</div><code>{{ rh_code }}</code></div>
+    </div>
+    <div class="reg-code">
+      <span class="stat-icon position-static flex-shrink-0"><i class="bi bi-person-vcard"></i></span>
+      <div><div class="rc-label">Ejecutivo</div><code>{{ ejecutivo_code }}</code></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabla de Usuarios -->
+<div class="card mb-4">
+  <div class="card-header"><i class="bi bi-person-lines-fill"></i>Usuarios registrados
+    <span class="badge bg-secondary">{{ users|length }}</span>
+  </div>
+  {% if users %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle usr-tabla" data-buscable="Buscar por usuario, nombre, rol o área…">
+      <thead>
+        <tr>
+          <th scope="col" data-titulo>Usuario</th>
+          <th scope="col">Empleado ligado</th>
+          <th scope="col">Rol</th>
+          <th scope="col">Área</th>
+          <th scope="col" class="col-alta" data-movil-oculto>Alta</th>
+          <th scope="col" class="text-end" data-nosort>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <span class="avatar avatar-sm {% if u.employee %}avatar-brand{% endif %}">{{ iniciales(u.employee.nompropio if u.employee else u.username) }}</span>
+              <div style="min-width: 0;">
+                <div class="fw-semibold text-truncate usr-nombre" style="max-width: 230px;" title="{{ u.username }}">{{ u.username }}</div>
+                <div class="text-muted small">ID {{ u.id }}{% if u.id == current_user.id %} · tú{% endif %}</div>
               </div>
-            </td>
-            <td>
-              {% if u.employee %}
-                <span class="text-dark">{{ u.employee.nompropio }}</span>
-                <span class="text-muted small d-block">rhID: {{ u.employee.n_empleado }}</span>
-              {% else %}
-                <span class="text-warning small">
-                  <i class="bi bi-exclamation-triangle-fill"></i> Sin empleado ligado
-                </span>
-                <span class="text-muted small d-block">No tiene saldo de vacaciones</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if u.is_admin %}
-                <span class="badge bg-danger rounded-pill px-3 py-2 text-uppercase">Administrador</span>
-              {% elif u.is_rh %}
-                <span class="badge bg-info text-dark rounded-pill px-3 py-2 text-uppercase">RH</span>
-              {% elif u.is_project_leader %}
-                <span class="badge bg-success rounded-pill px-3 py-2 text-uppercase">Líder de Proyecto</span>
-              {% elif u.is_area_manager %}
-                <span class="badge bg-warning text-dark rounded-pill px-3 py-2 text-uppercase">Jefe de Área</span>
-              {% elif u.is_ejecutivo %}
-                <span class="badge bg-secondary rounded-pill px-3 py-2 text-uppercase">Ejecutivo</span>
-              {% else %}
-                <span class="badge bg-primary rounded-pill px-3 py-2 text-uppercase">Empleado</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if u.is_area_manager %}
-                <span class="text-dark font-weight-bold"><i class="bi bi-geo-alt-fill text-warning me-1"></i>{{ u.area_manager_department }}</span>
-              {% elif u.employee %}
-                <span class="text-muted"><i class="bi bi-tag-fill text-muted me-1"></i>{{ u.employee.departamento }}</span>
-              {% else %}
-                <span class="text-muted">-</span>
-              {% endif %}
-            </td>
-            <td>
-              <span class="text-muted small">{{ u.created_at.strftime('%d/%m/%Y %H:%M') if u.created_at else 'N/A' }}</span>
-            </td>
-            <td class="text-end pe-4">
-              <button class="btn btn-outline-primary btn-sm me-1"
+            </div>
+          </td>
+          <td>
+            {% if u.employee %}
+              <div>{{ u.employee.nompropio }}</div>
+              <div class="text-muted small">rhID {{ u.employee.n_empleado }}</div>
+            {% else %}
+              <span class="badge bg-warning"><i class="bi bi-exclamation-triangle"></i> Sin empleado ligado</span>
+              <div class="text-muted small mt-1">No tiene saldo de vacaciones</div>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.is_admin %}
+              <span class="badge bg-danger">Administrador</span>
+            {% elif u.is_rh %}
+              <span class="badge bg-info">RH</span>
+            {% elif u.is_project_leader %}
+              <span class="badge bg-success">Líder de proyecto</span>
+            {% elif u.is_area_manager %}
+              <span class="badge bg-warning">Jefe de área</span>
+            {% elif u.is_ejecutivo %}
+              <span class="badge bg-secondary">Ejecutivo</span>
+            {% else %}
+              <span class="badge bg-light">Empleado</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.is_area_manager %}
+              <span class="fw-semibold"><i class="bi bi-geo-alt text-muted me-1"></i>{{ u.area_manager_department }}</span>
+            {% elif u.employee %}
+              <span class="text-muted">{{ u.employee.departamento }}</span>
+            {% else %}
+              <span class="text-muted">–</span>
+            {% endif %}
+          </td>
+          <td class="text-nowrap col-alta" data-valor="{{ u.created_at.isoformat() if u.created_at else '' }}">
+            <span class="small">{{ u.created_at.strftime('%d/%m/%Y') if u.created_at else 'N/A' }}</span>
+            {% if u.created_at %}<span class="text-muted small d-block">{{ u.created_at.strftime('%H:%M') }}</span>{% endif %}
+          </td>
+          <td class="text-end text-nowrap td-acciones" data-label="">
+            <div class="d-inline-flex gap-1 usr-botones">
+              <button class="btn btn-outline-secondary btn-sm"
                       data-bs-toggle="modal"
                       data-bs-target="#editUserModal"
                       data-userid="{{ u.id }}"
                       data-username="{{ u.username }}"
                       data-usertype="{% if u.is_admin %}administrador{% elif u.is_rh %}rh{% elif u.is_project_leader %}lider_proyecto{% elif u.is_area_manager %}jefe_area{% elif u.is_ejecutivo %}ejecutivo{% else %}empleado{% endif %}"
                       data-area="{{ u.area_manager_department or '' }}"
-                      data-employeeid="{{ u.employee_id or '' }}">
-                <i class="bi bi-pencil-fill"></i> Editar
+                      data-employeeid="{{ u.employee_id or '' }}"
+                      title="Editar" aria-label="Editar {{ u.username }}">
+                <i class="bi bi-pencil"></i><span class="txt-editar"> Editar</span>
               </button>
-              <button class="btn btn-outline-secondary btn-sm me-1" 
-                      data-bs-toggle="modal" 
-                      data-bs-target="#changePasswordModal" 
-                      data-userid="{{ u.id }}" 
-                      data-username="{{ u.username }}">
-                <i class="bi bi-key-fill"></i> Contraseña
+              <button class="btn btn-outline-secondary btn-sm btn-icon"
+                      data-bs-toggle="modal"
+                      data-bs-target="#changePasswordModal"
+                      data-userid="{{ u.id }}"
+                      data-username="{{ u.username }}"
+                      title="Cambiar contraseña" aria-label="Cambiar contraseña de {{ u.username }}">
+                <i class="bi bi-key"></i><span class="btn-txt-movil" aria-hidden="true">Contraseña</span>
               </button>
-              
+
               {% if u.id != current_user.id %}
-              <button class="btn btn-outline-danger btn-sm" 
-                      data-bs-toggle="modal" 
-                      data-bs-target="#deleteUserModal" 
-                      data-userid="{{ u.id }}" 
-                      data-username="{{ u.username }}">
-                <i class="bi bi-trash-fill"></i> Eliminar
+              <button class="btn btn-outline-danger btn-sm btn-icon"
+                      data-bs-toggle="modal"
+                      data-bs-target="#deleteUserModal"
+                      data-userid="{{ u.id }}"
+                      data-username="{{ u.username }}"
+                      title="Eliminar" aria-label="Eliminar {{ u.username }}">
+                <i class="bi bi-trash3"></i>
               </button>
               {% else %}
-              <button class="btn btn-outline-danger btn-sm" disabled title="No puedes eliminarte a ti mismo">
-                <i class="bi bi-trash-fill"></i> Eliminar
+              <button class="btn btn-outline-danger btn-sm btn-icon" disabled title="No puedes eliminarte a ti mismo" aria-label="No puedes eliminarte a ti mismo">
+                <i class="bi bi-trash3"></i>
               </button>
               {% endif %}
-            </td>
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="6" class="text-center py-4 text-muted">
-              No hay usuarios registrados en el sistema.
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon"><i class="bi bi-people"></i></div>
+    <h6>No hay usuarios registrados en el sistema</h6>
+    <p>Crea el primero con "Nuevo usuario".</p>
+  </div>
+  {% endif %}
 </div>
 
 <!-- ==========================================
@@ -213,29 +246,27 @@
      ========================================== -->
 <div class="modal fade" id="createUserModal" tabindex="-1" aria-labelledby="createUserModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow-lg">
-      <div class="modal-header bg-primary text-white border-0 py-3">
-        <h5 class="modal-title font-weight-bold" id="createUserModalLabel">
-          <i class="bi bi-person-plus-fill me-2"></i> Crear Nuevo Usuario
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="createUserModalLabel">Nuevo usuario</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <form action="{{ url_for('main.admin_create_user') }}" method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="modal-body p-4">
+        <div class="modal-body">
           
           <div class="mb-3">
-            <label for="new_username" class="form-label font-weight-bold">Usuario / Correo</label>
+            <label for="new_username" class="form-label">Usuario o correo</label>
             <input type="text" class="form-control" id="new_username" name="username" required placeholder="ejemplo@correo.com">
           </div>
 
           <div class="mb-3">
-            <label for="new_password" class="form-label font-weight-bold">Contraseña</label>
+            <label for="new_password" class="form-label">Contraseña</label>
             <input type="password" class="form-control" id="new_password" name="password" required minlength="6" placeholder="Mínimo 6 caracteres">
           </div>
 
           <div class="mb-3">
-            <label for="new_user_type" class="form-label font-weight-bold">Rol de Usuario</label>
+            <label for="new_user_type" class="form-label">Rol</label>
             <select class="form-select" id="new_user_type" name="user_type" required>
               <option value="" disabled selected>Selecciona un rol...</option>
               <option value="empleado">Empleado</option>
@@ -249,7 +280,7 @@
 
           <!-- Campo dinámico: Empleado -->
           <div class="mb-3 d-none" id="div_employee_select">
-            <label for="new_employee_id" class="form-label font-weight-bold">Vincular con Empleado</label>
+            <label for="new_employee_id" class="form-label">Empleado de RH</label>
             <select class="form-select" id="new_employee_id" name="employee_id">
               <option value="" disabled selected>Selecciona un empleado...</option>
               {% for emp in available_employees %}
@@ -258,12 +289,12 @@
                 <option value="" disabled>No hay empleados disponibles sin usuario</option>
               {% endfor %}
             </select>
-            <div class="form-text text-muted" id="employee_help">Solo se listan los empleados que no tienen un usuario creado.</div>
+            <div class="form-text" id="employee_help">Solo se listan los empleados que no tienen un usuario creado.</div>
           </div>
 
           <!-- Campo dinámico: Jefe de Área -->
           <div class="mb-3 d-none" id="div_area_select">
-            <label for="new_area_department" class="form-label font-weight-bold">Departamento Asignado</label>
+            <label for="new_area_department" class="form-label">Área asignada</label>
             <select class="form-select" id="new_area_department" name="area_manager_department">
               <option value="" disabled selected>Selecciona un departamento...</option>
               {% for dept in area_departments %}
@@ -273,9 +304,9 @@
           </div>
 
         </div>
-        <div class="modal-footer border-0 bg-light p-3">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary px-4">Crear Usuario</button>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-person-plus"></i> Crear usuario</button>
         </div>
       </form>
     </div>
@@ -286,16 +317,16 @@
      MODAL: EDITAR USUARIO
      ========================================== -->
 <div class="modal fade" id="editUserModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-dialog-centered">
     <form method="POST" id="editUserForm" class="modal-content">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-pencil-square me-1"></i> Editar <span id="editUsername"></span></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title text-truncate">Editar <span id="editUsername"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <div class="mb-3">
-          <label class="form-label font-weight-bold">Rol de Usuario</label>
+          <label class="form-label" for="edit_user_type">Rol</label>
           <select class="form-select" id="edit_user_type" name="user_type" required>
             <option value="empleado">Empleado</option>
             <option value="ejecutivo">Ejecutivo</option>
@@ -307,7 +338,7 @@
         </div>
 
         <div class="mb-3" id="edit_area_wrap">
-          <label class="form-label font-weight-bold">Área asignada</label>
+          <label class="form-label" for="edit_area">Área asignada</label>
           <select class="form-select" id="edit_area" name="area_manager_department">
             <option value="">Selecciona un área...</option>
             {% for dept in area_departments %}
@@ -317,7 +348,7 @@
         </div>
 
         <div class="mb-0">
-          <label class="form-label font-weight-bold">Empleado de RH ligado</label>
+          <label class="form-label" for="edit_employee_id">Empleado de RH ligado</label>
           <select class="form-select" id="edit_employee_id" name="employee_id">
             <option value="">— Sin ligar —</option>
             {% for emp in all_employees %}
@@ -332,9 +363,9 @@
           </div>
         </div>
       </div>
-      <div class="modal-footer border-0 bg-light p-3">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" class="btn btn-primary px-4">Guardar cambios</button>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar cambios</button>
       </div>
     </form>
   </div>
@@ -345,32 +376,30 @@
      ========================================== -->
 <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow-lg">
-      <div class="modal-header bg-secondary text-white border-0 py-3">
-        <h5 class="modal-title font-weight-bold" id="changePasswordModalLabel">
-          <i class="bi bi-key-fill me-2"></i> Cambiar Contraseña
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="changePasswordModalLabel">Cambiar contraseña</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <form id="changePasswordForm" method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="modal-body p-4">
+        <div class="modal-body">
           <p class="mb-3">Establecer nueva contraseña para el usuario: <strong id="changePasswordUsername"></strong></p>
           
           <div class="mb-3">
-            <label for="new_password_field" class="form-label font-weight-bold">Nueva Contraseña</label>
+            <label for="new_password_field" class="form-label">Nueva contraseña</label>
             <input type="password" class="form-control" id="new_password_field" name="new_password" required minlength="6" placeholder="Mínimo 6 caracteres">
           </div>
 
           <div class="mb-3">
-            <label for="auth_password_field" class="form-label font-weight-bold">Contraseña de Autorización Admin</label>
+            <label for="auth_password_field" class="form-label">Contraseña de autorización</label>
             <input type="password" class="form-control" id="auth_password_field" name="auth_password" required placeholder="Ingresa contraseña de autorización">
-            <div class="form-text text-muted">Se requiere la clave maestra de administración para realizar este cambio.</div>
+            <div class="form-text">Se requiere la clave maestra de administración para realizar este cambio.</div>
           </div>
         </div>
-        <div class="modal-footer border-0 bg-light p-3">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-dark px-4">Guardar Contraseña</button>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-key"></i> Guardar contraseña</button>
         </div>
       </form>
     </div>
@@ -382,22 +411,20 @@
      ========================================== -->
 <div class="modal fade" id="deleteUserModal" tabindex="-1" aria-labelledby="deleteUserModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow-lg">
-      <div class="modal-header bg-danger text-white border-0 py-3">
-        <h5 class="modal-title font-weight-bold" id="deleteUserModalLabel">
-          <i class="bi bi-exclamation-triangle-fill me-2"></i> Confirmar Eliminación
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteUserModalLabel"><i class="bi bi-exclamation-triangle text-danger me-1"></i> Eliminar usuario</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <form id="deleteUserForm" method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="modal-body p-4">
+        <div class="modal-body">
           <p class="mb-0">¿Estás seguro de que deseas eliminar permanentemente al usuario <strong id="deleteUsername"></strong>?</p>
-          <p class="text-danger small mt-2 mb-0"><i class="bi bi-info-circle-fill me-1"></i> Esta acción no se puede deshacer y el usuario perderá acceso al sistema de inmediato.</p>
+          <p class="text-danger small mt-2 mb-0"><i class="bi bi-info-circle me-1"></i> Esta acción no se puede deshacer y el usuario perderá acceso al sistema de inmediato.</p>
         </div>
-        <div class="modal-footer border-0 bg-light p-3">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-danger px-4">Eliminar Usuario</button>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-danger"><i class="bi bi-trash3"></i> Eliminar usuario</button>
         </div>
       </form>
     </div>
@@ -409,6 +436,12 @@
 {% block scripts %}
 <script>
   $(document).ready(function() {
+    // Listas de empleados con búsqueda (dentro de su modal)
+    if ($.fn.select2) {
+      $('#new_employee_id').select2({ theme: 'bootstrap4', width: '100%', dropdownParent: $('#createUserModal'), language: { noResults: () => 'Sin coincidencias' } });
+      $('#edit_employee_id').select2({ theme: 'bootstrap4', width: '100%', dropdownParent: $('#editUserModal'), language: { noResults: () => 'Sin coincidencias' } });
+    }
+
     // Manejar cambios en el selector de tipo de usuario
     $('#new_user_type').change(function() {
       var val = $(this).val();
@@ -445,6 +478,7 @@
       $('#edit_user_type').val(b.getAttribute('data-usertype'));
       $('#edit_area').val(b.getAttribute('data-area') || '');
       $('#edit_employee_id').val(b.getAttribute('data-employeeid') || '');
+      $('#edit_employee_id').trigger('change.select2');
       $('#edit_user_type').trigger('change');
     });
 

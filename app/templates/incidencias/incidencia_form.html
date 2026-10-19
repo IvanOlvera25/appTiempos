@@ -2,33 +2,111 @@
 {% block title %}{{ 'Editar incidencia' if incidencia else 'Nueva incidencia' }}{% endblock %}
 
 {% block content %}
-<div class="container py-4" style="max-width: 1100px;">
+<style>
+  .barra-acciones {
+    position: sticky; bottom: 0; z-index: 5; margin-top: 1rem;
+    display: flex; justify-content: space-between; align-items: center; gap: .75rem; flex-wrap: wrap;
+    padding: .75rem 1rem; background: var(--ad-surface); border: 1px solid var(--ad-border);
+    border-radius: var(--ad-radius-lg); box-shadow: var(--ad-shadow-lg);
+  }
+  #tablaInformes tr.table-secondary td { color: var(--ad-text-3); }
 
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h4 mb-0">
-      {{ 'Editar incidencia #%s'|format(incidencia.id) if incidencia else 'Nueva incidencia' }}
-    </h1>
-    <a href="{{ url_for('incidencias.lista') }}" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left"></i> Volver
-    </a>
+  /* Selector múltiple de FP (select2) con el aspecto de los campos */
+  #inc_proyectos + .select2-container .select2-selection--multiple {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .3rem;
+    padding: .3rem .45rem !important; background: var(--ad-surface) !important; cursor: text;
+  }
+  #inc_proyectos + .select2-container .select2-selection__rendered { display: contents !important; }
+  #inc_proyectos + .select2-container .select2-selection__choice {
+    display: inline-flex !important; align-items: center; gap: .35rem; max-width: 100%;
+    float: none !important; margin: 0 !important; padding: .2rem .5rem !important;
+    font-size: .78rem; font-weight: 500; line-height: 1.3; color: var(--ad-text) !important;
+    background: var(--ad-surface-3) !important; border: 1px solid var(--ad-border) !important; border-radius: 6px !important;
+  }
+  #inc_proyectos + .select2-container .select2-selection__choice__display { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 !important; }
+  #inc_proyectos + .select2-container .select2-selection__choice__remove {
+    order: 2; position: static !important; margin: 0 !important; padding: 0 !important;
+    border: 0 !important; background: none !important; color: var(--ad-text-3) !important; font-size: 1rem; line-height: 1;
+  }
+  #inc_proyectos + .select2-container .select2-selection__choice__remove:hover { color: var(--ad-danger) !important; }
+  #inc_proyectos + .select2-container .select2-selection__clear { display: none; }
+  #inc_proyectos + .select2-container .select2-search--inline { flex: 1 1 200px; float: none !important; }
+  #inc_proyectos + .select2-container .select2-search__field {
+    width: 100% !important; height: 26px !important; margin: 0 !important; padding: .2rem .3rem !important;
+    font-family: inherit; font-size: .875rem; line-height: 1.4; color: var(--ad-text); resize: none; border: 0; outline: 0;
+  }
+  #inc_proyectos + .select2-container .select2-search__field::placeholder { color: var(--ad-text-3); }
+  .chk-hit { display: inline-flex; align-items: center; justify-content: center; margin: 0; cursor: pointer; }
+  .chk-hit .form-check-input { margin: 0; }
+
+  /* Táctil: la × de cada FP y las casillas con área de toque cómoda */
+  @media (pointer: coarse) {
+    #inc_proyectos + .select2-container .select2-selection__choice { padding: 0 0 0 .55rem !important; }
+    #inc_proyectos + .select2-container .select2-selection__choice__remove {
+      display: inline-flex !important; align-items: center; justify-content: center; min-width: 36px; min-height: 36px; font-size: 1.15rem;
+    }
+    .chk-hit { min-width: 44px; min-height: 44px; margin: -.6rem -.5rem; }
+  }
+  @media (max-width: 767.98px) {
+    .barra-acciones { padding-bottom: calc(.75rem + env(safe-area-inset-bottom)); }
+  }
+  /* Tableta: el motivo se lleva el ancho que sobra */
+  @media (min-width: 576px) and (max-width: 991.98px) {
+    #tablaInformes > thead > tr > th:nth-child(1), #tablaInformes > thead > tr > th:nth-child(2) { width: 76px !important; }
+    #tablaInformes > thead > tr > th:nth-child(5), #tablaInformes > thead > tr > th:nth-child(6) { width: 130px !important; }
+  }
+  @media (max-width: 575.98px) {
+    .barra-acciones { flex-wrap: nowrap; padding-left: .75rem; padding-right: .75rem; }
+    .barra-acciones > .d-flex { flex: 1 1 auto; }
+    .barra-acciones > .d-flex > .btn { flex: 1 1 auto; }
+    /* Informes: tarjetas, sin scroll anidado */
+    .inf-scroll { max-height: none !important; }
+    #tablaInformes.tabla-tarjetas > tbody > tr > td.td-titulo { font-size: 1rem; }
+    #tablaInformes.tabla-tarjetas > tbody > tr > td.inc-texto { padding-bottom: .4rem !important; line-height: 1.45; }
+    #tablaInformes.tabla-tarjetas > tbody > tr > td .chk-hit { margin-right: -.6rem; }
+    /* Primero qué dice el informe; las casillas al final de la tarjeta */
+    #tablaInformes.tabla-tarjetas > tbody > tr > td.td-titulo { order: -2; }
+    #tablaInformes.tabla-tarjetas > tbody > tr > td.inc-texto { order: -1; }
+    #tablaInformes.tabla-tarjetas > tbody > tr > td:nth-child(1),
+    #tablaInformes.tabla-tarjetas > tbody > tr > td:nth-child(2) { order: 1; }
+    #tablaInformes.tabla-tarjetas > tbody > tr > td:nth-child(1) { margin-top: .35rem; border-top: 1px dashed var(--ad-border) !important; padding-top: .55rem !important; }
+    #tablaInformes.tabla-tarjetas > tbody > tr > td:nth-child(1)::before { top: .67rem; }
+    /* El fondo va en la tarjeta completa (inválido) y no celda por celda (ni el hover pegado del toque) */
+    #tablaInformes.tabla-tarjetas > tbody > tr > td { background: transparent !important; box-shadow: none !important; }
+    #tablaInformes.tabla-tarjetas > tbody > tr.table-secondary { background: var(--ad-surface-2); }
+  }
+</style>
+
+<div style="max-width: 1100px;">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow"><i class="bi bi-collection"></i> Incidencias</div>
+      <h1>{{ 'Editar incidencia #%s'|format(incidencia.id) if incidencia else 'Nueva incidencia' }}</h1>
+      <p>La versión de Administración y RH: qué pasó, quién es el responsable final, a qué FP pertenece y cuánto costó.</p>
+    </div>
+    <div class="actions">
+      <a href="{{ url_for('incidencias.lista') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+      </a>
+    </div>
   </div>
 
   <form method="POST">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div class="card mb-3">
-      <div class="card-header"><i class="bi bi-card-text me-2"></i>Descripción de la incidencia</div>
+      <div class="card-header"><i class="bi bi-card-text"></i>Descripción de la incidencia</div>
       <div class="card-body">
         <div class="mb-3">
-          <label class="form-label">Descripción <span class="text-danger">*</span></label>
-          <textarea name="descripcion" class="form-control" rows="4" required
+          <label class="form-label" for="inc_descripcion">Descripción <span class="text-danger">*</span></label>
+          <textarea name="descripcion" id="inc_descripcion" class="form-control" rows="4" required
                     placeholder="La versión de Administración/RH sobre lo que ocurrió">{{ incidencia.descripcion if incidencia else '' }}</textarea>
         </div>
 
         <div class="row g-3">
           <div class="col-md-4">
-            <label class="form-label">Clasificación</label>
-            <select name="clasificacion_id" class="form-select">
+            <label class="form-label" for="inc_clasificacion">Clasificación</label>
+            <select name="clasificacion_id" id="inc_clasificacion" class="form-select">
               <option value="">Sin clasificar</option>
               {% for c in clasificaciones %}
               <option value="{{ c.id }}"
@@ -37,16 +115,16 @@
             </select>
           </div>
           <div class="col-md-4">
-            <label class="form-label">Costo de la incidencia</label>
+            <label class="form-label" for="inc_costo">Costo de la incidencia</label>
             <div class="input-group">
               <span class="input-group-text">$</span>
-              <input type="number" name="costo" class="form-control" step="0.01" min="0"
+              <input type="number" name="costo" id="inc_costo" class="form-control" step="0.01" min="0"
                      value="{{ '%.2f'|format(incidencia.costo or 0) if incidencia else '0.00' }}">
             </div>
           </div>
           <div class="col-md-4">
-            <label class="form-label">Estado</label>
-            <select name="estado" class="form-select">
+            <label class="form-label" for="inc_estado">Estado</label>
+            <select name="estado" id="inc_estado" class="form-select">
               {% for e in estados %}
               <option value="{{ e }}" {% if incidencia and incidencia.estado == e %}selected{% endif %}>
                 {{ e|capitalize }}
@@ -59,127 +137,154 @@
     </div>
 
     <div class="card mb-3">
-      <div class="card-header"><i class="bi bi-person-exclamation me-2"></i>Responsable final</div>
+      <div class="card-header"><i class="bi bi-person-exclamation"></i>Responsable final</div>
       <div class="card-body">
-        <div class="mb-3">
-          <label class="form-label">Tipo de responsable <span class="text-danger">*</span></label>
-          <select name="responsable_tipo" id="responsable_tipo" class="form-select" required>
-            {% set tipo_actual = incidencia.responsable_tipo if incidencia else 'AREA' %}
-            <option value="CLIENTE"  {% if tipo_actual == 'CLIENTE' %}selected{% endif %}>Cliente</option>
-            <option value="AREA"     {% if tipo_actual == 'AREA' %}selected{% endif %}>Área</option>
-            <option value="EMPLEADO" {% if tipo_actual == 'EMPLEADO' %}selected{% endif %}>Trabajador</option>
-          </select>
-        </div>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label" for="responsable_tipo">Tipo de responsable <span class="text-danger">*</span></label>
+            <select name="responsable_tipo" id="responsable_tipo" class="form-select" required>
+              {% set tipo_actual = incidencia.responsable_tipo if incidencia else 'AREA' %}
+              <option value="CLIENTE"  {% if tipo_actual == 'CLIENTE' %}selected{% endif %}>Cliente</option>
+              <option value="AREA"     {% if tipo_actual == 'AREA' %}selected{% endif %}>Área</option>
+              <option value="EMPLEADO" {% if tipo_actual == 'EMPLEADO' %}selected{% endif %}>Trabajador</option>
+            </select>
+          </div>
+          <div class="col-md-8">
+            <div class="mb-0" data-responsable="AREA">
+              <label class="form-label" for="inc_area">Área responsable</label>
+              <select name="responsable_area" id="inc_area" class="form-select">
+                <option value="">Selecciona un área…</option>
+                {% for a in areas %}
+                <option value="{{ a }}"
+                  {% if incidencia and incidencia.responsable_area == a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+              </select>
+            </div>
 
-        <div class="mb-0" data-responsable="AREA">
-          <label class="form-label">Área responsable</label>
-          <select name="responsable_area" class="form-select">
-            <option value="">Selecciona un área…</option>
-            {% for a in areas %}
-            <option value="{{ a }}"
-              {% if incidencia and incidencia.responsable_area == a %}selected{% endif %}>{{ a }}</option>
-            {% endfor %}
-          </select>
-        </div>
+            <div class="mb-0" data-responsable="EMPLEADO">
+              <label class="form-label" for="inc_empleado">Trabajador responsable</label>
+              <select name="responsable_employee_id" id="inc_empleado" class="form-select">
+                <option value="">Selecciona un empleado…</option>
+                {% for e in empleados %}
+                <option value="{{ e.id }}"
+                  {% if incidencia and incidencia.responsable_employee_id == e.id %}selected{% endif %}>{{ e.nompropio }}</option>
+                {% endfor %}
+              </select>
+            </div>
 
-        <div class="mb-0" data-responsable="EMPLEADO">
-          <label class="form-label">Trabajador responsable</label>
-          <select name="responsable_employee_id" class="form-select">
-            <option value="">Selecciona un empleado…</option>
-            {% for e in empleados %}
-            <option value="{{ e.id }}"
-              {% if incidencia and incidencia.responsable_employee_id == e.id %}selected{% endif %}>{{ e.nompropio }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="mb-0" data-responsable="CLIENTE">
-          <label class="form-label">Cliente responsable</label>
-          <input type="text" name="responsable_texto" class="form-control" maxlength="200"
-                 value="{{ incidencia.responsable_texto or '' if incidencia else '' }}"
-                 placeholder="Nombre del cliente">
+            <div class="mb-0" data-responsable="CLIENTE">
+              <label class="form-label" for="inc_cliente">Cliente responsable</label>
+              <input type="text" name="responsable_texto" id="inc_cliente" class="form-control" maxlength="200"
+                     value="{{ incidencia.responsable_texto or '' if incidencia else '' }}"
+                     placeholder="Nombre del cliente">
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="card mb-3">
-      <div class="card-header"><i class="bi bi-kanban me-2"></i>FP a los que realmente pertenece</div>
+      <div class="card-header"><i class="bi bi-kanban"></i>FP a los que realmente pertenece</div>
       <div class="card-body">
-        <select name="project_ids" class="form-select" multiple size="8">
+        <select name="project_ids" id="inc_proyectos" class="form-select" multiple size="8">
           {% for p in proyectos %}
           <option value="{{ p.id }}" {% if p.id in seleccionados %}selected{% endif %}>
             {{ p.folio if p.folio is not none else 's/f' }} — {{ p.name }} ({{ p.client }})
           </option>
           {% endfor %}
         </select>
-        <div class="form-text">Ctrl/Cmd + clic para elegir varios. No tienen que ser los mismos que señalaron los informes.</div>
+        <div class="form-text" id="inc_proyectos_ayuda">Ctrl/Cmd + clic para elegir varios. No tienen que ser los mismos que señalaron los informes.</div>
       </div>
     </div>
 
-    <div class="card mb-3">
+    <div class="card">
       <div class="card-header">
-        <i class="bi bi-link-45deg me-2"></i>Informes de este mismo evento
-      </div>
-      <div class="card-body p-0">
+        <i class="bi bi-link-45deg"></i>Informes de este mismo evento
         {% if informes_disponibles %}
-        <div class="table-responsive" style="max-height: 460px; overflow-y: auto;">
-          <table class="table table-hover mb-0 align-middle">
-            <thead class="table-light sticky-top">
-              <tr>
-                <th style="width:80px;">Vincular</th>
-                <th style="width:80px;">Inválido</th>
-                <th style="width:60px;">#</th>
-                <th>Motivo</th>
-                <th style="width:160px;">Causante</th>
-                <th style="width:150px;">Reportó</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for r in informes_disponibles %}
-              <tr class="{% if r.invalido %}table-secondary{% endif %}">
-                <td class="text-center">
-                  {# Marca qué informes se mostraron: sin esto no se puede saber
-                     cuáles se DESmarcaron como inválidos. #}
-                  <input type="hidden" name="candidatos" value="{{ r.id }}">
-                  <input class="form-check-input" type="checkbox" name="report_ids" value="{{ r.id }}"
-                         {% if r.id in vinculados %}checked{% endif %}>
-                </td>
-                <td class="text-center">
-                  <input class="form-check-input" type="checkbox" name="invalidos" value="{{ r.id }}"
-                         {% if r.invalido %}checked{% endif %}
-                         title="Marcar como inválido: queda oculto para los demás perfiles">
-                </td>
-                <td class="small text-muted">{{ r.id }}</td>
-                <td class="small">
-                  {{ r.motivo|truncate(110) }}
-                  <div class="text-muted">{{ r.created_at.strftime('%d/%m/%Y') }}</div>
-                </td>
-                <td class="small">{{ r.causante_label }}</td>
-                <td class="small">{{ r.reporter.username if r.reporter else '—' }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        <span class="badge bg-secondary">{{ informes_disponibles|length }}</span>
+        <div class="search-field ms-auto">
+          <i class="bi bi-search"></i>
+          <input type="search" class="form-control form-control-sm" style="width: 260px;"
+                 placeholder="Filtrar por motivo, causante o quién reportó…" aria-label="Filtrar informes"
+                 data-filtra="#tablaInformes tbody" data-vacio="#informesSinCoincidencias"
+                 onkeydown="if (event.key === 'Enter') event.preventDefault();">
         </div>
-        {% else %}
-        <div class="p-4 text-center text-muted">No hay informes sin agrupar.</div>
         {% endif %}
       </div>
+      {% if informes_disponibles %}
+      <div class="table-responsive inf-scroll" style="max-height: 460px; overflow-y: auto;">
+        <table class="table table-hover mb-0 align-middle" id="tablaInformes" data-tarjetas>
+          <thead class="sticky-top">
+            <tr>
+              <th style="width:90px;" class="text-center">Vincular</th>
+              <th style="width:90px;" class="text-center">Inválido</th>
+              <th style="width:60px;" data-titulo>#</th>
+              <th>Motivo</th>
+              <th style="width:170px;">Causante</th>
+              <th style="width:170px;">Reportó</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in informes_disponibles %}
+            <tr class="{% if r.invalido %}table-secondary{% endif %}">
+              <td class="text-center">
+                {# Marca qué informes se mostraron: sin esto no se puede saber
+                   cuáles se DESmarcaron como inválidos. #}
+                <input type="hidden" name="candidatos" value="{{ r.id }}">
+                <label class="chk-hit">
+                  <input class="form-check-input" type="checkbox" name="report_ids" value="{{ r.id }}"
+                         aria-label="Vincular el informe #{{ r.id }}"
+                         {% if r.id in vinculados %}checked{% endif %}>
+                </label>
+              </td>
+              <td class="text-center">
+                <label class="chk-hit">
+                  <input class="form-check-input" type="checkbox" name="invalidos" value="{{ r.id }}"
+                         aria-label="Marcar el informe #{{ r.id }} como inválido"
+                         {% if r.invalido %}checked{% endif %}
+                         title="Marcar como inválido: queda oculto para los demás perfiles">
+                </label>
+              </td>
+              <td class="small">
+                <a href="{{ url_for('incidencias.ver_informe', report_id=r.id) }}" target="_blank" rel="noopener" class="text-decoration-none" title="Abrir el informe en otra pestaña">#{{ r.id }}</a>
+              </td>
+              <td class="small inc-texto" data-label="">
+                {{ r.motivo|truncate(110) }}
+                <div class="text-muted">{{ r.created_at.strftime('%d/%m/%Y') }}</div>
+              </td>
+              <td class="small">{{ r.causante_label }}</td>
+              <td class="small">{{ r.reporter.username if r.reporter else '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div id="informesSinCoincidencias" class="empty py-4 d-none">
+          <p>Ningún informe coincide con el filtro.</p>
+        </div>
+      </div>
+      {% else %}
+      <div class="empty py-4">
+        <div class="empty-icon"><i class="bi bi-clipboard-check"></i></div>
+        <h6>No hay informes sin agrupar</h6>
+        <p>Cuando alguien levante un informe nuevo aparecerá aquí para vincularlo.</p>
+      </div>
+      {% endif %}
       <div class="card-footer small text-muted">
+        <i class="bi bi-info-circle me-1"></i>
         Un informe marcado como inválido se desvincula de la incidencia y deja de verse
         para los perfiles que no son Administración ni RH.
       </div>
     </div>
 
-    <div class="d-flex justify-content-between">
+    <div class="barra-acciones k-actions">
       {% if incidencia %}
-      <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#delModal">
-        <i class="bi bi-trash3"></i> Eliminar
+      <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#delModal" aria-label="Eliminar">
+        <i class="bi bi-trash3"></i><span class="d-none d-sm-inline"> Eliminar</span>
       </button>
-      {% else %}<span></span>{% endif %}
+      {% else %}<span class="d-none d-sm-inline"></span>{% endif %}
       <div class="d-flex gap-2">
-        <a href="{{ url_for('incidencias.lista') }}" class="btn btn-secondary">Cancelar</a>
-        <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar incidencia</button>
+        <a href="{{ url_for('incidencias.lista') }}" class="btn btn-outline-secondary">Cancelar</a>
+        <button class="btn btn-primary"><i class="bi bi-save"></i> <span class="d-sm-none">Guardar</span><span class="d-none d-sm-inline">Guardar incidencia</span></button>
       </div>
     </div>
   </form>
@@ -196,7 +301,7 @@
           Los informes vinculados no se borran: quedan sin agrupar y se pueden asignar a otra incidencia.
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
           <form method="POST" action="{{ url_for('incidencias.eliminar', incident_id=incidencia.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-danger"><i class="bi bi-trash3"></i> Eliminar</button>
@@ -231,6 +336,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     inv.dispatchEvent(new Event('change'));
   });
+
+  // Buscadores para las listas largas (los valores que se envían son los mismos)
+  if (window.jQuery && $.fn.select2) {
+    $('#inc_empleado').select2({ theme: 'bootstrap4', width: '100%', placeholder: 'Selecciona un empleado…', allowClear: true });
+    $('#inc_proyectos').select2({ theme: 'bootstrap4', width: '100%', placeholder: 'Busca por FP, nombre o cliente…', closeOnSelect: false });
+    document.getElementById('inc_proyectos_ayuda').textContent =
+      'Escribe para buscar y elige todos los que apliquen. No tienen que ser los mismos que señalaron los informes.';
+  }
 });
 </script>
 {% endblock %}

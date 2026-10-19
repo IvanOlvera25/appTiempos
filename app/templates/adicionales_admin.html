@@ -1,136 +1,196 @@
 {% extends "layout.html" %}
-{% block title %}Adicionales - Sistema de Gestión Operativa{% endblock %}
+{% block title %}Adicionales{% endblock %}
 
 {% block content %}
-<div class="adm-wrap">
+<style>
+  /* Calendario */
+  .adm-monthlabel { font-weight: 650; font-size: 1.05rem; text-transform: capitalize; color: var(--ad-text); margin-left: .35rem; }
+  .adm-weekdays, .adm-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .adm-weekdays { margin-bottom: 4px; }
+  .adm-weekdays span { text-align: center; font-size: .68rem; font-weight: 600; color: var(--ad-text-4); text-transform: uppercase; letter-spacing: .04em; padding: .2rem 0; }
+  .adm-day {
+    position: relative; min-height: 52px; aspect-ratio: 1 / 1;
+    border: 1px solid var(--ad-border); border-radius: var(--ad-radius); background: var(--ad-surface);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    padding: 2px; font-size: .84rem; color: var(--ad-text-2); overflow: hidden; font-variant-numeric: tabular-nums;
+  }
+  @media (min-width: 768px) {
+    .adm-day { aspect-ratio: auto; min-height: 82px; align-items: flex-start; justify-content: flex-start; padding: .4rem .5rem; }
+  }
+  .adm-day.is-empty { border-color: transparent; background: transparent; }
+  .adm-day.is-today { box-shadow: inset 0 0 0 2px var(--ad-brand); }
+  .adm-day.is-today .adm-day-num { color: var(--ad-brand-ink); }
+  .adm-day.has-data { cursor: pointer; transition: box-shadow .12s; }
+  .adm-day.has-data:hover { box-shadow: var(--ad-shadow-sm); }
+  .adm-day.has-data:focus-visible { outline: 0; box-shadow: 0 0 0 3px var(--ad-brand-ring); }
+  .adm-day.has-data.pend { background: var(--ad-warning-soft); border-color: var(--ad-warning-line); }
+  .adm-day.has-data.pag  { background: var(--ad-success-soft); border-color: var(--ad-success-line); }
+  .adm-day.has-data.can  { background: var(--ad-surface-3); border-color: var(--ad-border); }
+  .adm-day-num { font-weight: 600; line-height: 1; color: var(--ad-text); }
+  .adm-badge { min-width: 20px; padding: 0 6px; border-radius: 999px; font-size: .68rem; font-weight: 700; line-height: 1.55; color: #fff; text-align: center; }
+  .adm-day.pend .adm-badge { background: var(--ad-warning); }
+  .adm-day.pag  .adm-badge { background: var(--ad-success); }
+  .adm-day.can  .adm-badge { background: var(--ad-text-4); }
+  .adm-day-monto { font-size: .66rem; line-height: 1.25; color: var(--ad-text-3); display: none; overflow-wrap: anywhere; }
+  @media (min-width: 768px) { .adm-day-monto { display: block; } }
 
-  <!-- Encabezado -->
-  <div class="mb-3">
-    <h2 class="fw-bold mb-1">Adicionales</h2>
+  .adm-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; font-size: .75rem; color: var(--ad-text-3); }
+  .adm-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+  .adm-dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  .adm-dot-pend { background: var(--ad-warning); }
+  .adm-dot-pag { background: var(--ad-success); }
+  .adm-dot-can { background: var(--ad-text-4); }
+
+  /* Registros (detalle del día) */
+  .adm-reg { border: 1px solid var(--ad-border); border-radius: var(--ad-radius-lg); padding: .75rem .9rem; margin-bottom: .6rem; }
+  .adm-reg-top { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; }
+  .adm-reg-name { font-weight: 600; color: var(--ad-text); }
+  .adm-reg-meta { font-size: .76rem; color: var(--ad-text-3); }
+  .adm-reg-cost { font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .adm-reg-note { font-size: .8rem; color: var(--ad-text-2); margin-top: .3rem; }
+  #listaMes .nota { font-size: .75rem; color: var(--ad-text-3); max-width: 340px; }
+  .adm-mlista .adm-reg { border: 0; border-bottom: 1px solid var(--ad-border); border-radius: 0; margin: 0; padding: .8rem .95rem; }
+  .adm-mlista .adm-reg:last-child { border-bottom: 0; }
+  .adm-mlista .adm-reg-top > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+  @media (max-width: 575.98px) {
+    .adm-kpis .stat { padding: .85rem .9rem; }
+    .adm-kpis .stat-value { font-size: 1.2rem; }
+    .adm-kpis .stat-icon { display: none; }
+    .adm-kpis .stat-icon ~ .stat-label { padding-right: 0; }
+  }
+</style>
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-calendar2-plus"></i> Operación</div>
+    <h1>Adicionales</h1>
     {% if alcance.total %}
-    <p class="text-muted mb-0">Calendario de adicionales autorizados de todo el personal</p>
+    <p>Calendario de adicionales autorizados de todo el personal.</p>
     {% else %}
-    <p class="text-muted mb-0">Adicionales autorizados en tu área{% if alcance.area_nombre %} —
-      <strong>{{ alcance.area_nombre }}</strong>{% endif %}{% if alcance.rh_id %}, más los tuyos de cualquier área{% endif %}</p>
+    <p>Adicionales autorizados en tu área{% if alcance.area_nombre %} —
+      <strong>{{ alcance.area_nombre }}</strong>{% endif %}{% if alcance.rh_id %}, más los tuyos de cualquier área{% endif %}.</p>
     {% endif %}
   </div>
+</div>
 
-  {% if not alcance.total %}
-  <div class="alert alert-info d-flex align-items-start gap-2 py-2">
-    <i class="bi bi-info-circle-fill mt-1"></i>
-    <div class="small">
-      Por política, el costo de los adicionales del resto del personal no se muestra: solo verás la cantidad.
-      {% if alcance.rh_id %}El costo de los tuyos sí aparece.{% endif %}
-    </div>
+{% if not alcance.total %}
+<div class="alert alert-info d-flex align-items-start gap-2">
+  <i class="bi bi-info-circle mt-1"></i>
+  <div>
+    Por política, el costo de los adicionales del resto del personal no se muestra: solo verás la cantidad.
+    {% if alcance.rh_id %}El costo de los tuyos sí aparece.{% endif %}
   </div>
+</div>
+{% endif %}
+
+{% if load_error %}
+<div class="alert alert-danger d-flex align-items-start gap-2">
+  <i class="bi bi-exclamation-octagon mt-1"></i><div>{{ load_error }}</div>
+</div>
+{% endif %}
+
+<!-- Filtros -->
+<div class="filter-bar">
+  <i class="bi bi-funnel text-muted ms-1"></i>
+  <select class="form-select form-select-sm" id="filtroEmpleado" aria-label="Empleado" style="min-width: 260px;">
+    <option value="">Todos los empleados</option>
+    {% for e in empleados %}
+    <option value="{{ e.rh_id }}" {% if filtros.rh_id == e.rh_id %}selected{% endif %}>{{ e.nombre }}</option>
+    {% endfor %}
+  </select>
+  {% if alcance.total %}
+  <select class="form-select form-select-sm" id="filtroArea" aria-label="Área" style="max-width: 240px;">
+    <option value="">Todas las áreas</option>
+    {% for a in areas %}
+    <option value="{{ a.id }}" {% if filtros.area == a.id %}selected{% endif %}>{{ a.nombre }}</option>
+    {% endfor %}
+  </select>
   {% endif %}
+  <select class="form-select form-select-sm" id="filtroEstatus" aria-label="Estatus">
+    <option value="">Todos los estatus</option>
+    <option value="PENDIENTE" {% if filtros.estatus == 'PENDIENTE' %}selected{% endif %}>Por pagar</option>
+    <option value="PAGADO" {% if filtros.estatus == 'PAGADO' %}selected{% endif %}>Pagados</option>
+    <option value="CANCELADO" {% if filtros.estatus == 'CANCELADO' %}selected{% endif %}>Cancelados</option>
+  </select>
+  <button type="button" class="btn btn-sm btn-outline-secondary" id="limpiarFiltros">
+    <i class="bi bi-x-lg"></i> Limpiar
+  </button>
+</div>
 
-  {% if load_error %}
-  <div class="alert alert-danger d-flex align-items-start gap-2">
-    <i class="bi bi-exclamation-octagon-fill mt-1"></i><div>{{ load_error }}</div>
-  </div>
-  {% endif %}
-
-  <!-- Filtros -->
-  <div class="card shadow-sm border-0 mb-3">
-    <div class="card-body py-3">
-      <div class="row g-2 align-items-end">
-        <div class="col-12 col-md-4">
-          <label class="form-label fw-semibold small mb-1">Empleado</label>
-          <select class="form-select" id="filtroEmpleado">
-            <option value="">Todos los empleados</option>
-            {% for e in empleados %}
-            <option value="{{ e.rh_id }}" {% if filtros.rh_id == e.rh_id %}selected{% endif %}>{{ e.nombre }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        {% if alcance.total %}
-        <div class="col-6 col-md-3">
-          <label class="form-label fw-semibold small mb-1">Área</label>
-          <select class="form-select" id="filtroArea">
-            <option value="">Todas</option>
-            {% for a in areas %}
-            <option value="{{ a.id }}" {% if filtros.area == a.id %}selected{% endif %}>{{ a.nombre }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        {% endif %}
-        <div class="col-6 col-md-3">
-          <label class="form-label fw-semibold small mb-1">Estatus</label>
-          <select class="form-select" id="filtroEstatus">
-            <option value="">Todos</option>
-            <option value="PENDIENTE" {% if filtros.estatus == 'PENDIENTE' %}selected{% endif %}>Por pagar</option>
-            <option value="PAGADO" {% if filtros.estatus == 'PAGADO' %}selected{% endif %}>Pagados</option>
-            <option value="CANCELADO" {% if filtros.estatus == 'CANCELADO' %}selected{% endif %}>Cancelados</option>
-          </select>
-        </div>
-        <div class="col-12 col-md-2">
-          <button class="btn btn-outline-secondary w-100" id="limpiarFiltros">
-            <i class="bi bi-eraser me-1"></i>Limpiar
-          </button>
-        </div>
-      </div>
+<!-- Resumen del mes -->
+<div class="row g-2 g-md-3 mb-3 adm-kpis">
+  <div class="col-6 col-xl-3">
+    <div class="stat">
+      <span class="stat-icon brand"><i class="bi bi-calendar2-plus"></i></span>
+      <div class="stat-label">Adicionales</div>
+      <div class="stat-value" id="sumCantidad">0</div>
+      <div class="stat-foot">del mes, sin cancelados</div>
     </div>
   </div>
-
-  <!-- Resumen del mes -->
-  <div class="adm-summary">
-    <div class="adm-chip">
-      <span class="adm-chip-value" id="sumCantidad">0</span>
-      <span class="adm-chip-label">Adicionales</span>
-    </div>
-    <div class="adm-chip">
-      <span class="adm-chip-value" id="sumEmpleados">0</span>
-      <span class="adm-chip-label">Empleados</span>
-    </div>
-    <div class="adm-chip">
-      <span class="adm-chip-value" id="sumCosto">$0</span>
-      <span class="adm-chip-label">{{ 'Costo del mes' if alcance.total else 'Mi costo del mes' }}</span>
-    </div>
-    <div class="adm-chip">
-      <span class="adm-chip-value text-warning" id="sumPendiente">$0</span>
-      <span class="adm-chip-label">{{ 'Por pagar' if alcance.total else 'Mío por pagar' }}</span>
+  <div class="col-6 col-xl-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-people"></i></span>
+      <div class="stat-label">Personas</div>
+      <div class="stat-value" id="sumEmpleados">0</div>
+      <div class="stat-foot">con al menos un adicional</div>
     </div>
   </div>
-
-  <!-- Calendario -->
-  <div class="card shadow-sm border-0 mb-3">
-    <div class="card-body">
-      <div class="adm-monthbar">
-        <button type="button" class="adm-navbtn" id="prevMonth" aria-label="Mes anterior">
-          <i class="bi bi-chevron-left"></i>
-        </button>
-        <div class="text-center flex-fill">
-          <div class="adm-monthlabel" id="monthLabel">—</div>
-          <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" id="todayBtn">Ir al mes actual</button>
-        </div>
-        <button type="button" class="adm-navbtn" id="nextMonth" aria-label="Mes siguiente">
-          <i class="bi bi-chevron-right"></i>
-        </button>
-      </div>
-
-      <div class="adm-weekdays">
-        <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
-      </div>
-      <div class="adm-grid" id="calendarGrid"></div>
-
-      <div class="adm-legend">
-        <span><i class="adm-dot adm-dot-pend"></i>Por pagar</span>
-        <span><i class="adm-dot adm-dot-pag"></i>Pagado</span>
-        <span><i class="adm-dot adm-dot-can"></i>Cancelado</span>
-        <span class="ms-auto"><i class="bi bi-hand-index-thumb me-1"></i>Toca un día para ver el detalle</span>
-      </div>
+  <div class="col-6 col-xl-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-cash-stack"></i></span>
+      <div class="stat-label">{{ 'Costo del mes' if alcance.total else 'Mi costo del mes' }}</div>
+      <div class="stat-value" id="sumCosto">$0</div>
+      <div class="stat-foot">pagado y por pagar</div>
     </div>
   </div>
-
-  <!-- Listado del mes -->
-  <div class="card shadow-sm border-0">
-    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-      <h6 class="mb-0 fw-semibold">Detalle del mes</h6>
-      <span class="badge bg-info px-3 py-2" id="conteoRegistros">0 registros</span>
+  <div class="col-6 col-xl-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-hourglass-split"></i></span>
+      <div class="stat-label">{{ 'Por pagar' if alcance.total else 'Mío por pagar' }}</div>
+      <div class="stat-value" id="sumPendiente">$0</div>
+      <div class="stat-foot">pendiente de pago</div>
     </div>
-    <div class="card-body p-0" id="listaMes"></div>
   </div>
+</div>
+
+<!-- Calendario -->
+<div class="card mb-3">
+  <div class="card-header">
+    <button type="button" class="btn btn-sm btn-outline-secondary btn-icon" id="prevMonth" aria-label="Mes anterior" title="Mes anterior">
+      <i class="bi bi-chevron-left"></i>
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary btn-icon" id="nextMonth" aria-label="Mes siguiente" title="Mes siguiente">
+      <i class="bi bi-chevron-right"></i>
+    </button>
+    <div class="adm-monthlabel" id="monthLabel">—</div>
+    <span class="spinner-border spinner-border-sm text-primary ms-2 d-none" id="cargandoMes" role="status" aria-label="Cargando"></span>
+    <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="todayBtn" title="Ir al mes actual"><span class="d-none d-sm-inline">Ir al mes actual</span><span class="d-sm-none">Hoy</span></button>
+  </div>
+  <div class="card-body p-2 p-md-3">
+    <div class="adm-weekdays">
+      <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+    </div>
+    <div class="adm-grid" id="calendarGrid"></div>
+  </div>
+  <div class="card-footer adm-legend">
+    <span><i class="adm-dot adm-dot-pend"></i>Por pagar</span>
+    <span><i class="adm-dot adm-dot-pag"></i>Pagado</span>
+    <span><i class="adm-dot adm-dot-can"></i>Cancelado</span>
+    <span class="ms-auto"><i class="bi bi-hand-index-thumb"></i>Toca un día para ver el detalle</span>
+  </div>
+</div>
+
+<!-- Listado del mes -->
+<div class="card">
+  <div class="card-header">
+    <i class="bi bi-list-ul"></i>Detalle del mes
+    <span class="badge bg-secondary" id="conteoRegistros">0 registros</span>
+    <div class="search-field ms-auto">
+      <i class="bi bi-search"></i>
+      <input type="search" class="form-control form-control-sm" id="buscarDetalle" placeholder="Buscar persona, área, FP o nota…" autocomplete="off" aria-label="Buscar en el detalle del mes" style="width: 280px; max-width: 100%;">
+    </div>
+  </div>
+  <div id="listaMes"></div>
 </div>
 
 <!-- Modal de detalle del día -->
@@ -146,97 +206,11 @@
       </div>
       <div class="modal-body" id="dayModalBody"></div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-outline-secondary w-100" data-bs-dismiss="modal">Cerrar</button>
       </div>
     </div>
   </div>
 </div>
-
-<style>
-  .adm-wrap { max-width: 1100px; margin: 0 auto; padding-bottom: 2rem; }
-
-  .adm-summary {
-    display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; margin-bottom: 1rem;
-  }
-  @media (min-width: 768px) { .adm-summary { grid-template-columns: repeat(4, 1fr); } }
-  .adm-chip {
-    background: #fff; border: 1px solid #eceff3; border-radius: 14px;
-    padding: .75rem .5rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.05);
-  }
-  .adm-chip-value { display: block; font-weight: 700; font-size: 1.15rem; line-height: 1.2; }
-  .adm-chip-label { display: block; font-size: .72rem; color: #6c757d; margin-top: .15rem; }
-
-  .adm-monthbar { display: flex; align-items: center; gap: .5rem; margin-bottom: .85rem; }
-  .adm-monthlabel { font-weight: 700; font-size: 1.1rem; text-transform: capitalize; }
-  .adm-navbtn {
-    width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid #e3e6ea;
-    background: #f8f9fa; color: #495057; border-radius: 12px;
-    display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
-  }
-  .adm-navbtn:active { background: #FF8800; border-color: #FF8800; color: #fff; }
-
-  .adm-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
-  .adm-weekdays span {
-    text-align: center; font-size: .7rem; font-weight: 700; color: #adb5bd; text-transform: uppercase;
-  }
-
-  .adm-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-  .adm-day {
-    position: relative; min-height: 56px; aspect-ratio: 1 / 1;
-    border: 1px solid #f0f2f5; border-radius: 12px; background: #fff;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 2px; font-size: .85rem; color: #495057; overflow: hidden;
-  }
-  @media (min-width: 768px) { .adm-day { aspect-ratio: auto; min-height: 84px; justify-content: flex-start; padding: .35rem; } }
-  .adm-day.is-empty { border-color: transparent; background: transparent; }
-  .adm-day.is-today { border-color: #FF8800; border-width: 2px; }
-  .adm-day.has-data { cursor: pointer; }
-  .adm-day.has-data.pend { background: #fff4e6; border-color: #ffd8a8; }
-  .adm-day.has-data.pag  { background: #e9f9ef; border-color: #b7e4c7; }
-  .adm-day.has-data.can  { background: #f1f3f5; border-color: #dee2e6; }
-  .adm-day.has-data:active { transform: scale(.97); }
-  .adm-day-num { font-weight: 700; line-height: 1; align-self: center; }
-  @media (min-width: 768px) { .adm-day-num { align-self: flex-start; } }
-  .adm-badge {
-    margin-top: 3px; min-width: 20px; padding: 1px 6px; border-radius: 999px;
-    font-size: .68rem; font-weight: 700; color: #fff; line-height: 1.4;
-  }
-  .adm-day.pend .adm-badge { background: #FF8800; }
-  .adm-day.pag  .adm-badge { background: #2f9e5f; }
-  .adm-day.can  .adm-badge { background: #868e96; }
-  .adm-day-monto { font-size: .62rem; color: #6c757d; margin-top: 2px; display: none; }
-  @media (min-width: 768px) { .adm-day-monto { display: block; } }
-
-  .adm-legend {
-    display: flex; flex-wrap: wrap; gap: .75rem; margin-top: .85rem; padding-top: .75rem;
-    border-top: 1px solid #f1f3f5; font-size: .75rem; color: #6c757d;
-  }
-  .adm-legend span { display: inline-flex; align-items: center; gap: .3rem; }
-  .adm-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-  .adm-dot-pend { background: #FF8800; }
-  .adm-dot-pag { background: #2f9e5f; }
-  .adm-dot-can { background: #868e96; }
-
-  /* Registros */
-  .adm-reg { border-top: 1px solid #f1f3f5; padding: .75rem 1rem; }
-  .adm-reg:first-child { border-top: none; }
-  .adm-reg-top { display: flex; justify-content: space-between; align-items: start; gap: .75rem; }
-  .adm-reg-name { font-weight: 600; }
-  .adm-reg-meta { font-size: .75rem; color: #868e96; }
-  .adm-reg-cost { font-weight: 700; white-space: nowrap; }
-  .adm-reg-note { font-size: .8rem; color: #495057; margin-top: .25rem; }
-
-  .adm-status {
-    display: inline-block; font-size: .68rem; font-weight: 700; padding: .15rem .5rem;
-    border-radius: 999px; text-transform: uppercase; white-space: nowrap;
-  }
-  .adm-status.pend { background: #ffe8cc; color: #b35a00; }
-  .adm-status.pag  { background: #d3f9d8; color: #1f7a3f; }
-  .adm-status.can  { background: #e9ecef; color: #495057; }
-
-  .adm-empty { text-align: center; color: #adb5bd; padding: 2rem 1rem; }
-  .adm-empty i { font-size: 2.2rem; display: block; margin-bottom: .5rem; }
-</style>
 {% endblock %}
 
 {% block scripts %}
@@ -245,6 +219,7 @@
   const TODAY = "{{ today }}";
   const URL_DATA = "{{ url_for('main.adicionales_data') }}";
   const ALCANCE_TOTAL = {{ 'true' if alcance.total else 'false' }};
+  const esc = AD17.escapar;
 
   // El servidor manda costo = null cuando el usuario no puede verlo
   const conCosto = (a) => a.costo !== null && a.costo !== undefined;
@@ -267,6 +242,7 @@
   const grid = document.getElementById('calendarGrid');
   const monthLabel = document.getElementById('monthLabel');
   const listaMes = document.getElementById('listaMes');
+  const buscarDetalle = document.getElementById('buscarDetalle');
   const dayModal = new bootstrap.Modal(document.getElementById('dayModal'));
   const [ty, tm] = TODAY.split('-').map(Number);
 
@@ -274,6 +250,7 @@
 
   const claseEstatus = (e) => e === 'PAGADO' ? 'pag' : (e === 'CANCELADO' ? 'can' : 'pend');
   const textoEstatus = (e) => e === 'PAGADO' ? 'Pagado' : (e === 'CANCELADO' ? 'Cancelado' : 'Por pagar');
+  const badgeEstatus = (e) => `<span class="badge ${e === 'PAGADO' ? 'bg-success' : (e === 'CANCELADO' ? 'bg-secondary' : 'bg-warning')}">${textoEstatus(e)}</span>`;
 
   function estatusDelDia(items) {
     const vivos = items.filter(a => a.estatus !== 'CANCELADO');
@@ -291,6 +268,7 @@
     const [y, m, d] = f.split('-');
     return `${Number(d)} ${MESES_CORTO[Number(m) - 1]} ${y}`;
   }
+  const textoFps = (a) => (a.proyectos || []).map(p => `FP ${p.fp}${p.porcentaje < 100 ? ' (' + num(p.porcentaje) + '%)' : ''}`).join(' · ');
 
   function agrupar() {
     porDia = {};
@@ -352,41 +330,88 @@
       `${estado.registros.length} registro${estado.registros.length === 1 ? '' : 's'}`;
   }
 
+  // Tarjeta para el detalle de un día (modal)
   function tarjetaRegistro(a, conFecha) {
-    const cls = claseEstatus(a.estatus);
-    const fps = (a.proyectos || []).map(p => `FP ${p.fp}${p.porcentaje < 100 ? ' (' + num(p.porcentaje) + '%)' : ''}`).join(' · ');
+    const fps = textoFps(a);
     const detalle = conCosto(a)
       ? `${num(a.cantidad)} × ${money.format(a.costo_unit)}`
       : `${num(a.cantidad)} adicional${a.cantidad === 1 ? '' : 'es'}`;
     return `<div class="adm-reg">
       <div class="adm-reg-top">
         <div>
-          <div class="adm-reg-name">${a.empleado}</div>
+          <div class="adm-reg-name">${esc(a.empleado)}</div>
           <div class="adm-reg-meta">
-            ${conFecha ? fechaCorta(a.fecha) + ' · ' : ''}${a.area} · ${a.tipo} · ${detalle}
+            ${conFecha ? fechaCorta(a.fecha) + ' · ' : ''}${esc(a.area)} · ${esc(a.tipo)} · ${detalle}
           </div>
         </div>
         <div class="text-end">
           ${conCosto(a) ? `<div class="adm-reg-cost">${money.format(a.costo)}</div>` : ''}
-          <span class="adm-status ${cls}">${textoEstatus(a.estatus)}</span>
+          ${badgeEstatus(a.estatus)}
         </div>
       </div>
-      ${a.nota ? `<div class="adm-reg-note">${a.nota}</div>` : ''}
+      ${a.nota ? `<div class="adm-reg-note">${esc(a.nota)}</div>` : ''}
       <div class="adm-reg-meta mt-1">
-        ${fps ? fps + ' · ' : ''}Pago: ${fechaCorta(a.fecha_pago)}
+        ${fps ? esc(fps) + ' · ' : ''}Pago: ${fechaCorta(a.fecha_pago)}
       </div>
     </div>`;
   }
 
+  // Detalle del mes: tabla con buscador propio (las filas las arma este script)
   function renderLista() {
     if (!estado.registros.length) {
-      listaMes.innerHTML = `<div class="adm-empty">
-          <i class="bi bi-calendar2-x"></i>No hay adicionales en este mes con los filtros seleccionados.
+      listaMes.innerHTML = `<div class="empty">
+          <div class="empty-icon"><i class="bi bi-calendar2-x"></i></div>
+          <h6>Sin adicionales</h6>
+          <p>No hay adicionales en este mes con los filtros seleccionados.</p>
         </div>`;
       return;
     }
-    listaMes.innerHTML = estado.registros.map(a => tarjetaRegistro(a, true)).join('');
+    const terminos = AD17.normalizar(buscarDetalle.value.trim()).split(/\s+/).filter(Boolean);
+    const filas = estado.registros.filter(a => {
+      if (!terminos.length) return true;
+      const t = AD17.normalizar(`${a.empleado} ${a.area} ${a.tipo} ${a.nota} ${textoFps(a)} ${textoEstatus(a.estatus)} ${fechaCorta(a.fecha)}`);
+      return terminos.every(w => t.includes(w));
+    });
+    if (terminos.length) {
+      document.getElementById('conteoRegistros').textContent = `${filas.length} de ${estado.registros.length}`;
+    }
+    if (!filas.length) {
+      listaMes.innerHTML = `<div class="empty">
+          <div class="empty-icon"><i class="bi bi-search"></i></div>
+          <h6>Nada coincide</h6>
+          <p>Ningún registro del mes coincide con “${esc(buscarDetalle.value.trim())}”.</p>
+        </div>`;
+      return;
+    }
+    const verCosto = ALCANCE_TOTAL || estado.registros.some(conCosto);
+    // Celular: lista compacta con la misma tarjeta del detalle del día
+    const movil = `<div class="adm-mlista d-sm-none">${filas.map(a => tarjetaRegistro(a, true)).join('')}</div>`;
+    listaMes.innerHTML = movil + `<div class="table-responsive d-none d-sm-block"><table class="table table-hover align-middle">
+      <thead><tr>
+        <th>Fecha</th><th>Persona</th><th>Tipo</th><th class="text-end">Cantidad</th>
+        ${verCosto ? '<th class="text-end">Costo</th>' : ''}<th>Estatus</th><th>Proyectos</th><th>Pago</th>
+      </tr></thead>
+      <tbody>${filas.map(a => {
+        return `<tr>
+          <td class="text-nowrap small">${fechaCorta(a.fecha)}</td>
+          <td>
+            <div class="fw-semibold">${esc(a.empleado)}</div>
+            <div class="small text-muted">${esc(a.area)}</div>
+            ${a.nota ? `<div class="nota text-truncate" title="${esc(a.nota)}">${esc(a.nota)}</div>` : ''}
+          </td>
+          <td class="small">${esc(a.tipo)}</td>
+          <td class="text-end text-nowrap">
+            <span class="fw-semibold">${num(a.cantidad)}</span>
+            ${conCosto(a) ? `<div class="small text-muted">× ${money.format(a.costo_unit)}</div>` : ''}
+          </td>
+          ${verCosto ? `<td class="text-end text-nowrap fw-semibold">${conCosto(a) ? money.format(a.costo) : '<span class="text-muted fw-normal">—</span>'}</td>` : ''}
+          <td>${badgeEstatus(a.estatus)}</td>
+          <td class="small text-muted">${(a.proyectos || []).length ? a.proyectos.map(p => `<div class="text-nowrap">FP ${esc(p.fp)}${p.porcentaje < 100 ? ' · ' + num(p.porcentaje) + '%' : ''}</div>`).join('') : '—'}</td>
+          <td class="small text-nowrap">${fechaCorta(a.fecha_pago)}</td>
+        </tr>`;
+      }).join('')}</tbody></table></div>`;
   }
+  buscarDetalle.addEventListener('input', () => { renderResumen(); renderLista(); });
 
   function abrirDia(fecha) {
     const items = porDia[fecha] || [];
@@ -406,13 +431,16 @@
   }
 
   // ── Carga de datos ─────────────────────────────────────────────────────
+  const cargando = document.getElementById('cargandoMes');
   async function cargar() {
     const params = new URLSearchParams({ year: estado.year, month: estado.month });
     if (estado.rh_id) params.set('rh_id', estado.rh_id);
     if (estado.area) params.set('area', estado.area);
     if (estado.estatus) params.set('estatus', estado.estatus);
+    actualizarLimpiar();
 
     grid.style.opacity = .4;
+    cargando.classList.remove('d-none');
     try {
       const resp = await fetch(`${URL_DATA}?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
       if (!resp.ok) throw new Error('respuesta ' + resp.status);
@@ -421,10 +449,15 @@
       history.replaceState(null, '', `?${params.toString()}`);
       render();
     } catch (e) {
-      listaMes.innerHTML = `<div class="adm-empty"><i class="bi bi-wifi-off"></i>
-        No fue posible cargar los adicionales. Intenta de nuevo.</div>`;
+      listaMes.innerHTML = `<div class="empty">
+          <div class="empty-icon"><i class="bi bi-wifi-off"></i></div>
+          <h6>No se pudo cargar</h6>
+          <p>No fue posible cargar los adicionales. Intenta de nuevo.</p>
+        </div>`;
+      AD17.toast('No fue posible cargar los adicionales.', 'danger');
     } finally {
       grid.style.opacity = 1;
+      cargando.classList.add('d-none');
     }
   }
 
@@ -444,17 +477,32 @@
 
   // El filtro de área no existe para los jefes de área (su alcance ya está fijo)
   const filtroArea = document.getElementById('filtroArea');
-  document.getElementById('filtroEmpleado').addEventListener('change', (e) => { estado.rh_id = e.target.value; cargar(); });
+  const filtroEmpleado = document.getElementById('filtroEmpleado');
+  const limpiar = document.getElementById('limpiarFiltros');
+  const conSelect2 = !!(window.jQuery && $.fn.select2);
+  function actualizarLimpiar() {
+    limpiar.classList.toggle('d-none', !estado.rh_id && !estado.area && !estado.estatus);
+  }
+
+  // Empleado: con buscador (select2) cuando está disponible
+  if (conSelect2) {
+    $(filtroEmpleado).select2({ theme: 'bootstrap4', width: '280px', placeholder: 'Todos los empleados', allowClear: true })
+      .on('change', () => { estado.rh_id = filtroEmpleado.value; cargar(); });
+  } else {
+    filtroEmpleado.addEventListener('change', (e) => { estado.rh_id = e.target.value; cargar(); });
+  }
   document.getElementById('filtroEstatus').addEventListener('change', (e) => { estado.estatus = e.target.value; cargar(); });
   if (filtroArea) filtroArea.addEventListener('change', (e) => { estado.area = e.target.value; cargar(); });
 
-  document.getElementById('limpiarFiltros').addEventListener('click', () => {
+  limpiar.addEventListener('click', () => {
     estado.rh_id = estado.area = estado.estatus = '';
-    document.getElementById('filtroEmpleado').value = '';
+    filtroEmpleado.value = '';
+    if (conSelect2) $(filtroEmpleado).trigger('change.select2');
     document.getElementById('filtroEstatus').value = '';
     if (filtroArea) filtroArea.value = '';
     cargar();
   });
+  actualizarLimpiar();
 
   grid.addEventListener('click', (e) => {
     const celda = e.target.closest('.adm-day.has-data');

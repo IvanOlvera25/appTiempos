@@ -1,0 +1,87 @@
+{# Fragmento que devuelve /worker_analysis para el Análisis individual del dashboard.
+   Recibe: employee, total_time (h), time_by_project y time_by_activity [(nombre, h)]. #}
+{% set proyectos = time_by_project | sort(attribute='1', reverse=True) %}
+{% set actividades = time_by_activity | sort(attribute='1', reverse=True) %}
+{% set max_p = (proyectos | map(attribute='1') | max) if proyectos else 0 %}
+{% set max_a = (actividades | map(attribute='1') | max) if actividades else 0 %}
+
+<div class="d-flex align-items-center gap-3 mb-3">
+  <span class="avatar avatar-lg avatar-brand">{{ iniciales(employee.nompropio) }}</span>
+  <div>
+    <div class="fw-semibold fs-6">{{ employee.nompropio }}</div>
+    <div class="small text-muted">
+      {{ employee.departamento if employee.departamento and employee.departamento != 'N/A' else 'Sin área' }}
+      {% if employee.puesto %} · {{ employee.puesto }}{% endif %}
+    </div>
+  </div>
+  {% if current_user.has_admin_privileges %}
+  <a class="btn btn-sm btn-outline-secondary ms-auto" href="{{ url_for('main.manage_employees', employee_id=employee.id) }}">
+    <i class="bi bi-box-arrow-up-right"></i> Ver ficha completa
+  </a>
+  {% endif %}
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-sm-4">
+    <div class="stat"><div class="stat-label"><i class="bi bi-clock"></i>Horas registradas</div>
+      <div class="stat-value">{{ '{:,.1f}'.format(total_time) }}<small>h</small></div>
+      <div class="stat-foot">Todo el historial, registros cerrados</div></div>
+  </div>
+  <div class="col-sm-4">
+    <div class="stat"><div class="stat-label"><i class="bi bi-kanban"></i>Proyectos</div>
+      <div class="stat-value">{{ proyectos | length }}</div>
+      <div class="stat-foot">{% if proyectos %}Principal: {{ proyectos[0][0] }}{% else %}—{% endif %}</div></div>
+  </div>
+  <div class="col-sm-4">
+    <div class="stat"><div class="stat-label"><i class="bi bi-list-check"></i>Actividades distintas</div>
+      <div class="stat-value">{{ actividades | length }}</div>
+      <div class="stat-foot">{% if actividades %}Principal: {{ actividades[0][0] }}{% else %}—{% endif %}</div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-kanban"></i>Horas por proyecto</div>
+      {% if proyectos %}
+      <div class="table-responsive" style="max-height: 360px;">
+        <table class="table table-sm align-middle">
+          <thead class="sticky-top"><tr><th>Proyecto</th><th class="text-end">Horas</th></tr></thead>
+          <tbody>
+            {% for nombre, horas in proyectos %}
+            <tr>
+              <td class="text-truncate" style="max-width: 260px;" title="{{ nombre }}">{{ nombre }}</td>
+              <td><div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width: {{ (horas / max_p * 100) if max_p else 0 }}%"></div></div><span class="v">{{ '{:,.1f}'.format(horas) }}</span></div></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty"><div class="empty-icon"><i class="bi bi-kanban"></i></div><p>Sin horas registradas en proyectos.</p></div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-list-check"></i>Horas por actividad</div>
+      {% if actividades %}
+      <div class="table-responsive" style="max-height: 360px;">
+        <table class="table table-sm align-middle">
+          <thead class="sticky-top"><tr><th>Actividad</th><th class="text-end">Horas</th></tr></thead>
+          <tbody>
+            {% for nombre, horas in actividades %}
+            <tr>
+              <td class="text-truncate" style="max-width: 260px;" title="{{ nombre }}">{{ nombre }}</td>
+              <td><div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width: {{ (horas / max_a * 100) if max_a else 0 }}%; background: #1baf7a;"></div></div><span class="v">{{ '{:,.1f}'.format(horas) }}</span></div></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty"><div class="empty-icon"><i class="bi bi-list-check"></i></div><p>Sin actividades registradas.</p></div>
+      {% endif %}
+    </div>
+  </div>
+</div>

@@ -1,385 +1,470 @@
 {% extends "layout.html" %}
-{% block title %}Gestión de Empleados y Análisis - Sistema de Gestión Operativa{% endblock %}
+{% block title %}Empleados{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<div class="container-fluid py-4">
-  <!-- Header -->
-  <div class="row mb-4">
-    <div class="col-12">
-      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <div>
-          <h2 class="mb-1 fw-bold">
-            <i class="bi bi-people-fill text-primary me-2"></i>Análisis de Empleados
-          </h2>
-          <p class="text-muted mb-0">Analiza el rendimiento y actividad individual de cada empleado</p>
+<style>
+  /* Lista de personas: en escritorio es una columna fija con su propio scroll */
+  .emp-list { position: relative; }
+  @media (min-width: 1200px) {
+    .emp-side { position: sticky; top: calc(var(--ad-top-h) + 1rem); }
+    .emp-list { max-height: calc(100vh - var(--ad-top-h) - 280px); min-height: 320px; overflow-y: auto; }
+  }
+  /* Tableta y celular: la lista fluye con la página y el buscador se queda arriba al bajar */
+  @media (max-width: 1199.98px) {
+    .emp-buscador { position: sticky; top: var(--ad-top-h); z-index: 5; background: var(--ad-surface); }
+    #empPersonal { scroll-margin-top: calc(var(--ad-top-h) + .75rem); }
+  }
+  @media (min-width: 768px) and (max-width: 1199.98px) {
+    .emp-buscador { flex-direction: row !important; }
+    .emp-buscador .search-field { flex: 1 1 auto; }
+    .emp-buscador .emp-area { flex: 0 0 240px; width: 240px; }
+    /* Dos columnas de personas para aprovechar el ancho */
+    .emp-list { overflow: hidden; }
+    #employeeList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 -1px -1px 0; }
+    #employeeList > .employee-item { border-right: 1px solid var(--bs-list-group-border-color); border-bottom-width: var(--bs-list-group-border-width); }
+    #employeeList > .empty { grid-column: 1 / -1; }
+  }
+  .employee-item { display: flex; align-items: center; gap: .7rem; border-left: 2px solid transparent; }
+  .employee-item.active { border-left-color: var(--ad-brand); }
+  .employee-item.hidden { display: none !important; }
+  .employee-item .n { font-weight: 600; font-size: .84rem; color: var(--ad-text); line-height: 1.3; }
+  .employee-item .s { font-size: .74rem; color: var(--ad-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .employee-item .h { font-size: .76rem; font-weight: 600; color: var(--ad-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .employee-item .r { font-size: .7rem; color: var(--ad-text-3); white-space: nowrap; }
+  .emp-desglose .table-responsive { max-height: 420px; overflow-y: auto; }
+  .emp-desglose thead th { position: sticky; top: 0; z-index: 1; }
+  /* Nombres largos del desglose: dos renglones en lugar de empujar el ancho */
+  .emp-desglose td.text-truncate { white-space: normal; }
+  /* Historial: la fecha puede partirse en dos renglones si falta espacio */
+  .emp-hist .emp-fecha { white-space: normal; min-width: 88px; }
+  .emp-hitem { display: flex; align-items: flex-start; gap: .75rem; }
+  .emp-hitem .t { font-weight: 600; font-size: .86rem; color: var(--ad-text); overflow-wrap: anywhere; }
+  .emp-hitem .s { font-size: .76rem; color: var(--ad-text-3); }
+</style>
+
+{% set period = request.args.get('period', 'all') %}
+{% set f_day = request.args.get('filter_day', '') %}
+{% set f_week = request.args.get('filter_week', '') %}
+{% set f_month = request.args.get('filter_month', '') %}
+{% set meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'] %}
+{% if period == 'day' and f_day|length == 10 %}
+  {% set periodo_txt = f_day[8:10] ~ '/' ~ f_day[5:7] ~ '/' ~ f_day[:4] %}
+{% elif period == 'week' and '-W' in f_week %}
+  {% set periodo_txt = 'Semana ' ~ f_week.split('-W')[1] ~ ' de ' ~ f_week.split('-W')[0] %}
+{% elif period == 'month' and f_month|length == 7 %}
+  {% set periodo_txt = (meses[f_month[5:7]|int - 1] or '')|capitalize ~ ' ' ~ f_month[:4] %}
+{% else %}
+  {% set periodo_txt = 'Todo el historial' %}
+{% endif %}
+{% set con_periodo = periodo_txt != 'Todo el historial' %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-people"></i> Operación</div>
+    <h1>Empleados</h1>
+    <p>Horas, proyectos y actividades de cada persona. Elige a alguien de la lista para ver su detalle.</p>
+  </div>
+  <div class="actions">
+    {% if current_user.has_admin_privileges %}
+    <a href="{{ url_for('main.adicionales_admin') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-calendar2-plus"></i> Adicionales
+    </a>
+    {% endif %}
+    {# El personal se da de alta en el sistema de RH; este boton trae esos cambios. #}
+    {% if current_user.is_admin %}
+    <form method="post" action="{{ url_for('main.sync_employees_rh') }}" class="d-inline"
+          onsubmit="return confirm('Se dan de alta las personas nuevas de RH y se actualizan nombre, área, puesto y estado de las que ya existen. ¿Continuar?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+      <button type="submit" class="btn btn-outline-secondary"
+              title="Las altas y cambios de personal se hacen en el sistema de RH (AD17_RH); este botón los trae a la app.">
+        <i class="bi bi-arrow-repeat"></i> Sincronizar con RH
+      </button>
+    </form>
+    {% elif current_user.has_admin_privileges %}
+    <span class="btn btn-outline-secondary disabled" tabindex="-1"
+          title="Las altas y cambios de personal se hacen en el sistema de RH (AD17_RH).">
+      <i class="bi bi-info-circle"></i> Personal administrado en RH
+    </span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Lista de personas (en celular va después del detalle de la persona elegida) -->
+  <div class="col-xl-4 col-xxl-3 {{ 'order-2 order-xl-1' if selected_employee }}" id="empPersonal">
+    <div class="card emp-side">
+      <div class="card-header">
+        <i class="bi bi-person-lines-fill"></i>Personal
+        <span class="badge bg-secondary ms-auto"><span id="visibleCount">{{ employees|length }}</span> de {{ employees|length }}</span>
+      </div>
+      <div class="p-2 border-bottom d-flex flex-column gap-2 emp-buscador">
+        <div class="search-field">
+          <i class="bi bi-search"></i>
+          <input type="search" id="employeeSearch" class="form-control form-control-sm" placeholder="Nombre, área o número…"
+                 autocomplete="off" aria-label="Buscar empleado">
         </div>
-        <div class="d-flex gap-2 flex-wrap">
-          {% if current_user.has_admin_privileges %}
-          <a href="{{ url_for('main.adicionales_admin') }}" class="btn btn-outline-primary btn-lg">
-            <i class="bi bi-calendar2-plus me-2"></i>Adicionales
+        <select id="areaFiltro" class="form-select form-select-sm emp-area" aria-label="Filtrar por área">
+          <option value="">Todas las áreas</option>
+          {% for d in employees|map(attribute='departamento')|reject('none')|unique|sort %}
+          <option value="{{ d|lower }}">{{ d }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="emp-list" id="employeeListBox">
+        <div class="list-group list-group-flush" id="employeeList">
+          {% for emp in employees %}
+          <a href="{{ url_for('main.manage_employees', employee_id=emp.id) }}"
+             class="list-group-item list-group-item-action employee-item {{ 'active' if selected_employee and selected_employee.id == emp.id }}"
+             data-name="{{ emp.nompropio|lower }}" data-dept="{{ emp.departamento|lower }}" data-num="{{ emp.n_empleado or '' }}">
+            <span class="avatar avatar-sm {{ 'avatar-brand' if emp.has_activity }}">{{ iniciales(emp.nompropio) }}</span>
+            <span class="flex-grow-1" style="min-width: 0;">
+              <span class="n d-block">{{ emp.nompropio }}{% if not emp.active %} <span class="badge bg-secondary ms-1">Inactivo</span>{% endif %}</span>
+              <span class="d-flex align-items-baseline gap-2">
+                <span class="s me-auto">{{ emp.departamento or 'Sin área' }}</span>
+                {% if emp.has_activity %}
+                <span class="h">{{ "{:,.1f}".format(emp.total_hours) }} h</span>
+                <span class="r">· {{ "{:,}".format(emp.record_count) }} reg.</span>
+                {% else %}
+                <span class="r">Sin actividad</span>
+                {% endif %}
+              </span>
+            </span>
           </a>
-          {% endif %}
-          {# El personal se da de alta en el sistema de RH; este boton trae esos cambios. #}
-          {% if current_user.is_admin %}
-          <form method="post" action="{{ url_for('main.sync_employees_rh') }}" class="d-inline"
-                onsubmit="return confirm('Se dan de alta las personas nuevas de RH y se actualizan nombre, área, puesto y estado de las que ya existen. ¿Continuar?');">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <button type="submit" class="btn btn-outline-secondary btn-lg"
-                    title="Las altas y cambios de personal se hacen en el sistema de RH (AD17_RH); este botón los trae a la app.">
-              <i class="bi bi-arrow-repeat me-2"></i>Sincronizar con RH
-            </button>
-          </form>
-          {% elif current_user.has_admin_privileges %}
-          <span class="btn btn-outline-secondary btn-lg disabled" tabindex="-1"
-                title="Las altas y cambios de personal se hacen en el sistema de RH (AD17_RH).">
-            <i class="bi bi-info-circle me-2"></i>Personal administrado en RH
-          </span>
-          {% endif %}
+          {% else %}
+          <div class="empty">
+            <div class="empty-icon"><i class="bi bi-people"></i></div>
+            <h6>No hay empleados registrados</h6>
+            <p>Sincroniza con RH para traer al personal.</p>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="empty d-none" id="sinCoincidencias">
+          <div class="empty-icon"><i class="bi bi-search"></i></div>
+          <h6>Nadie coincide</h6>
+          <p>Prueba con otro nombre o quita el filtro de área.</p>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="row">
-    <!-- Panel Izquierdo: Lista de Empleados -->
-    <div class="col-lg-4 mb-4">
-      <div class="card shadow-sm h-100">
-        <div class="card-header bg-gradient-primary text-white py-3">
-          <h5 class="mb-2"><i class="bi bi-search me-2"></i>Buscar Empleado</h5>
-          <div class="input-group">
-            <span class="input-group-text bg-white border-0"><i class="bi bi-search"></i></span>
-            <input type="text" id="employeeSearch" class="form-control border-0" placeholder="Escribe para filtrar..."
-              autocomplete="off">
+  <!-- Detalle -->
+  <div class="col-xl-8 col-xxl-9 {{ 'order-1 order-xl-2' if selected_employee }}">
+    {% if selected_employee %}
+    <div class="card mb-3">
+      <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+        <span class="avatar avatar-lg avatar-brand">{{ iniciales(selected_employee.nompropio) }}</span>
+        <div class="me-auto" style="min-width: 0;">
+          <h2 class="h5 fw-semibold mb-1">
+            {{ selected_employee.nompropio }}
+            {% if not selected_employee.active %}<span class="badge bg-secondary ms-1">Inactivo</span>{% endif %}
+          </h2>
+          <div class="small text-muted d-flex flex-wrap gap-3">
+            <span><i class="bi bi-diagram-3 me-1"></i>{{ selected_employee.departamento }}</span>
+            <span><i class="bi bi-person-badge me-1"></i>{{ selected_employee.puesto or 'Sin puesto asignado' }}</span>
+            {% if selected_employee.n_empleado %}<span><i class="bi bi-hash"></i>{{ selected_employee.n_empleado }}</span>{% endif %}
           </div>
         </div>
-        <div class="card-body p-0" style="max-height: 600px; overflow-y: auto;">
-          <div class="list-group list-group-flush" id="employeeList">
-            {% for emp in employees %}
-            <a href="{{ url_for('main.manage_employees', employee_id=emp.id) }}"
-              class="list-group-item list-group-item-action employee-item py-3 {{ 'active' if selected_employee and selected_employee.id == emp.id }}"
-              data-name="{{ emp.nompropio|lower }}" data-dept="{{ emp.departamento|lower }}">
-              <div class="d-flex justify-content-between align-items-start">
-                <div class="flex-grow-1">
-                  <h6 class="mb-1 fw-semibold">
-                    {{ emp.nompropio }}
-                    {% if not emp.active %}
-                    <span class="badge bg-secondary ms-1">Inactivo</span>
-                    {% endif %}
-                  </h6>
-                  <small class="text-muted">
-                    <i class="bi bi-building me-1"></i>{{ emp.departamento }}
-                  </small>
-                </div>
-                <div class="text-end">
-                  {% if emp.has_activity %}
-                  <span class="badge bg-success rounded-pill mb-1">{{ emp.record_count }} registros</span>
-                  <br><small class="text-success"><i class="bi bi-clock me-1"></i>{{ emp.total_hours }}h</small>
-                  {% else %}
-                  <span class="badge bg-secondary rounded-pill">Sin actividad</span>
-                  {% endif %}
-                </div>
-              </div>
-            </a>
-            {% else %}
-            <div class="text-center py-5 text-muted">
-              <i class="bi bi-people" style="font-size: 3rem;"></i>
-              <p class="mt-2">No hay empleados registrados</p>
-            </div>
-            {% endfor %}
-          </div>
+        {% if current_user.has_admin_privileges %}
+        <span class="badge bg-light"><i class="bi bi-shield-lock"></i>Datos de AD17_RH</span>
+        {% endif %}
+        <a href="#empPersonal" class="btn btn-sm btn-outline-secondary d-xl-none ms-auto"><i class="bi bi-people"></i> Cambiar de persona</a>
+      </div>
+    </div>
+
+    <!-- Periodo -->
+    <form id="periodForm" method="get" class="filter-bar">
+      <input type="hidden" name="employee_id" value="{{ selected_employee.id }}">
+      <div class="segmented" id="periodoRapido" role="group" aria-label="Periodo rápido">
+        <a href="{{ url_for('main.manage_employees', employee_id=selected_employee.id) }}" data-rapido="all" class="{{ 'active' if not con_periodo }}">Todo</a>
+        <a href="{{ url_for('main.manage_employees', employee_id=selected_employee.id) }}" data-rapido="day">Hoy</a>
+        <a href="{{ url_for('main.manage_employees', employee_id=selected_employee.id) }}" data-rapido="week">Esta semana</a>
+        {# Sin atajo "Este mes": con period=month la ruta falla (en routes.py, map() quedó sombreado por la vista /map). #}
+      </div>
+      <span class="vr d-none d-md-block mx-1"></span>
+      <select name="period" id="periodSelect" class="form-select form-select-sm" aria-label="Periodo" style="min-width: 150px;">
+        <option value="all" {% if period=='all' %}selected{% endif %}>Todo el historial</option>
+        <option value="day" {% if period=='day' %}selected{% endif %}>Día</option>
+        <option value="week" {% if period=='week' %}selected{% endif %}>Semana</option>
+        <option value="month" {% if period=='month' %}selected{% endif %}>Mes</option>
+      </select>
+      <div id="dayInput" style="display: none;">
+        <input type="date" name="filter_day" class="form-control form-control-sm" aria-label="Fecha"
+               value="{{ request.args.get('filter_day', '') }}">
+      </div>
+      <div id="weekInput" style="display: none;">
+        <input type="week" name="filter_week" class="form-control form-control-sm" aria-label="Semana"
+               value="{{ request.args.get('filter_week', '') }}">
+      </div>
+      <div id="monthInput" style="display: none;">
+        <input type="month" name="filter_month" class="form-control form-control-sm" aria-label="Mes"
+               value="{{ request.args.get('filter_month', '') }}">
+      </div>
+      <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i> Filtrar</button>
+      {% if con_periodo %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.manage_employees', employee_id=selected_employee.id) }}">
+        <i class="bi bi-x-lg"></i> Limpiar
+      </a>
+      {% endif %}
+    </form>
+
+    <!-- Indicadores -->
+    <div class="row g-3 mb-3">
+      <div class="col-6 col-xl-3">
+        <div class="stat">
+          <span class="stat-icon brand"><i class="bi bi-clock-history"></i></span>
+          <div class="stat-label">Horas registradas</div>
+          <div class="stat-value">{{ "{:,.1f}".format(metrics.total) }}<small>h</small></div>
+          <div class="stat-foot">{{ periodo_txt }} · registros cerrados</div>
         </div>
-        <div class="card-footer bg-light">
-          <small class="text-muted">
-            <i class="bi bi-info-circle me-1"></i>
-            Mostrando <span id="visibleCount">{{ employees|length }}</span> de {{ employees|length }} empleados
-          </small>
+      </div>
+      <div class="col-6 col-xl-3">
+        <div class="stat">
+          <span class="stat-icon"><i class="bi bi-kanban"></i></span>
+          <div class="stat-label">Proyectos</div>
+          <div class="stat-value">{{ "{:,}".format(metrics.projects|length) }}</div>
+          <div class="stat-foot">con horas en el periodo</div>
+        </div>
+      </div>
+      <div class="col-6 col-xl-3">
+        <div class="stat">
+          <span class="stat-icon"><i class="bi bi-list-check"></i></span>
+          <div class="stat-label">Actividades</div>
+          <div class="stat-value">{{ metrics.activities|length }}</div>
+          <div class="stat-foot">distintas en el periodo</div>
+        </div>
+      </div>
+      <div class="col-6 col-xl-3">
+        <div class="stat">
+          <span class="stat-icon"><i class="bi bi-journal-text"></i></span>
+          <div class="stat-label">Registros</div>
+          <div class="stat-value">{{ "{:,}".format(time_records.total if time_records else 0) }}</div>
+          <div class="stat-foot">incluye los que siguen en curso</div>
         </div>
       </div>
     </div>
 
-    <!-- Panel Derecho: Análisis del Empleado -->
-    <div class="col-lg-8">
-      {% if selected_employee %}
-      <!-- Header del Empleado -->
-      <div class="card shadow-sm mb-4 border-0 bg-gradient-info text-white">
-        <div class="card-body py-4">
-          <div class="row align-items-center">
-            <div class="col-md-8">
-              <div class="d-flex align-items-center">
-                <div class="avatar-circle bg-white text-primary me-3">
-                  {{ selected_employee.nombre[0]|upper }}{{ selected_employee.apellido_paterno[0]|upper if
-                  selected_employee.apellido_paterno else '' }}
-                </div>
-                <div>
-                  <h3 class="mb-1 fw-bold">
-                    {{ selected_employee.nompropio }}
-                    {% if not selected_employee.active %}
-                    <span class="badge bg-secondary ms-2" style="font-size: 0.9rem;">Inactivo</span>
-                    {% endif %}
-                  </h3>
-                  <p class="mb-0 opacity-75">
-                    <i class="bi bi-building me-1"></i>{{ selected_employee.departamento }}
-                    <span class="mx-2">|</span>
-                    <i class="bi bi-person-badge me-1"></i>{{ selected_employee.puesto or 'Sin puesto asignado' }}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-4 text-md-end mt-3 mt-md-0">
-              {% if current_user.has_admin_privileges %}
-              <div class="d-flex gap-2 justify-content-md-end">
-                <span class="badge bg-light text-dark">
-                  <i class="bi bi-shield-lock me-1"></i>Datos de AD17_RH
-                </span>
-              </div>
-              {% endif %}
-            </div>
+    <!-- Gráficas -->
+    <div class="row g-3 mb-3">
+      <div class="col-xl-6">
+        <div class="card chart-card h-100">
+          <div class="card-header"><i class="bi bi-kanban"></i>Proyectos con más horas
+            <span class="chart-sub ms-auto" title="Haz clic en una barra para buscar ese proyecto en el desglose">top 10 · clic para detalle</span>
           </div>
+          <div class="card-body"><div class="chart-box"><canvas id="projectChart" role="img" aria-label="Horas por proyecto"></canvas></div></div>
         </div>
       </div>
-
-      <!-- Stats Cards -->
-      <div class="row mb-4">
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="card stat-card border-0 shadow-sm h-100">
-            <div class="card-body text-center py-4">
-              <div class="stat-icon bg-primary-soft text-primary mb-3">
-                <i class="bi bi-clock-history"></i>
-              </div>
-              <h2 class="fw-bold mb-1">{{ metrics.total }}</h2>
-              <p class="text-muted mb-0">Horas Totales</p>
-            </div>
+      <div class="col-xl-6">
+        <div class="card chart-card h-100">
+          <div class="card-header"><i class="bi bi-list-check"></i>Actividades con más horas
+            <span class="chart-sub ms-auto">top 10</span>
           </div>
-        </div>
-        <div class="col-md-4 mb-3 mb-md-0">
-          <div class="card stat-card border-0 shadow-sm h-100">
-            <div class="card-body text-center py-4">
-              <div class="stat-icon bg-success-soft text-success mb-3">
-                <i class="bi bi-folder2"></i>
-              </div>
-              <h2 class="fw-bold mb-1">{{ metrics.projects|length }}</h2>
-              <p class="text-muted mb-0">Proyectos</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card stat-card border-0 shadow-sm h-100">
-            <div class="card-body text-center py-4">
-              <div class="stat-icon bg-warning-soft text-warning mb-3">
-                <i class="bi bi-activity"></i>
-              </div>
-              <h2 class="fw-bold mb-1">{{ metrics.activities|length }}</h2>
-              <p class="text-muted mb-0">Actividades</p>
-            </div>
-          </div>
+          <div class="card-body"><div class="chart-box"><canvas id="activityChart" role="img" aria-label="Horas por actividad"></canvas></div></div>
         </div>
       </div>
+    </div>
 
-      <!-- Filtros de Periodo -->
-      <div class="card shadow-sm mb-4">
-        <div class="card-body py-3">
-          <form id="periodForm" method="get" class="row g-3 align-items-end">
-            <input type="hidden" name="employee_id" value="{{ selected_employee.id }}">
-
-            <div class="col-md-3">
-              <label for="periodSelect" class="form-label fw-semibold small">Periodo</label>
-              {% set period = request.args.get('period', 'all') %}
-              <select name="period" id="periodSelect" class="form-select">
-                <option value="all" {% if period=='all' %}selected{% endif %}>Todo el historial</option>
-                <option value="day" {% if period=='day' %}selected{% endif %}>Día</option>
-                <option value="week" {% if period=='week' %}selected{% endif %}>Semana</option>
-                <option value="month" {% if period=='month' %}selected{% endif %}>Mes</option>
-              </select>
-            </div>
-
-            <div class="col-md-3" id="dayInput" style="display: none;">
-              <label class="form-label fw-semibold small">Fecha</label>
-              <input type="date" name="filter_day" class="form-control"
-                value="{{ request.args.get('filter_day', '') }}">
-            </div>
-
-            <div class="col-md-3" id="weekInput" style="display: none;">
-              <label class="form-label fw-semibold small">Semana</label>
-              <input type="week" name="filter_week" class="form-control"
-                value="{{ request.args.get('filter_week', '') }}">
-            </div>
-
-            <div class="col-md-3" id="monthInput" style="display: none;">
-              <label class="form-label fw-semibold small">Mes</label>
-              <input type="month" name="filter_month" class="form-control"
-                value="{{ request.args.get('filter_month', '') }}">
-            </div>
-
-            <div class="col-md-3">
-              <button type="submit" class="btn btn-primary w-100">
-                <i class="bi bi-funnel me-1"></i>Filtrar
-              </button>
-            </div>
-            <div class="col-md-3">
-              <a class="btn btn-outline-secondary w-100"
-                href="{{ url_for('main.manage_employees', employee_id=selected_employee.id) }}">
-                <i class="bi bi-arrow-counterclockwise me-1"></i>Limpiar
-              </a>
-            </div>
-          </form>
+    <!-- Desglose completo (los datos de las gráficas, sin recortar) -->
+    {% if metrics.projects or metrics.activities %}
+    {% set total_h = metrics.total if metrics.total else 0 %}
+    <div class="card mb-3 emp-desglose">
+      <div class="card-header">
+        <i class="bi bi-table"></i>Desglose de horas
+        <div class="segmented ms-auto" id="desgloseTabs" role="group" aria-label="Desglose">
+          <button type="button" class="active" data-ver="desgloseProyectos">Proyectos · {{ metrics.projects|length }}</button>
+          <button type="button" data-ver="desgloseActividades">Actividades · {{ metrics.activities|length }}</button>
         </div>
       </div>
-
-      <!-- Gráficos -->
-      <div class="row mb-4">
-        <!-- Gráfico de Proyectos -->
-        <div class="col-md-6 mb-4 mb-md-0">
-          <div class="card shadow-sm h-100">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-              <h6 class="mb-0 fw-semibold">
-                <i class="bi bi-bar-chart-fill text-primary me-2"></i>Horas por Proyecto
-              </h6>
-            </div>
-            <div class="card-body">
-              {% if metrics.projects %}
-              <canvas id="projectChart" height="200"></canvas>
-              {% else %}
-              <div class="text-center py-5 text-muted">
-                <i class="bi bi-bar-chart" style="font-size: 2.5rem;"></i>
-                <p class="mt-2 mb-0">Sin datos para este periodo</p>
-              </div>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-
-        <!-- Gráfico de Actividades -->
-        <div class="col-md-6">
-          <div class="card shadow-sm h-100">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-              <h6 class="mb-0 fw-semibold">
-                <i class="bi bi-pie-chart-fill text-success me-2"></i>Horas por Actividad
-              </h6>
-            </div>
-            <div class="card-body">
-              {% if metrics.activities %}
-              <canvas id="activityChart" height="200"></canvas>
-              {% else %}
-              <div class="text-center py-5 text-muted">
-                <i class="bi bi-pie-chart" style="font-size: 2.5rem;"></i>
-                <p class="mt-2 mb-0">Sin datos para este periodo</p>
-              </div>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Historial de Registros -->
-      <div class="card shadow-sm">
-        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-          <h6 class="mb-0 fw-semibold">
-            <i class="bi bi-clock-history text-info me-2"></i>Historial de Registros
-          </h6>
-          <span class="badge bg-info">{{ time_records.total if time_records else 0 }} registros</span>
-        </div>
-        <div class="card-body p-0">
-          {% if time_records and time_records.items %}
-          <div class="table-responsive">
-            <table class="table table-hover mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th class="ps-4">Proyecto</th>
-                  <th>Actividad</th>
-                  <th>Inicio</th>
-                  <th>Fin</th>
-                  <th>Duración</th>
-                  <th class="text-end pe-4">Ubicación</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% set dtfmt = '%d/%m/%Y %H:%M' %}
-                {% for record in time_records.items %}
-                <tr>
-                  <td class="ps-4">
-                    <span class="fw-medium">{{ record.project.name if record.project else '—' }}</span>
-                  </td>
-                  <td>{{ record.actividad or 'Sin especificar' }}</td>
-                  <td>
-                    {{ record.start_time_mx.strftime(dtfmt) if record.start_time_mx else
-                    (record.start_time.strftime(dtfmt) if record.start_time) }}
-                  </td>
-                  <td>
-                    {% if record.end_time %}
-                    {{ record.end_time_mx.strftime(dtfmt) if record.end_time_mx else record.end_time.strftime(dtfmt) }}
-                    {% else %}
-                    <span class="badge bg-warning text-dark">
-                      <i class="bi bi-circle-fill me-1 pulse"></i>En proceso
-                    </span>
-                    {% endif %}
-                  </td>
-                  <td>
-                    {% if record.end_time %}
-                    {% set duration = (record.end_time - record.start_time).total_seconds() / 3600 %}
-                    <span class="badge bg-light text-dark">{{ "%.2f"|format(duration) }} h</span>
-                    {% else %}
-                    <span class="text-muted">—</span>
-                    {% endif %}
-                  </td>
-                  <td class="text-end pe-4">
-                    {% if record.latitude and record.longitude %}
-                    <button type="button" class="btn btn-sm btn-outline-primary js-map-btn"
-                      data-lat="{{ record.latitude }}"
-                      data-lng="{{ record.longitude }}"
-                      data-title="{{ selected_employee.nompropio }}"
-                      data-subtitle="{{ record.project.name if record.project else '' }}">
-                      <i class="bi bi-geo-alt me-1"></i>Mapa
-                    </button>
-                    {% else %}
-                    <span class="text-muted">Sin ubicación</span>
-                    {% endif %}
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          {% else %}
-          <div class="text-center py-5 text-muted">
-            <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
-            <p class="mt-3 mb-0">No hay registros para este periodo</p>
-          </div>
-          {% endif %}
-        </div>
-        {% if time_records and time_records.pages > 1 %}
-        <div class="card-footer bg-white">
-          <nav aria-label="Paginación de registros del empleado">
-            <ul class="pagination justify-content-end mb-0">
-              {% set period = request.args.get('period', 'all') %}
-              {% for page_num in time_records.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-                {% if page_num %}
-                <li class="page-item {{ 'active' if page_num == time_records.page }}">
-                  <a class="page-link" href="{{ url_for('main.manage_employees', employee_id=selected_employee.id, period=period, filter_day=request.args.get('filter_day', ''), filter_week=request.args.get('filter_week', ''), filter_month=request.args.get('filter_month', ''), records_page=page_num) }}">{{ page_num }}</a>
-                </li>
-                {% else %}
-                <li class="page-item disabled"><span class="page-link">…</span></li>
-                {% endif %}
+      <div id="desgloseProyectos">
+        {% if metrics.projects %}
+        {% set maxp = metrics.projects.values()|max %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle" data-buscable="Buscar proyecto…">
+            <thead><tr><th data-titulo>Proyecto</th><th style="width: 45%;">Horas</th><th class="text-end">% del total</th></tr></thead>
+            <tbody>
+              {% for nombre, h in metrics.projects|dictsort(false, 'value', true) %}
+              <tr>
+                <td class="text-truncate" style="max-width: 360px;" title="{{ nombre }}">{{ nombre }}</td>
+                <td data-valor="{{ h }}">
+                  <div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width: {{ '%.1f'|format((h / maxp * 100) if maxp else 0) }}%"></div></div><span class="v">{{ '%.1f'|format(h) }} h</span></div>
+                </td>
+                <td class="text-end text-muted small" data-valor="{{ h }}">{{ '%.1f'|format((h / total_h * 100) if total_h else 0) }}%</td>
+              </tr>
               {% endfor %}
-            </ul>
-          </nav>
+            </tbody>
+          </table>
         </div>
+        {% else %}
+        <div class="empty"><div class="empty-icon"><i class="bi bi-kanban"></i></div><p>Sin horas por proyecto en este periodo.</p></div>
         {% endif %}
       </div>
+      <div id="desgloseActividades" class="d-none">
+        {% if metrics.activities %}
+        {% set maxa = metrics.activities.values()|max %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle" data-buscable="Buscar actividad…">
+            <thead><tr><th data-titulo>Actividad</th><th style="width: 45%;">Horas</th><th class="text-end">% del total</th></tr></thead>
+            <tbody>
+              {% for nombre, h in metrics.activities|dictsort(false, 'value', true) %}
+              <tr>
+                <td class="text-truncate" style="max-width: 360px;" title="{{ nombre }}">{{ nombre }}</td>
+                <td data-valor="{{ h }}">
+                  <div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width: {{ '%.1f'|format((h / maxa * 100) if maxa else 0) }}%; background: #1baf7a;"></div></div><span class="v">{{ '%.1f'|format(h) }} h</span></div>
+                </td>
+                <td class="text-end text-muted small" data-valor="{{ h }}">{{ '%.1f'|format((h / total_h * 100) if total_h else 0) }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty"><div class="empty-icon"><i class="bi bi-list-check"></i></div><p>Sin horas por actividad en este periodo.</p></div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
 
-      {% else %}
-      <!-- Estado vacío -->
-      <div class="card shadow-sm border-0">
-        <div class="card-body text-center py-5">
-          <div class="empty-state">
-            <i class="bi bi-person-lines-fill text-muted" style="font-size: 5rem;"></i>
-            <h4 class="mt-4 mb-2">Selecciona un empleado</h4>
-            <p class="text-muted mb-0">Elige un empleado de la lista para ver su análisis detallado de actividad</p>
+    <!-- Historial de registros -->
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-clock-history"></i>Historial de registros
+        <span class="badge bg-secondary">{{ "{:,}".format(time_records.total if time_records else 0) }}</span>
+        {% if time_records and time_records.pages > 1 %}
+        <span class="small text-muted fw-normal ms-auto">Página {{ time_records.page }} de {{ time_records.pages }} · 25 por página</span>
+        {% endif %}
+      </div>
+      {% if time_records and time_records.items %}
+      <div class="table-responsive d-none d-sm-block">
+        <table class="table table-hover align-middle emp-hist">
+          <thead>
+            <tr>
+              <th>Proyecto</th>
+              <th>Actividad</th>
+              <th>Inicio</th>
+              <th>Fin</th>
+              <th class="text-end">Duración</th>
+              <th class="text-end">Mapa</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set dtfmt = '%d/%m/%Y %H:%M' %}
+            {% for record in time_records.items %}
+            <tr>
+              <td style="max-width: 280px;">
+                <div class="fw-semibold text-truncate" title="{{ record.project.name if record.project else '' }}">{{ record.project.name if record.project else '—' }}</div>
+                {% if record.project and record.project.folio is not none %}<div class="small text-muted">FP {{ record.project.folio }}</div>{% endif %}
+              </td>
+              <td class="small text-muted" style="min-width: 150px; max-width: 240px;">{{ record.actividad or 'Sin especificar' }}</td>
+              <td class="small emp-fecha">
+                {{ record.start_time_mx.strftime(dtfmt) if record.start_time_mx else
+                (record.start_time.strftime(dtfmt) if record.start_time) }}
+              </td>
+              <td class="small emp-fecha">
+                {% if record.end_time %}
+                {{ record.end_time_mx.strftime(dtfmt) if record.end_time_mx else record.end_time.strftime(dtfmt) }}
+                {% else %}
+                <span class="badge bg-success"><span class="dot"></span>En curso</span>
+                {% endif %}
+              </td>
+              <td class="text-end text-nowrap">
+                {% if record.end_time %}
+                {% set s = (record.end_time - record.start_time).total_seconds() %}
+                <span class="small fw-semibold" title="{{ '%.2f'|format(s / 3600) }} h">{{ (s // 3600)|int }}h {{ ((s % 3600) // 60)|int }}m</span>
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                {% if record.latitude and record.longitude %}
+                <button type="button" class="btn btn-sm btn-outline-secondary btn-icon js-map-btn" title="Ver en el mapa" aria-label="Ver en el mapa"
+                  data-lat="{{ record.latitude }}"
+                  data-lng="{{ record.longitude }}"
+                  data-title="{{ selected_employee.nompropio }}"
+                  data-subtitle="{{ record.project.name if record.project else '' }}">
+                  <i class="bi bi-geo-alt"></i>
+                </button>
+                {% else %}
+                <span class="text-muted" title="El registro no guardó ubicación">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Celular: lista compacta con los mismos datos -->
+      <div class="list-group list-group-flush d-sm-none">
+        {% for record in time_records.items %}
+        <div class="list-group-item emp-hitem">
+          <div class="flex-grow-1" style="min-width: 0;">
+            <div class="t">{{ record.project.name if record.project else '—' }}</div>
+            <div class="s">{% if record.project and record.project.folio is not none %}FP {{ record.project.folio }} · {% endif %}{{ record.actividad or 'Sin especificar' }}</div>
+            <div class="s mt-1">
+              <i class="bi bi-clock me-1"></i>{{ record.start_time_mx.strftime(dtfmt) if record.start_time_mx else (record.start_time.strftime(dtfmt) if record.start_time) }}
+              {% if record.end_time %} – {{ (record.end_time_mx or record.end_time).strftime('%H:%M') }}{% endif %}
+            </div>
+          </div>
+          <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
+            {% if record.end_time %}
+            {% set s = (record.end_time - record.start_time).total_seconds() %}
+            <span class="small fw-semibold text-nowrap">{{ (s // 3600)|int }}h {{ ((s % 3600) // 60)|int }}m</span>
+            {% else %}
+            <span class="badge bg-success"><span class="dot"></span>En curso</span>
+            {% endif %}
+            {% if record.latitude and record.longitude %}
+            <button type="button" class="btn btn-sm btn-outline-secondary btn-icon js-map-btn" title="Ver en el mapa" aria-label="Ver en el mapa"
+              data-lat="{{ record.latitude }}"
+              data-lng="{{ record.longitude }}"
+              data-title="{{ selected_employee.nompropio }}"
+              data-subtitle="{{ record.project.name if record.project else '' }}">
+              <i class="bi bi-geo-alt"></i>
+            </button>
+            {% endif %}
           </div>
         </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">
+        <div class="empty-icon"><i class="bi bi-calendar-x"></i></div>
+        <h6>Sin registros</h6>
+        <p>No hay registros de {{ selected_employee.nombre }} en este periodo.</p>
+      </div>
+      {% endif %}
+      {% if time_records and time_records.pages > 1 %}
+      <div class="card-footer d-flex flex-wrap align-items-center gap-2">
+        <span class="small text-muted">{{ "{:,}".format(time_records.total) }} registros</span>
+        <nav aria-label="Paginación de registros del empleado" class="ms-auto">
+          <ul class="pagination pagination-sm flex-wrap mb-0">
+            {% for page_num in time_records.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+              {% if page_num %}
+              <li class="page-item {{ 'active' if page_num == time_records.page }}">
+                <a class="page-link" href="{{ url_for('main.manage_employees', employee_id=selected_employee.id, period=period, filter_day=request.args.get('filter_day', ''), filter_week=request.args.get('filter_week', ''), filter_month=request.args.get('filter_month', ''), records_page=page_num) }}">{{ page_num }}</a>
+              </li>
+              {% else %}
+              <li class="page-item disabled"><span class="page-link">…</span></li>
+              {% endif %}
+            {% endfor %}
+          </ul>
+        </nav>
       </div>
       {% endif %}
     </div>
+
+    {% else %}
+    <!-- Sin persona seleccionada (en tableta/celular la lista ya está arriba) -->
+    <div class="card d-none d-xl-block">
+      <div class="empty py-5">
+        <div class="empty-icon"><i class="bi bi-person-lines-fill"></i></div>
+        <h6>Elige a una persona</h6>
+        <p>Busca en la lista por nombre, área o número de empleado para ver sus horas, proyectos, actividades e historial.</p>
+      </div>
+    </div>
+    {% endif %}
   </div>
 </div>
 
@@ -394,264 +479,185 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
-        <div id="recordMap" style="height:420px;border-radius:8px;"></div>
+        <div id="recordMap" style="height: 420px; border-radius: var(--ad-radius);"></div>
       </div>
     </div>
   </div>
 </div>
+{% endblock %}
 
-<style>
-  /* Gradients */
-  .bg-gradient-primary {
-    background: linear-gradient(135deg, #FF8800 0%, #e07b00 100%);
-  }
-
-  .bg-gradient-info {
-    background: linear-gradient(135deg, #0dcaf0 0%, #0891b2 100%);
-  }
-
-  /* Avatar */
-  .avatar-circle {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.4rem;
-    font-weight: bold;
-  }
-
-  /* Stat Cards */
-  .stat-card {
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-
-  .stat-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
-  }
-
-  .stat-icon {
-    width: 50px;
-    height: 50px;
-    border-radius: 12px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-  }
-
-  .bg-primary-soft {
-    background-color: rgba(255, 136, 0, 0.15);
-  }
-
-  .bg-success-soft {
-    background-color: rgba(40, 167, 69, 0.15);
-  }
-
-  .bg-warning-soft {
-    background-color: rgba(255, 193, 7, 0.15);
-  }
-
-  /* Employee List */
-  .employee-item {
-    transition: all 0.15s;
-    border-left: 3px solid transparent;
-  }
-
-  .employee-item:hover {
-    background-color: #f8f9fa;
-    border-left-color: #FF8800;
-  }
-
-  .employee-item.active {
-    background-color: #fff3e6 !important;
-    border-left-color: #FF8800;
-  }
-
-  /* Pulse animation */
-  @keyframes pulse {
-
-    0%,
-    100% {
-      opacity: 1;
-    }
-
-    50% {
-      opacity: 0.4;
-    }
-  }
-
-  .pulse {
-    animation: pulse 1.5s infinite;
-  }
-
-  /* Hide employee */
-  .employee-item.hidden {
-    display: none !important;
-  }
-</style>
-
-<!-- Chart.js -->
+{% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  document.addEventListener('DOMContentLoaded', function () {
-    // ========== Buscador de Empleados ==========
-    const searchInput = document.getElementById('employeeSearch');
-    const employeeItems = document.querySelectorAll('.employee-item');
-    const visibleCount = document.getElementById('visibleCount');
+(function () {
+  'use strict';
 
-    if (searchInput) {
-      searchInput.addEventListener('input', function () {
-        const query = this.value.toLowerCase().trim();
-        let count = 0;
+  /* ───────────── Buscador de personas (nombre, área, número) ───────────── */
+  const searchInput = document.getElementById('employeeSearch');
+  const areaFiltro = document.getElementById('areaFiltro');
+  const employeeItems = Array.from(document.querySelectorAll('.employee-item'));
+  const visibleCount = document.getElementById('visibleCount');
+  const sinCoincidencias = document.getElementById('sinCoincidencias');
 
-        employeeItems.forEach(item => {
-          const name = item.dataset.name || '';
-          const dept = item.dataset.dept || '';
-          const matches = name.includes(query) || dept.includes(query);
+  function filtrarPersonas() {
+    const terminos = AD17.normalizar(searchInput.value.trim()).split(/\s+/).filter(Boolean);
+    const area = areaFiltro ? areaFiltro.value : '';
+    let count = 0;
+    employeeItems.forEach((item) => {
+      const texto = AD17.normalizar(`${item.dataset.name || ''} ${item.dataset.dept || ''} ${item.dataset.num || ''}`);
+      const ok = terminos.every((w) => texto.includes(w)) && (!area || item.dataset.dept === area);
+      item.classList.toggle('hidden', !ok);
+      if (ok) count++;
+    });
+    visibleCount.textContent = count;
+    if (sinCoincidencias) sinCoincidencias.classList.toggle('d-none', count > 0 || !employeeItems.length);
+  }
+  if (searchInput) {
+    searchInput.addEventListener('input', filtrarPersonas);
+    // Enter con un solo resultado abre a esa persona
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const visibles = employeeItems.filter((i) => !i.classList.contains('hidden'));
+      if (visibles.length === 1) { e.preventDefault(); window.location.href = visibles[0].href; }
+    });
+  }
+  if (areaFiltro) areaFiltro.addEventListener('change', filtrarPersonas);
 
-          if (matches) {
-            item.classList.remove('hidden');
-            count++;
-          } else {
-            item.classList.add('hidden');
+  // Deja a la vista a la persona seleccionada dentro de la lista
+  const caja = document.getElementById('employeeListBox');
+  const activo = document.querySelector('.employee-item.active');
+  if (caja && activo) caja.scrollTop = Math.max(0, activo.offsetTop - caja.clientHeight / 2 + activo.offsetHeight / 2);
+
+  /* ───────────── Campos del periodo ───────────── */
+  const periodSelect = document.getElementById('periodSelect');
+  if (periodSelect) {
+    function toggleInputs() {
+      const period = periodSelect.value;
+      document.getElementById('dayInput').style.display = period === 'day' ? 'block' : 'none';
+      document.getElementById('weekInput').style.display = period === 'week' ? 'block' : 'none';
+      document.getElementById('monthInput').style.display = period === 'month' ? 'block' : 'none';
+    }
+    toggleInputs();
+    periodSelect.addEventListener('change', toggleInputs);
+  }
+
+  /* Atajos de periodo: arman el mismo GET que el formulario */
+  const rapido = document.getElementById('periodoRapido');
+  if (rapido) {
+    const pad = (n) => String(n).padStart(2, '0');
+    const hoy = new Date();
+    const dia = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}-${pad(hoy.getDate())}`;
+    const mes = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}`;
+    const t = new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()));
+    const dow = t.getUTCDay() || 7;
+    t.setUTCDate(t.getUTCDate() + 4 - dow);
+    const semanaNum = Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+    const semana = `${t.getUTCFullYear()}-W${pad(semanaNum)}`;
+    const valores = { day: ['filter_day', dia], week: ['filter_week', semana], month: ['filter_month', mes] };
+    const actual = {
+      period: {{ request.args.get('period', 'all')|tojson }},
+      day: {{ request.args.get('filter_day', '')|tojson }},
+      week: {{ request.args.get('filter_week', '')|tojson }},
+      month: {{ request.args.get('filter_month', '')|tojson }},
+    };
+    rapido.querySelectorAll('a[data-rapido]').forEach((a) => {
+      const tipo = a.dataset.rapido;
+      if (!valores[tipo]) return;
+      const url = new URL(a.href, window.location.origin);
+      url.searchParams.set('period', tipo);
+      url.searchParams.set(valores[tipo][0], valores[tipo][1]);
+      a.href = url.pathname + url.search;
+      if (actual.period === tipo && actual[tipo] === valores[tipo][1]) {
+        rapido.querySelectorAll('a').forEach((x) => x.classList.remove('active'));
+        a.classList.add('active');
+      }
+    });
+  }
+
+  /* ───────────── Modal de mapa ───────────── */
+  let map;
+  let marker;
+  const modalEl = document.getElementById('recordMapModal');
+  const mapButtons = document.querySelectorAll('.js-map-btn');
+  if (modalEl && mapButtons.length) {
+    const modal = new bootstrap.Modal(modalEl);
+    mapButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const lat = parseFloat(btn.dataset.lat);
+        const lng = parseFloat(btn.dataset.lng);
+        document.getElementById('mapTitle').textContent = btn.dataset.title || 'Ubicación del registro';
+        document.getElementById('mapSubtitle').textContent = btn.dataset.subtitle || '';
+        modal.show();
+
+        setTimeout(() => {
+          if (!map) {
+            map = L.map('recordMap');
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              maxZoom: 19,
+              attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
           }
-        });
-
-        visibleCount.textContent = count;
+          map.setView([lat, lng], 16);
+          if (marker) marker.remove();
+          marker = L.marker([lat, lng]).addTo(map);
+          map.invalidateSize();
+        }, 250);
       });
-    }
-
-    // ========== Toggle Period Inputs ==========
-    const periodSelect = document.getElementById('periodSelect');
-    if (periodSelect) {
-      function toggleInputs() {
-        const period = periodSelect.value;
-        document.getElementById('dayInput').style.display = period === 'day' ? 'block' : 'none';
-        document.getElementById('weekInput').style.display = period === 'week' ? 'block' : 'none';
-        document.getElementById('monthInput').style.display = period === 'month' ? 'block' : 'none';
-      }
-      toggleInputs();
-      periodSelect.addEventListener('change', toggleInputs);
-    }
-
-    // ========== Modal de mapa ==========
-    let map;
-    let marker;
-    const modalEl = document.getElementById('recordMapModal');
-    const mapButtons = document.querySelectorAll('.js-map-btn');
-    if (modalEl && mapButtons.length) {
-      const modal = new bootstrap.Modal(modalEl);
-      mapButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-          const lat = parseFloat(btn.dataset.lat);
-          const lng = parseFloat(btn.dataset.lng);
-          document.getElementById('mapTitle').textContent = btn.dataset.title || 'Ubicación del registro';
-          document.getElementById('mapSubtitle').textContent = btn.dataset.subtitle || '';
-          modal.show();
-
-          setTimeout(() => {
-            if (!map) {
-              map = L.map('recordMap');
-              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap'
-              }).addTo(map);
-            }
-            map.setView([lat, lng], 16);
-            if (marker) marker.remove();
-            marker = L.marker([lat, lng]).addTo(map);
-            map.invalidateSize();
-          }, 250);
-        });
-      });
-    }
-
-    // ========== Gráficos con Chart.js ==========
-    const chartColors = [
-      'rgba(255, 136, 0, 0.8)',
-      'rgba(54, 162, 235, 0.8)',
-      'rgba(75, 192, 192, 0.8)',
-      'rgba(153, 102, 255, 0.8)',
-      'rgba(255, 99, 132, 0.8)',
-      'rgba(255, 206, 86, 0.8)',
-      'rgba(231, 233, 237, 0.8)'
-    ];
-
-    {% if metrics.projects %}
-    // Project Chart
-    const projectCtx = document.getElementById('projectChart');
-    if (projectCtx) {
-      new Chart(projectCtx, {
-        type: 'bar',
-        data: {
-          labels: [{% for proj, _ in metrics.projects.items() %}'{{ proj|truncate(20) }}',{% endfor %}],
-    datasets: [{
-      label: 'Horas',
-      data: [{% for _, h in metrics.projects.items() %}{{ h }}, {% endfor %}],
-    backgroundColor: chartColors,
-    borderRadius: 6,
-    barThickness: 30
-        }]
-      },
-    options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false }
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        grid: { color: 'rgba(0,0,0,0.05)' },
-        ticks: { callback: v => v + 'h' }
-      },
-      x: {
-        grid: { display: false }
-      }
-    }
+    });
   }
+
+  /* ───────────── Desglose (proyectos / actividades) ───────────── */
+  const tabs = document.getElementById('desgloseTabs');
+  function verDesglose(id) {
+    if (!tabs) return;
+    tabs.querySelectorAll('button').forEach((b) => {
+      const activo = b.dataset.ver === id;
+      b.classList.toggle('active', activo);
+      document.getElementById(b.dataset.ver).classList.toggle('d-none', !activo);
+    });
+  }
+  if (tabs) tabs.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => verDesglose(b.dataset.ver)));
+
+  /* ───────────── Gráficas ─────────────
+     Antes: todas las categorías (cientos de proyectos) en barras verticales y
+     una dona de ~30 rebanadas con 7 colores repetidos, etiquetas recortadas a
+     20 letras. Ahora: top 10 + "Otros", ordenado, y el detalle completo queda
+     en el desglose de abajo. */
+  {% if selected_employee %}
+  const C = window.AD17Charts;
+  const aNumeros = (o) => Object.fromEntries(Object.entries(o || {}).map(([k, v]) => [k, Number(v) || 0]));
+  const porProyecto = aNumeros({{ metrics.projects|tojson }});
+  const porActividad = aNumeros({{ metrics.activities|tojson }});
+  if (C) {
+    const p = C.top(porProyecto, 10, true);
+    C.barrasH('projectChart', p.labels, p.values, {
+      vacio: 'Sin horas cerradas en este periodo.',
+      onClick: (etq) => {
+        verDesglose('desgloseProyectos');
+        const campo = document.querySelector('#desgloseProyectos .table-tools input');
+        if (!campo) return;
+        campo.value = /^Otros \(/.test(etq) ? '' : etq;
+        campo.dispatchEvent(new Event('input'));
+        campo.closest('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      },
+    });
+    const a = C.top(porActividad, 10, true);
+    C.barrasH('activityChart', a.labels, a.values, { color: C.T.series[2], vacio: 'Sin horas cerradas en este periodo.' });
+    // En celular el eje de horas no cabe con cinco marcas: se quedan las que quepan, sin girarlas
+    ['projectChart', 'activityChart'].forEach((id) => {
+      const g = window.Chart && Chart.getChart(id);
+      if (!g) return;
+      Object.assign(g.options.scales.x.ticks, { maxRotation: 0, autoSkip: true, autoSkipPadding: 10 });
+      g.update('none');
+    });
+  } else {
+    document.querySelectorAll('#projectChart, #activityChart').forEach((c) => {
+      c.parentElement.innerHTML = '<div class="empty"><p>No se pudo cargar la librería de gráficas. El desglose de abajo tiene los mismos datos.</p></div>';
     });
   }
   {% endif %}
-
-  {% if metrics.activities %}
-  // Activity Chart
-  const activityCtx = document.getElementById('activityChart');
-  if (activityCtx) {
-    new Chart(activityCtx, {
-      type: 'doughnut',
-      data: {
-        labels: [{% for act, _ in metrics.activities.items() %}'{{ act|truncate(20) }}',{% endfor %}],
-  datasets: [{
-    data: [{% for _, h in metrics.activities.items() %}{{ h }}, {% endfor %}],
-    backgroundColor: chartColors,
-      borderWidth: 2,
-        borderColor: '#fff'
-        }]
-      },
-  options: {
-    responsive: true,
-      maintainAspectRatio: false,
-        plugins: {
-      legend: {
-        position: 'right',
-          labels: { boxWidth: 12, padding: 15 }
-      },
-      tooltip: {
-        callbacks: {
-          label: ctx => `${ctx.label}: ${ctx.raw}h`
-        }
-      }
-    },
-    cutout: '60%'
-  }
-    });
-  }
-  {% endif %}
-});
+})();
 </script>
 {% endblock %}

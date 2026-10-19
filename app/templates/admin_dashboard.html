@@ -1,2013 +1,664 @@
 {% extends "layout.html" %}
-{% block title %}Dashboard Ejecutivo - Sistema de Gestión Operativa{% endblock %}
+{% block title %}Dashboard{% endblock %}
+
 {% block content %}
 <style>
-  :root {
-    --primary-orange: #FF8800;
-    --secondary-orange: #FFA726;
-    --light-orange: #FFE0B2;
-    --dark-orange: #E65100;
-    --gray-100: #F8F9FA;
-    --gray-200: #E9ECEF;
-    --gray-300: #DEE2E6;
-    --gray-600: #6C757D;
-    --gray-800: #343A40;
-    --success: #28A745;
-    --info: #17A2B8;
-    --warning: #FFC107;
-    --danger: #DC3545;
-    --purple: #6F42C1;
-    --indigo: #6610F2;
-    --teal: #20C997;
-    --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    --shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-    --shadow-lg: 0 1rem 3rem rgba(0, 0, 0, 0.175);
-  }
-
-  body {
-    background-color: var(--gray-100);
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  }
-
-  .dashboard-header {
-    background: linear-gradient(135deg, var(--primary-orange) 0%, var(--dark-orange) 100%);
-    color: white;
-    padding: 2rem 0;
-    margin: -1.5rem -15px 2rem -15px;
-    border-radius: 0 0 1rem 1rem;
-    box-shadow: var(--shadow);
-  }
-
-  .metric-card {
-    background: white;
-    border: none;
-    border-radius: 1rem;
-    box-shadow: var(--shadow-sm);
-    transition: all 0.3s ease;
-    height: 100%;
-    overflow: hidden;
-  }
-
-  .metric-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow);
-  }
-
-  .metric-card .card-header {
-    background: linear-gradient(90deg, var(--primary-orange), var(--secondary-orange));
-    color: white;
-    border: none;
-    padding: 1rem 1.5rem;
-    font-weight: 600;
-    font-size: 0.95rem;
-    border-radius: 1rem 1rem 0 0;
-  }
-
-  .metric-card .card-body {
-    padding: 1.5rem;
-  }
-
-  .kpi-card {
-    border-radius: 1rem;
-    padding: 1.5rem;
-    text-align: center;
-    box-shadow: var(--shadow);
-    transition: transform 0.3s ease;
-    color: white;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .kpi-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%);
-    transform: translateX(-100%);
-    transition: transform 0.6s;
-  }
-
-  .kpi-card:hover::before {
-    transform: translateX(100%);
-  }
-
-  .kpi-card:hover {
-    transform: scale(1.05);
-  }
-
-  .kpi-number {
-    font-size: 2.5rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-    position: relative;
-    z-index: 1;
-  }
-
-  .kpi-label {
-    font-size: 0.9rem;
-    opacity: 0.9;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    position: relative;
-    z-index: 1;
-  }
-
-  .chart-container {
-    position: relative;
-    height: 400px;
-    width: 100%;
-  }
-
-  .chart-container-lg {
-    height: 500px;
-  }
-
-  .chart-container-xl {
-    height: 600px;
-  }
-
-  .filter-section {
-    background: white;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    margin-bottom: 1rem;
-    box-shadow: var(--shadow-sm);
-  }
-
-  .table-container {
-    background: white;
-    border-radius: 1rem;
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-  }
-
-  .table-container .table {
-    margin-bottom: 0;
-  }
-
-  .table-container .table thead th {
-    background: var(--light-orange);
-    border: none;
-    font-weight: 600;
-    color: var(--gray-800);
-    padding: 1rem;
-  }
-
-  .table-container .table tbody td {
-    padding: 0.75rem 1rem;
-    border-color: var(--gray-200);
-  }
-
-  .status-badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: 50px;
-    font-size: 0.75rem;
-    font-weight: 600;
-  }
-
-  .status-active {
-    background: var(--success);
-    color: white;
-  }
-
-  .status-completed {
-    background: var(--info);
-    color: white;
-  }
-
-  .section-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--gray-800);
-    margin-bottom: 1.5rem;
-    display: flex;
-    align-items: center;
-  }
-
-  .section-title::before {
-    content: '';
-    width: 4px;
-    height: 2rem;
-    background: var(--primary-orange);
-    margin-right: 1rem;
-    border-radius: 2px;
-  }
-
-  .worker-analysis-section {
-    background: white;
-    border-radius: 1rem;
-    padding: 2rem;
-    box-shadow: var(--shadow-sm);
-    margin-top: 2rem;
-  }
-
-  .custom-select {
-    border: 2px solid var(--gray-300);
-    border-radius: 0.5rem;
-    padding: 0.75rem;
-    transition: border-color 0.3s ease;
-  }
-
-  .custom-select:focus {
-    border-color: var(--primary-orange);
-    box-shadow: 0 0 0 0.2rem rgba(255, 136, 0, 0.25);
-  }
-
-  .btn-custom {
-    background: linear-gradient(45deg, var(--primary-orange), var(--secondary-orange));
-    border: none;
-    color: white;
-    padding: 0.75rem 2rem;
-    border-radius: 0.5rem;
-    font-weight: 600;
-    transition: all 0.3s ease;
-  }
-
-  .btn-custom:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow);
-    color: white;
-  }
-
-  .grid-2x2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
-  }
-
-  .grid-3x1 {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 1.5rem;
-  }
-
-  .grid-4x1 {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1.5rem;
-  }
-
-  @media (max-width: 768px) {
-    .grid-2x2,
-    .grid-3x1,
-    .grid-4x1 {
-      grid-template-columns: 1fr;
-    }
-
-    .chart-container,
-    .chart-container-lg,
-    .chart-container-xl {
-      height: 300px;
-    }
-  }
-
-  .loading-spinner {
-    display: none;
-    text-align: center;
-    padding: 2rem;
-  }
-
-  .fade-in {
-    animation: fadeIn 0.5s ease-in;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .refresh-indicator {
-    display: inline-block;
-    margin-left: 0.5rem;
-    opacity: 0.7;
-  }
-
-  .refresh-indicator.spinning {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-
-  .no-data-message {
-    text-align: center;
-    padding: 2rem;
-    color: var(--gray-600);
-    font-style: italic;
-  }
-
-  .progress-ring {
-    width: 60px;
-    height: 60px;
-    margin: 0 auto 1rem;
-  }
-
-  .progress-ring__circle {
-    stroke: var(--primary-orange);
-    stroke-linecap: round;
-    transition: stroke-dashoffset 0.35s;
-    transform: rotate(-90deg);
-    transform-origin: 50% 50%;
-  }
-
-  /* Estilos adicionales para el panel de registros activos */
-  .duration-badge {
-    font-family: 'Courier New', monospace;
-    font-size: 0.85rem;
-    font-weight: 600;
-  }
-
-  .duration-warning {
-    background-color: #FFC107 !important;
-    color: #000 !important;
-  }
-
-  .duration-danger {
-    background-color: #DC3545 !important;
-    color: #fff !important;
-  }
-
-  .employee-info {
-    line-height: 1.3;
-  }
-
-  .employee-name {
-    font-weight: 600;
-    color: var(--gray-800);
-  }
-
-  .employee-subtitle {
-    font-size: 0.85rem;
-    color: var(--gray-600);
-  }
-
-  .activity-text {
-    font-size: 0.9rem;
-    color: var(--gray-700);
-    line-height: 1.3;
-  }
-
-  thead.sticky-top {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-  }
-
-  .table-hover tbody tr:hover {
-    background-color: rgba(255, 136, 0, 0.05);
-  }
-
-  .alert-custom {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 9999;
-    min-width: 300px;
-    animation: slideInRight 0.3s ease-out;
-  }
-
-  @keyframes slideInRight {
-    from {
-      transform: translateX(100%);
-      opacity: 0;
-    }
-    to {
-      transform: translateX(0);
-      opacity: 1;
-    }
-  }
-
-  /* Estilos para el Gantt Chart */
-  .gantt-row {
-    height: 40px;
-    border-bottom: 1px solid #e0e0e0;
-    position: relative;
-    display: flex;
-    align-items: center;
-  }
-
-  .gantt-row:hover {
-    background-color: rgba(255, 136, 0, 0.05);
-  }
-
-.gantt-label {
-    width: 200px;
-    padding: 0 10px;
-    font-size: 13px;
-    font-weight: 500;
-    color: #333;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;
-    border-right: 2px solid #ddd;
-    position: sticky;
-    left: 0;
-    background-color: white;
-    z-index: 2;
-}
-
-  .gantt-timeline {
-    flex: 1;
-    position: relative;
-    height: 100%;
-  }
-
-  .gantt-bar {
-    position: absolute;
-    height: 28px;
-    top: 6px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  }
-
-  .gantt-bar:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    z-index: 10;
-  }
-
-  .gantt-bar.active {
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.7; }
-    100% { opacity: 1; }
-  }
-
-  .gantt-grid-line {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background-color: #f0f0f0;
-  }
-
-  .gantt-header {
-    display: flex;
-    height: 50px;
-    border-bottom: 2px solid #ddd;
-    background-color: #f8f9fa;
-  }
-
- .gantt-row:hover .gantt-label {
-    background-color: rgba(255, 136, 0, 0.05);
-}
-
-.gantt-header-label {
-    width: 200px;
-    padding: 10px;
-    font-weight: 600;
-    color: #555;
-    border-right: 2px solid #ddd;
-    position: sticky;
-    left: 0;
-    background-color: #f8f9fa;
-    z-index: 3;
-}
-
-  .gantt-header-timeline {
-    flex: 1;
-    display: flex;
-  }
-
-  .gantt-day-header {
-    flex: 1;
-    text-align: center;
-    padding: 10px 5px;
-    border-right: 1px solid #e0e0e0;
-    font-weight: 500;
-    color: #666;
-  }
-
-  .gantt-day-header.weekend {
-    background-color: #f5f5f5;
-  }
-
-  .gantt-day-header.today {
-    background-color: #fff3e0;
-    color: #e65100;
-    font-weight: 600;
-  }
+  /* ── Cronograma semanal ── */
+  .gantt-scroll { overflow-x: auto; position: relative; border-top: 1px solid var(--ad-border); }
+  .gantt-header { display: flex; position: sticky; top: 0; z-index: 4; background: var(--ad-surface-2); border-bottom: 1px solid var(--ad-border); }
+  .gantt-header-label, .gantt-label {
+    width: 220px; flex-shrink: 0; position: sticky; left: 0; z-index: 3;
+    border-right: 1px solid var(--ad-border); padding: 0 .9rem;
+  }
+  .gantt-header-label { background: var(--ad-surface-2); display: flex; align-items: center; font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ad-text-3); }
+  .gantt-header-timeline { display: flex; }
+  .gantt-day-header { flex-shrink: 0; border-right: 1px solid var(--ad-border); padding: .45rem 0 0; text-align: center; }
+  .gantt-day-header .d { font-size: .78rem; font-weight: 600; color: var(--ad-text); text-transform: capitalize; }
+  .gantt-day-header.weekend { background: #f2f4f7; }
+  .gantt-day-header.today { background: var(--ad-brand-soft); }
+  .gantt-day-header.today .d { color: var(--ad-brand-ink); }
+  .gantt-hours { display: flex; margin-top: .3rem; }
+  .gantt-hours span { flex: 1; font-size: .62rem; color: var(--ad-text-4); text-align: left; padding-left: 2px; border-left: 1px solid var(--ad-border); line-height: 1.6; }
+  .gantt-row { display: flex; height: 38px; border-bottom: 1px solid #f0f1f4; }
+  .gantt-row:hover, .gantt-row:hover .gantt-label { background: #fafbfc; }
+  .gantt-label { background: var(--ad-surface); display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+  .gantt-label .n { font-size: .8rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ad-text); }
+  .gantt-label .s { font-size: .7rem; color: var(--ad-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gantt-timeline { position: relative; flex-shrink: 0;
+    background-image: linear-gradient(to right, #f0f1f4 1px, transparent 1px);
+  }
+  .gantt-bar { position: absolute; top: 9px; height: 20px; border-radius: 4px; cursor: pointer; box-shadow: 0 0 0 1px rgba(255,255,255,.9); transition: filter .1s; min-width: 3px; }
+  .gantt-bar:hover { filter: brightness(1.08) saturate(1.1); z-index: 5; box-shadow: 0 0 0 2px #fff, 0 2px 6px rgba(16,24,40,.25); }
+  .gantt-bar.active { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.35) 0 4px, transparent 4px 8px); }
+  .gantt-bar.otra-area { outline: 2px dashed rgba(16,24,40,.55); outline-offset: -1px; }
+  #ganttTooltip { position: fixed; display: none; z-index: 1080; pointer-events: none; max-width: 300px;
+    background: #0c111d; color: #e4e7ec; border-radius: 8px; padding: .65rem .75rem; font-size: .76rem; line-height: 1.5; box-shadow: var(--ad-shadow-xl); }
+  #ganttTooltip strong { color: #fff; }
+  #ganttTooltip .tt-row { display: flex; gap: .4rem; }
+  #ganttTooltip .tt-row i { color: #85888e; }
+
+  .duration-ok { background: var(--ad-success-soft) !important; color: var(--ad-success-ink) !important; border-color: var(--ad-success-line) !important; }
+  .duration-warn { background: var(--ad-warning-soft) !important; color: var(--ad-warning-ink) !important; border-color: var(--ad-warning-line) !important; }
+  .duration-long { background: var(--ad-danger-soft) !important; color: var(--ad-danger-ink) !important; border-color: var(--ad-danger-line) !important; }
+  .kpi-skeleton { display: inline-block; width: 4.5rem; height: 1.6rem; border-radius: 6px; background: linear-gradient(90deg, #f2f4f7, #e4e7ec, #f2f4f7); background-size: 200% 100%; animation: sk 1.2s infinite; }
+  @keyframes sk { to { background-position: -200% 0; } }
+  .areas-live { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .areas-live .badge { font-weight: 500; }
+  #activeRecordsContainer { max-height: 440px; overflow: auto; }
+  #activeRecordsContainer table { min-width: 860px; }
+  .proj-filter { flex: 1 1 280px; max-width: 420px; min-width: 0; }
+  @media (max-width: 575.98px) { #buscarActivos { width: 100% !important; } .card-header .search-field { flex: 1 1 100%; } }
 </style>
 
-<div class="dashboard-header">
-  <div class="container-fluid">
-    <div class="row align-items-center">
-      <div class="col">
-        <h1 class="display-5 mb-0 fw-bold">Dashboard Ejecutivo</h1>
-        <p class="lead mb-0 opacity-90">
-          Análisis de productividad y gestión de proyectos
-          <span class="refresh-indicator" id="refreshIndicator">
-            <i class="fas fa-sync-alt"></i>
-          </span>
-        </p>
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><span class="dot live"></span> En vivo</div>
+    <h1>Dashboard de operación</h1>
+    <p>Quién está trabajando ahora, en qué y cuántas horas se han invertido.</p>
+  </div>
+  <div class="actions">
+    <div class="segmented" id="periodo" role="group" aria-label="Periodo">
+      <button type="button" data-dias="1">Hoy</button>
+      <button type="button" data-dias="7" class="active">7 días</button>
+      <button type="button" data-dias="30">30 días</button>
+      <button type="button" data-dias="90">90 días</button>
+    </div>
+  </div>
+</div>
+
+<!-- Filtros globales -->
+<div class="filter-bar">
+  <i class="bi bi-funnel text-muted ms-1"></i>
+  <select id="departmentFilter" class="form-select form-select-sm" aria-label="Área">
+    <option value="">Todas las áreas</option>
+    {% for dept in unique_departments %}<option value="{{ dept }}">{{ dept }}</option>{% endfor %}
+  </select>
+  <div class="proj-filter"><select id="projectFilter" class="form-select form-select-sm" aria-label="Proyecto">
+    <option value="">Todos los proyectos</option>
+    {% for project in all_projects %}
+    <option value="{{ project.id }}">{% if project.folio is not none %}FP {{ project.folio }} · {% endif %}{{ project.name }}{% if not project.active %} (inactivo){% endif %}</option>
+    {% endfor %}
+  </select></div>
+  <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="limpiarFiltros"><i class="bi bi-x-lg"></i> Limpiar</button>
+  <span class="ms-auto small text-muted d-none d-md-inline" id="rangoTexto"></span>
+  <button type="button" class="btn btn-sm btn-outline-secondary" id="refreshActiveRecords" title="Actualizar todo"><i class="bi bi-arrow-clockwise"></i> Actualizar</button>
+</div>
+
+<!-- Indicadores -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-4 col-xl">
+    <div class="stat">
+      <span class="stat-icon brand"><i class="bi bi-person-workspace"></i></span>
+      <div class="stat-label">Trabajando ahora</div>
+      <div class="stat-value" id="kpiAhora"><span class="kpi-skeleton"></span></div>
+      <div class="stat-foot"><span class="dot live"></span><span id="kpiAhoraPie">registros abiertos</span></div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-4 col-xl">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-sun"></i></span>
+      <div class="stat-label">Horas hoy</div>
+      <div class="stat-value" id="kpiHoy"><span class="kpi-skeleton"></span></div>
+      <div class="stat-foot">Incluye lo que sigue en curso</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-4 col-xl">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-clock-history"></i></span>
+      <div class="stat-label" id="kpiPeriodoTitulo">Horas · 7 días</div>
+      <div class="stat-value" id="kpiPeriodo"><span class="kpi-skeleton"></span></div>
+      <div class="stat-foot" id="kpiPeriodoPie">&nbsp;</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-4 col-xl">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-kanban"></i></span>
+      <div class="stat-label">Proyectos con actividad</div>
+      <div class="stat-value" id="kpiProyectos"><span class="kpi-skeleton"></span></div>
+      <div class="stat-foot" id="kpiProyectosPie">de {{ projects_count }} activos</div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-4 col-xl">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-stopwatch"></i></span>
+      <div class="stat-label">Duración promedio</div>
+      <div class="stat-value" id="kpiPromedio"><span class="kpi-skeleton"></span></div>
+      <div class="stat-foot" id="kpiPromedioPie">&nbsp;</div>
+    </div>
+  </div>
+</div>
+
+<!-- En curso -->
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="dot live me-1"></span>En curso ahora
+    <span class="badge bg-secondary" id="recordsCountBadge">0</span>
+    <div class="areas-live ms-2 d-none d-lg-flex" id="areasLive"></div>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <div class="search-field"><i class="bi bi-search"></i>
+        <input type="search" class="form-control form-control-sm" id="buscarActivos" placeholder="Buscar persona, FP, actividad…" style="width: 240px; max-width: 100%;">
       </div>
-      <div class="col-auto">
-        <div class="text-end">
-          <div class="h4 mb-0" id="currentTime"></div>
-          <small class="opacity-75">Tiempo real</small>
-        </div>
-      </div>
+      <span class="small text-muted d-none d-md-inline" id="activosActualizado"></span>
     </div>
   </div>
-</div>
-
-<div class="row mb-4">
-  <div class="col-md-3 mb-3">
-    <div class="kpi-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-      <div class="kpi-number">{{ projects_count }}</div>
-      <div class="kpi-label">Proyectos Activos</div>
-    </div>
+  <div id="activeRecordsLoading" class="p-4 text-center text-muted" style="display: none;">
+    <span class="spinner-border spinner-border-sm text-primary me-2"></span>Cargando registros activos…
   </div>
-  <div class="col-md-3 mb-3">
-    <div class="kpi-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-      <div class="kpi-number" id="totalActiveWorkers">{{ dashboard_data.active_workers.values() | sum }}</div>
-      <div class="kpi-label">Trabajadores Activos</div>
-    </div>
-  </div>
-  <div class="col-md-3 mb-3">
-    <div class="kpi-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-      <div class="kpi-number" id="totalHoursToday">0</div>
-      <div class="kpi-label">Horas Hoy</div>
-    </div>
-  </div>
-  <div class="col-md-3 mb-3">
-    <div class="kpi-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
-      <div class="kpi-number" id="totalHoursWeek">0</div>
-      <div class="kpi-label">Horas Esta Semana</div>
-    </div>
-  </div>
-</div>
-
-<div class="worker-analysis-section mb-5">
-  <h2 class="section-title">Registros Activos en Tiempo Real</h2>
-  <div class="row mb-4">
-    <div class="col-md-4">
-      <label class="form-label fw-semibold">Filtrar por Departamento</label>
-      <select id="departmentFilter" class="form-select custom-select">
-        <option value="">-- Todos los Departamentos --</option>
-        {% for dept in unique_departments %}
-          <option value="{{ dept }}">{{ dept }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-4">
-      <label class="form-label fw-semibold">Filtrar por Proyecto</label>
-      <select id="projectFilter" class="form-select custom-select">
-        <option value="">-- Todos los Proyectos --</option>
-        {% for project in all_projects %}
-          <option value="{{ project.id }}">{{ project.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-2 d-flex align-items-end">
-      <button type="button" class="btn btn-custom w-100" id="refreshActiveRecords">
-        <i class="fas fa-sync-alt me-2"></i>Actualizar
-      </button>
-    </div>
-    <div class="col-md-2 d-flex align-items-end">
-      <div class="text-center w-100">
-        <div class="h5 mb-0 text-primary" id="activeRecordsCount">0</div>
-        <small class="text-muted">Activos</small>
-      </div>
-    </div>
-  </div>
-
-  <div class="loading-spinner text-center" id="activeRecordsLoading" style="display: none;">
-    <div class="spinner-border text-primary" role="status">
-      <span class="visually-hidden">Cargando...</span>
-    </div>
-    <p class="mt-2 text-muted">Cargando registros activos...</p>
-  </div>
-
-  <div class="table-container" id="activeRecordsContainer" style="display: none;">
-    <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
-      <h5 class="mb-0">
-        <i class="fas fa-play-circle me-2 text-success"></i>
-        Registros Activos
-        <span class="badge bg-primary ms-2" id="recordsCountBadge">0</span>
-      </h5>
-    </div>
-    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
-      <table class="table table-hover mb-0">
-        <thead class="sticky-top">
-          <tr>
-            <th>Empleado</th>
-            <th>Departamento</th>
-            <th>Proyecto</th>
-            <th>Actividad</th>
-            <th>Inicio</th>
-            <th>Duración</th>
-          </tr>
-        </thead>
-        <tbody id="activeRecordsTableBody">
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="text-center py-5" id="noActiveRecords" style="display: none;">
-    <i class="fas fa-pause-circle fa-3x mb-3 opacity-50 text-muted"></i>
-    <h5 class="text-muted">No hay registros activos</h5>
-    <p class="text-muted">Todos los trabajadores han finalizado sus actividades</p>
-  </div>
-</div>
-
-<h2 class="section-title">Vista de Actividad Semanal</h2>
-<div class="metric-card mb-5">
-<div class="card-header d-flex justify-content-between align-items-center">
-    <span><i class="fas fa-calendar-week me-2"></i>Cronograma de Actividades</span>
-    <div class="d-flex gap-2 align-items-center">
-        <label for="ganttWeekSelector" class="form-label mb-0 me-2 fw-normal">Semana:</label>
-        <input type="week" id="ganttWeekSelector" class="form-control form-control-sm" style="width: 150px;">
-
-        <select id="ganttViewType" class="form-select form-select-sm w-auto">
-            <option value="employee">Por Empleado</option>
-            <option value="department">Por Departamento</option>
-        </select>
-
-        <!-- Filtro de departamento siempre visible -->
-        <select id="ganttDepartmentFilter" class="form-select form-select-sm w-auto">
-            <option value="">-- Todos los Departamentos --</option>
-            {% for dept in unique_departments %}
-                <option value="{{ dept }}">{{ dept }}</option>
-            {% endfor %}
-        </select>
-
-        <button class="btn btn-sm btn-outline-primary" onclick="loadGanttData()">
-            <i class="fas fa-sync-alt"></i>
-        </button>
-    </div>
-</div>
-  <div class="card-body">
-    <div id="ganttChartContainer" style="position: relative; width: 100%; overflow-x: auto;">
-      <div id="ganttChart" style="min-width: 1000px;"></div>
-    </div>
-    <div id="ganttLoading" class="text-center py-5" style="display: none;">
-      <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Cargando...</span>
-      </div>
-      <p class="mt-2 text-muted">Cargando datos de actividad semanal...</p>
-    </div>
-    <div id="ganttNoData" class="no-data-message" style="display: none;">
-      <i class="fas fa-calendar-times fa-3x mb-3 opacity-50"></i>
-      <p>No hay datos de actividad para mostrar en esta semana</p>
-    </div>
-  </div>
-</div>
-
-<div id="ganttTooltip" style="position: absolute; display: none; background: rgba(0, 0, 0, 0.9); color: white; padding: 10px; border-radius: 5px; font-size: 12px; pointer-events: none; z-index: 1000; max-width: 300px;">
-</div>
-
-<h2 class="section-title">Análisis de Productividad</h2>
-<div class="grid-2x2 mb-5">
-  <div class="metric-card">
-    <div class="card-header">
-      <i class="fas fa-users me-2"></i>Trabajadores Activos por Proyecto
-    </div>
-    <div class="card-body">
-      {% if dashboard_data.active_workers %}
-        <div class="chart-container">
-          <canvas id="activeWorkersChart"></canvas>
-        </div>
-      {% else %}
-        <div class="no-data-message">
-          <i class="fas fa-users fa-3x mb-3 opacity-50"></i>
-          <p>No hay trabajadores activos en este momento</p>
-        </div>
-      {% endif %}
-    </div>
-  </div>
-
-  <div class="metric-card">
-    <div class="card-header">
-      <i class="fas fa-clock me-2"></i>Tiempo Invertido por Proyecto
-    </div>
-    <div class="card-body">
-      {% if dashboard_data.time_invested %}
-        <div class="chart-container">
-          <canvas id="timeInvestedChart"></canvas>
-        </div>
-      {% else %}
-        <div class="no-data-message">
-          <i class="fas fa-clock fa-3x mb-3 opacity-50"></i>
-          <p>No hay datos de tiempo registrados aún</p>
-        </div>
-      {% endif %}
-    </div>
-  </div>
-</div>
-
-<h2 class="section-title">Análisis Avanzado</h2>
-<div class="grid-3x1 mb-5">
-  <div class="metric-card">
-    <div class="card-header">
-      <i class="fas fa-calendar-day me-2"></i>Productividad Diaria
-    </div>
-    <div class="card-body">
-      <div class="chart-container">
-        <canvas id="dailyProductivityChart"></canvas>
-      </div>
-    </div>
-  </div>
-
-  <div class="metric-card">
-    <div class="card-header">
-      <i class="fas fa-building me-2"></i>Distribución por Departamento
-    </div>
-    <div class="card-body">
-      <div class="chart-container">
-        <canvas id="departmentDistributionChart"></canvas>
-      </div>
-    </div>
-  </div>
-
-  <div class="metric-card">
-    <div class="card-header">
-      <i class="fas fa-chart-line me-2"></i>Tendencia Semanal
-    </div>
-    <div class="card-body">
-      <div class="chart-container">
-        <canvas id="weeklyTrendChart"></canvas>
-      </div>
-    </div>
-  </div>
-</div>
-
-<h2 class="section-title">Análisis por Departamento</h2>
-<div class="metric-card mb-5">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <span><i class="fas fa-sitemap me-2"></i>Distribución de Horas por Departamento</span>
-    <select id="projectSelector" class="form-select w-auto custom-select">
-      <option value="">-- Selecciona un Proyecto --</option>
-      {% for p in all_projects %}
-        <option value="{{ p.id }}">{{ p.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="card-body">
-    <div class="chart-container-lg">
-      <canvas id="deptInvestedChart"></canvas>
-    </div>
-    <div id="deptNoData" class="no-data-message" style="display: none;">
-      <i class="fas fa-chart-bar fa-3x mb-3 opacity-50"></i>
-      <p>Selecciona un proyecto para ver la distribución por departamento</p>
-    </div>
-  </div>
-</div>
-
-<h2 class="section-title">Análisis de Actividades</h2>
-<div class="metric-card mb-5">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <span><i class="fas fa-tasks me-2"></i>Tiempo Invertido por Actividad</span>
-    <select id="activityProjectSelector" class="form-select w-auto custom-select">
-      <option value="">-- Todos los Proyectos --</option>
-      {% for p in all_projects %}
-        <option value="{{ p.name }}">{{ p.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="card-body">
-    <div class="chart-container-xl">
-      <canvas id="activityChart"></canvas>
-    </div>
-    <div id="activityNoData" class="no-data-message" style="display: none;">
-      <i class="fas fa-tasks fa-3x mb-3 opacity-50"></i>
-      <p>No hay datos de actividades para mostrar</p>
-    </div>
-  </div>
-</div>
-
-<h2 class="section-title">Matriz de Eficiencia</h2>
-<div class="grid-2x2 mb-5">
-  <div class="metric-card">
-    <div class="card-header">
-      <i class="fas fa-stopwatch me-2"></i>Tiempo Promedio por Actividad
-    </div>
-    <div class="card-body">
-      <div class="chart-container">
-        <canvas id="avgTimePerActivityChart"></canvas>
-      </div>
-    </div>
-  </div>
-
-  <div class="metric-card">
-    <div class="card-header">
-      <i class="fas fa-tachometer-alt me-2"></i>Productividad por Empleado
-    </div>
-    <div class="card-body">
-      <div class="chart-container">
-        <canvas id="employeeProductivityChart"></canvas>
-      </div>
-    </div>
-  </div>
-</div>
-
-<h2 class="section-title">Actividad Reciente</h2>
-<div class="table-container mb-5">
-  <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
-    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Últimos 20 Registros</h5>
-    <button class="btn btn-sm btn-outline-primary" onclick="refreshTable()">
-      <i class="fas fa-sync-alt me-1"></i>Actualizar
-    </button>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-hover">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Empleado</th>
-          <th>Departamento</th>
-          <th>Proyecto</th>
-          <th>Actividad</th>
-          <th>Inicio</th>
-          <th>Duración</th>
-          <th>Estado</th>
-        </tr>
+  <div id="activeRecordsContainer" style="display: none;">
+    <table class="table table-hover align-middle" data-tarjetas>
+      <thead class="sticky-top">
+        <tr><th data-titulo>Persona</th><th>Área</th><th>Proyecto</th><th>Actividad</th><th>Inicio</th><th class="text-end">Duración</th></tr>
       </thead>
-      <tbody>
-        {% for record in records %}
-          <tr>
-            <td><span class="badge bg-secondary">#{{ record.id }}</span></td>
-            <td>
-              <div class="fw-semibold">{{ record.employee.nombre }} {{ record.employee.apellido_paterno }}</div>
-              <small class="text-muted">{{ record.employee.apellido_materno }}</small>
-            </td>
-            <td>
-              <span class="badge" style="background-color: var(--primary-orange);">
-                {{ record.departamento or 'N/A' }}
-              </span>
-            </td>
-            <td>{{ record.project.name }}</td>
-            <td>
-              <small class="text-muted">{{ record.actividad or 'Sin especificar' }}</small>
-            </td>
-            <td>
-              <span class="time" data-time="{{ record.start_time.strftime('%Y-%m-%dT%H:%M:%SZ') }}"></span>
-            </td>
-            <td>
-              {% if record.end_time %}
-                {% set duration_seconds = (record.end_time - record.start_time).total_seconds() %}
-                {% set hours = (duration_seconds // 3600) | int %}
-                {% set minutes = ((duration_seconds % 3600) // 60) | int %}
-                <span class="badge bg-info">{{ hours }}h {{ minutes }}m</span>
-              {% else %}
-                <span class="badge bg-warning">En progreso</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if record.end_time %}
-                <span class="status-badge status-completed">Completado</span>
-              {% else %}
-                <span class="status-badge status-active">
-                  <i class="fas fa-circle fa-xs me-1"></i>Activo
-                </span>
-              {% endif %}
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
+      <tbody id="activeRecordsTableBody"></tbody>
     </table>
   </div>
+  <div id="noActiveRecords" class="empty" style="display: none;">
+    <div class="empty-icon"><i class="bi bi-pause-circle"></i></div>
+    <h6>Nadie tiene un registro abierto</h6>
+    <p>Con los filtros actuales no hay trabajo en curso.</p>
+  </div>
+  <span id="activeRecordsCount" class="d-none">0</span>
 </div>
 
-<div class="worker-analysis-section">
-  <h2 class="section-title">Análisis Individual</h2>
-  <div class="row">
-    <div class="col-md-8">
-      <div class="row g-3">
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">Seleccionar Trabajador</label>
-          <select id="workerSelect" class="form-select custom-select">
-            <option value="">-- Buscar empleado --</option>
-            {% for emp in employees %}
-              <option value="{{ emp.id }}">{{ emp.nombre }} {{ emp.apellido_paterno }} {{ emp.apellido_materno }}</option>
+<!-- Tendencia y áreas -->
+<div class="row g-3 mb-3">
+  <div class="col-xl-8">
+    <div class="card chart-card h-100">
+      <div class="card-header">Horas por día <span class="chart-sub">· apiladas por área</span>
+        <div class="chart-legend ms-auto" id="leyendaDias"></div>
+      </div>
+      <div class="card-body"><div class="chart-box"><canvas id="dailyProductivityChart" role="img" aria-label="Horas por día, por área"></canvas></div></div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card chart-card h-100">
+      <div class="card-header">Horas por área <span class="chart-sub ms-auto">clic para filtrar</span></div>
+      <div class="card-body"><div class="chart-box"><canvas id="departmentDistributionChart" role="img" aria-label="Horas por área"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Rankings -->
+<div class="row g-3 mb-3">
+  <div class="col-xl-6">
+    <div class="card chart-card h-100">
+      <div class="card-header">Proyectos con más horas <span class="chart-sub ms-auto">clic para filtrar</span></div>
+      <div class="card-body"><div class="chart-box"><canvas id="timeInvestedChart" role="img" aria-label="Proyectos con más horas"></canvas></div></div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card chart-card h-100">
+      <div class="card-header">Actividades con más horas</div>
+      <div class="card-body"><div class="chart-box"><canvas id="activityChart" role="img" aria-label="Actividades con más horas"></canvas></div></div>
+    </div>
+  </div>
+</div>
+<div class="row g-3 mb-4">
+  <div class="col-xl-6">
+    <div class="card chart-card h-100">
+      <div class="card-header">Personas con más horas</div>
+      <div class="card-body"><div class="chart-box"><canvas id="employeeProductivityChart" role="img" aria-label="Personas con más horas"></canvas></div></div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card chart-card h-100">
+      <div class="card-header">Duración promedio por actividad <span class="chart-sub">· por registro, mín. 3 registros</span></div>
+      <div class="card-body"><div class="chart-box"><canvas id="avgTimePerActivityChart" role="img" aria-label="Duración promedio por actividad"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Cronograma semanal -->
+<div class="card mb-4">
+  <div class="card-header">
+    <i class="bi bi-calendar-week"></i>Cronograma semanal
+    <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
+      <input type="week" id="ganttWeekSelector" class="form-control form-control-sm" style="width: 160px;" aria-label="Semana">
+      <select id="ganttViewType" class="form-select form-select-sm w-auto" aria-label="Agrupar">
+        <option value="employee">Por persona</option>
+        <option value="department">Por área</option>
+      </select>
+      <select id="ganttDepartmentFilter" class="form-select form-select-sm w-auto" aria-label="Área del cronograma">
+        <option value="">Todas las áreas</option>
+        {% for dept in unique_departments %}<option value="{{ dept }}">{{ dept }}</option>{% endfor %}
+      </select>
+      <div class="segmented" id="ganttColor" aria-label="Color de las barras">
+        <button type="button" data-color="area" class="active">Color por área</button>
+        <button type="button" data-color="project">por proyecto</button>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary btn-icon" id="ganttRefresh" title="Actualizar cronograma"><i class="bi bi-arrow-clockwise"></i></button>
+    </div>
+  </div>
+  <div class="px-3 py-2 d-flex flex-wrap gap-3 align-items-center small text-muted border-bottom">
+    <div class="chart-legend" id="ganttLegend"></div>
+    <span class="ms-auto"><span class="d-inline-block align-middle me-1" style="width:18px;height:10px;border-radius:3px;outline:2px dashed rgba(16,24,40,.55);outline-offset:-1px;"></span>fuera de su área</span>
+    <span><span class="d-inline-block align-middle me-1" style="width:18px;height:10px;border-radius:3px;background:#98a2b3 repeating-linear-gradient(135deg, rgba(255,255,255,.45) 0 3px, transparent 3px 6px);"></span>en curso</span>
+  </div>
+  <div class="gantt-scroll" id="ganttChartContainer" style="max-height: 560px;">
+    <div id="ganttChart"></div>
+  </div>
+  <div id="ganttLoading" class="p-5 text-center text-muted" style="display: none;">
+    <span class="spinner-border spinner-border-sm text-primary me-2"></span>Cargando la semana…
+  </div>
+  <div id="ganttNoData" class="empty" style="display: none;">
+    <div class="empty-icon"><i class="bi bi-calendar-x"></i></div>
+    <p>No hay actividad registrada en esta semana.</p>
+  </div>
+</div>
+<div id="ganttTooltip"></div>
+
+<!-- Registros recientes y análisis individual -->
+<div class="row g-3">
+  <div class="col-xxl-7">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-clock-history"></i>Últimos 20 registros
+        <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i> Actualizar</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle" data-buscable="Buscar en los últimos registros…">
+          <thead>
+            <tr><th data-movil-oculto>#</th><th data-titulo>Persona</th><th>Área</th><th>Proyecto</th><th>Actividad</th><th>Inicio</th><th class="text-end">Duración</th></tr>
+          </thead>
+          <tbody>
+            {% for record in records %}
+            <tr>
+              <td class="text-muted small">{{ record.id }}</td>
+              <td><div class="fw-semibold">{{ record.employee.nombre }} {{ record.employee.apellido_paterno }}</div></td>
+              <td><span class="badge bg-secondary">{{ record.departamento or 'N/A' }}</span></td>
+              <td class="text-truncate" style="max-width: 220px;" title="{{ record.project.name }}">
+                {% if record.project.folio is not none %}<span class="text-muted small">FP {{ record.project.folio }}</span> {% endif %}{{ record.project.name }}
+              </td>
+              <td class="small text-muted text-truncate" style="max-width: 200px;">{{ record.actividad or 'Sin especificar' }}</td>
+              <td class="small text-nowrap" data-valor="{{ record.start_time.isoformat() }}">{{ record.start_time_mx.strftime('%d/%m %H:%M') if record.start_time_mx else '' }}</td>
+              <td class="text-end" data-valor="{{ ((record.end_time - record.start_time).total_seconds() if record.end_time else 999999) | int }}">
+                {% if record.end_time %}
+                  {% set s = (record.end_time - record.start_time).total_seconds() %}
+                  <span class="small fw-semibold">{{ (s // 3600) | int }}h {{ ((s % 3600) // 60) | int }}m</span>
+                {% else %}
+                  <span class="badge bg-success"><span class="dot"></span>En curso</span>
+                {% endif %}
+              </td>
+            </tr>
             {% endfor %}
-          </select>
-        </div>
-        <div class="col-md-3 d-flex align-items-end">
-          <button type="button" class="btn btn-custom w-100" id="searchWorkerBtn">
-            <i class="fas fa-search me-2"></i>Analizar
-          </button>
-        </div>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
-
-  <div class="loading-spinner" id="loadingSpinner">
-    <div class="spinner-border text-primary" role="status">
-      <span class="visually-hidden">Cargando...</span>
-    </div>
-    <p class="mt-2 text-muted">Analizando datos del empleado...</p>
-  </div>
-
-  <div id="workerMetrics" class="mt-4">
-    <div class="text-center text-muted py-5">
-      <i class="fas fa-user-chart fa-3x mb-3 opacity-50"></i>
-      <p>Selecciona un trabajador para ver análisis detallado de productividad</p>
+  <div class="col-xxl-5">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-person-lines-fill"></i>Análisis individual</div>
+      <div class="card-body">
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <div class="flex-grow-1" style="min-width: 0; flex-basis: 220px;">
+            <select id="workerSelect" class="form-select" aria-label="Persona">
+              <option value="">Busca a una persona…</option>
+              {% for emp in employees %}<option value="{{ emp.id }}">{{ emp.nompropio }}{% if emp.departamento and emp.departamento != 'N/A' %} — {{ emp.departamento }}{% endif %}</option>{% endfor %}
+            </select>
+          </div>
+          <button type="button" class="btn btn-primary" id="searchWorkerBtn"><i class="bi bi-graph-up"></i> Analizar</button>
+        </div>
+        <div id="loadingSpinner" class="text-center text-muted py-4" style="display: none;">
+          <span class="spinner-border spinner-border-sm text-primary me-2"></span>Analizando…
+        </div>
+        <div id="workerMetrics">
+          <div class="empty">
+            <div class="empty-icon"><i class="bi bi-person-badge"></i></div>
+            <h6>Elige a una persona</h6>
+            <p>Verás sus horas totales y cómo se reparten entre proyectos y actividades.</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
+{% endblock %}
 
-<script>
-  window.dashboardData = {
-    active_workers: {{ dashboard_data.active_workers | tojson | safe }},
-    time_invested: {{ dashboard_data.time_invested | tojson | safe }}
-  };
-  window.deptInvestedData = {{ dept_invested_data | tojson | safe }};
-  window.activityMetrics = {{ activity_metrics | tojson | safe }};
-  window.dailyActivityMetrics = {{ daily_activity_metrics | tojson | safe }};
-  window.allProjects = {{ all_projects | map(attribute='name') | list | tojson | safe }};
-
-  {% if employees is defined %}
-    window.employeesData = {{ employees | map(attribute='nompropio') | list | tojson | safe }};
-  {% else %}
-    window.employeesData = [];
-  {% endif %}
-</script>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/locale/es.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment-timezone/0.5.40/moment-timezone-with-data.min.js"></script>
-
 <script>
-(function() {
-  let activeRecordsData = [];
+(function () {
+  'use strict';
+  const C = window.AD17Charts;
+  const esc = AD17.escapar;
+  const nf1 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 1 });
+  const nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
 
-  const departmentFilter = document.getElementById('departmentFilter');
-  const projectFilter = document.getElementById('projectFilter');
-  const refreshBtn = document.getElementById('refreshActiveRecords');
-  const loadingSpinner = document.getElementById('activeRecordsLoading');
-  const tableContainer = document.getElementById('activeRecordsContainer');
-  const noRecordsMessage = document.getElementById('noActiveRecords');
-  const tableBody = document.getElementById('activeRecordsTableBody');
-  const activeRecordsCount = document.getElementById('activeRecordsCount');
-  const recordsCountBadge = document.getElementById('recordsCountBadge');
+  const depto = document.getElementById('departmentFilter');
+  const proyecto = document.getElementById('projectFilter');
+  const limpiar = document.getElementById('limpiarFiltros');
+  let dias = 7;
+  let areasOrden = [];
 
-  departmentFilter.addEventListener('change', loadActiveRecords);
-  projectFilter.addEventListener('change', loadActiveRecords);
-  refreshBtn.addEventListener('click', loadActiveRecords);
+  // Selector de proyecto con búsqueda
+  if (window.jQuery && $.fn.select2) {
+    $('#projectFilter').select2({ theme: 'bootstrap4', width: '100%', placeholder: 'Todos los proyectos', allowClear: true })
+      .on('change', () => recargar());
+    $('#workerSelect').select2({ theme: 'bootstrap4', width: '100%', placeholder: 'Busca a una persona…' });
+  } else {
+    proyecto.addEventListener('change', () => recargar());
+  }
+  depto.addEventListener('change', () => recargar());
+  limpiar.addEventListener('click', () => {
+    depto.value = '';
+    if (window.jQuery && $.fn.select2) $('#projectFilter').val('').trigger('change.select2');
+    proyecto.value = '';
+    recargar();
+  });
+  document.querySelectorAll('#periodo button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('#periodo button').forEach((x) => x.classList.toggle('active', x === b));
+    dias = +b.dataset.dias;
+    cargarMetricas();
+  }));
+  document.getElementById('refreshActiveRecords').addEventListener('click', () => { recargar(true); cargarGantt(); });
 
-  function loadActiveRecords() {
-    showLoading();
-    const params = new URLSearchParams();
-    if (departmentFilter.value) params.append('department', departmentFilter.value);
-    if (projectFilter.value) params.append('project_id', projectFilter.value);
+  function recargar(fresco) {
+    limpiar.classList.toggle('d-none', !depto.value && !proyecto.value);
+    cargarMetricas(fresco === true);
+    cargarActivos();
+  }
 
-    fetch(`{{ url_for('main.get_active_records') }}?${params.toString()}`)
-      .then(response => response.json())
-      .then(data => {
-        activeRecordsData = data.records || [];
-        updateUI();
-        hideLoading();
+  /* El color de cada área sale de su posición en el orden configurado,
+     así no cambia al filtrar. Las que pasan de 8 van en gris. */
+  const colorArea = (a) => C.colorArea(a, areasOrden.length ? areasOrden : undefined);
+
+  /* ───────────── Métricas y gráficas ───────────── */
+  let pidiendo = null;
+  function cargarMetricas(fresco) {
+    const p = new URLSearchParams({ dias });
+    if (fresco === true) p.set('fresco', '1');
+    if (depto.value) p.set('area', depto.value);
+    if (proyecto.value) p.set('project_id', proyecto.value);
+    pidiendo?.abort();
+    pidiendo = new AbortController();
+    fetch(`{{ url_for('main.api_dashboard_metricas') }}?${p}`, { signal: pidiendo.signal })
+      .then((r) => r.json())
+      .then(pintarMetricas)
+      .catch((e) => { if (e.name !== 'AbortError') AD17.toast('No se pudieron cargar las métricas.', 'danger'); });
+  }
+
+  function delta(actual, anterior) {
+    if (!anterior) return '<span class="delta flat">sin periodo previo</span>';
+    const d = ((actual - anterior) / anterior) * 100;
+    const cls = Math.abs(d) < 1 ? 'flat' : d > 0 ? 'up' : 'down';
+    const flecha = cls === 'up' ? 'bi-arrow-up-short' : cls === 'down' ? 'bi-arrow-down-short' : 'bi-dash';
+    return `<span class="delta ${cls}"><i class="bi ${flecha}"></i>${nf0.format(Math.abs(d))}%</span> vs. ${dias === 1 ? 'ayer' : 'periodo anterior'}`;
+  }
+
+  function pintarMetricas(d) {
+    areasOrden = d.areas_orden || [];
+    const k = d.kpis;
+    const fmtFecha = (s) => moment(s).locale('es').format('D MMM');
+    document.getElementById('rangoTexto').textContent = d.periodo.dias === 1 ? `Hoy, ${fmtFecha(d.periodo.hasta)}` : `${fmtFecha(d.periodo.desde)} – ${fmtFecha(d.periodo.hasta)}`;
+    document.getElementById('kpiAhora').innerHTML = `${nf0.format(k.personas_ahora)}<small>personas</small>`;
+    document.getElementById('kpiHoy').innerHTML = `${nf1.format(k.horas_hoy)}<small>h</small>`;
+    document.getElementById('kpiPeriodoTitulo').textContent = dias === 1 ? 'Horas · hoy' : `Horas · ${dias} días`;
+    document.getElementById('kpiPeriodo').innerHTML = `${nf0.format(k.horas_periodo)}<small>h</small>`;
+    document.getElementById('kpiPeriodoPie').innerHTML = delta(k.horas_periodo, k.horas_anterior);
+    document.getElementById('kpiProyectos').innerHTML = `${nf0.format(k.proyectos_periodo)}`;
+    document.getElementById('kpiProyectosPie').textContent = `${k.personas_periodo} personas · ${k.proyectos_activos} proyectos activos`;
+    document.getElementById('kpiPromedio').innerHTML = C.fmt.minutos(k.promedio_registro_min).replace(/(\d+) h (\d+) min/, '$1<small>h</small> $2<small>min</small>').replace(/^(\d+) min$/, '$1<small>min</small>');
+    document.getElementById('kpiPromedioPie').textContent = `por registro · ${nf0.format(k.registros)} registros`;
+
+    // Horas por día, apiladas por área (máx. 8 colores; el resto junto)
+    const etiquetas = d.serie_dias.labels.map((s) => moment(s).locale('es').format(dias > 14 ? 'D MMM' : 'ddd D'));
+    const conColor = d.serie_dias.areas.filter((a) => areasOrden.indexOf(a.area) > -1 && areasOrden.indexOf(a.area) < 8);
+    const resto = d.serie_dias.areas.filter((a) => !conColor.includes(a));
+    const series = conColor
+      .sort((a, b) => areasOrden.indexOf(a.area) - areasOrden.indexOf(b.area))
+      .map((a) => ({ label: a.area, data: a.data, color: colorArea(a.area) }));
+    if (resto.length) series.push({ label: 'Otras áreas', data: d.serie_dias.labels.map((_, i) => resto.reduce((s, a) => s + a.data[i], 0)), color: C.T.otros });
+    C.columnas('dailyProductivityChart', etiquetas, series, { vacio: 'No hay horas registradas en este periodo.' });
+    document.getElementById('leyendaDias').innerHTML = series.map((s) => `<span><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join('');
+    // La leyenda va en el encabezado; la integrada se oculta para no duplicar
+    const chDias = Chart.getChart('dailyProductivityChart');
+    if (chDias) { chDias.options.plugins.legend.display = false; chDias.update('none'); }
+
+    // Horas por área: cada barra con el color de su área
+    const areas = C.top(d.por_area, 10, false);
+    C.barrasH('departmentDistributionChart', areas.labels, areas.values, {
+      alto: false, colores: areas.labels.map(colorArea),
+      onClick: (a) => { if ([...depto.options].some((o) => o.value === a)) { depto.value = a; recargar(); } },
+    });
+
+    const proy = C.top(d.por_proyecto, 10, true);
+    C.barrasH('timeInvestedChart', proy.labels, proy.values, {
+      recorte: 38,
+      onClick: (etq) => {
+        const m = /^FP (\d+) · /.exec(etq);
+        if (!m) return;
+        const opt = [...proyecto.options].find((o) => o.text.startsWith(`FP ${m[1]} · `));
+        if (opt) { if (window.jQuery && $.fn.select2) $('#projectFilter').val(opt.value).trigger('change'); else { proyecto.value = opt.value; recargar(); } }
+      },
+    });
+    const act = C.top(d.por_actividad, 10, true);
+    C.barrasH('activityChart', act.labels, act.values, { color: C.T.series[2], recorte: 40 });
+    const per = C.top(d.por_persona, 10, false);
+    C.barrasH('employeeProductivityChart', per.labels, per.values, { color: C.T.series[6] });
+    const prom = C.top(d.promedio_actividad, 10, false);
+    C.barrasH('avgTimePerActivityChart', prom.labels, prom.values, { color: C.T.series[3], fmt: C.fmt.minutos, serie: 'Promedio', recorte: 40, vacio: 'Aún no hay actividades con al menos 3 registros.' });
+
+    // Personas trabajando ahora, por área
+    document.getElementById('areasLive').innerHTML = Object.entries(d.activos_por_area)
+      .sort((a, b) => b[1] - a[1])
+      .map(([a, n]) => `<span class="badge bg-light"><i style="width:8px;height:8px;border-radius:2px;display:inline-block;background:${colorArea(a)}"></i>${esc(a)} · ${n}</span>`).join('');
+    pintarLeyendaGantt();
+  }
+
+  /* ───────────── En curso ahora ───────────── */
+  const tbody = document.getElementById('activeRecordsTableBody');
+  const buscarActivos = document.getElementById('buscarActivos');
+  let activos = [];
+  function cargarActivos() {
+    const p = new URLSearchParams();
+    if (depto.value) p.append('department', depto.value);
+    if (proyecto.value) p.append('project_id', proyecto.value);
+    if (!activos.length) document.getElementById('activeRecordsLoading').style.display = '';
+    fetch(`{{ url_for('main.get_active_records') }}?${p}`)
+      .then((r) => r.json())
+      .then((data) => {
+        activos = data.records || [];
+        document.getElementById('activeRecordsLoading').style.display = 'none';
+        document.getElementById('activosActualizado').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+        pintarActivos();
       })
-      .catch(error => {
-        console.error('Error cargando registros activos:', error);
-        showError('Error al cargar los registros activos');
-        hideLoading();
+      .catch(() => {
+        document.getElementById('activeRecordsLoading').style.display = 'none';
+        AD17.toast('Error al cargar los registros activos.', 'danger');
       });
   }
-
-  function showLoading() {
-    loadingSpinner.style.display = 'block';
-    tableContainer.style.display = 'none';
-    noRecordsMessage.style.display = 'none';
+  function pintarActivos() {
+    const q = AD17.normalizar(buscarActivos.value.trim());
+    const filas = activos.filter((r) => !q || AD17.normalizar(`${r.employee_full_name} ${r.department} ${r.project_name} FP ${r.project_folio} ${r.activity}`).includes(q));
+    document.getElementById('recordsCountBadge').textContent = activos.length;
+    document.getElementById('activeRecordsCount').textContent = activos.length;
+    const hay = filas.length > 0;
+    document.getElementById('activeRecordsContainer').style.display = hay ? '' : 'none';
+    const vacio = document.getElementById('noActiveRecords');
+    vacio.style.display = hay ? 'none' : '';
+    vacio.querySelector('h6').textContent = activos.length ? 'Ninguno coincide con la búsqueda' : 'Nadie tiene un registro abierto';
+    tbody.innerHTML = filas.map((r) => {
+      const cls = r.duration_minutes > 480 ? 'duration-long' : r.duration_minutes > 360 ? 'duration-warn' : 'duration-ok';
+      return `<tr data-record-id="${r.id}">
+        <td><div class="d-flex align-items-center gap-2"><span class="avatar avatar-sm avatar-brand">${esc((r.employee_name || '?').split(' ').map((w) => w[0]).slice(0, 2).join(''))}</span>
+          <div><div class="fw-semibold">${esc(r.employee_name)}</div><div class="small text-muted">${esc(r.employee_full_name)}</div></div></div></td>
+        <td><span class="badge bg-light"><i style="width:8px;height:8px;border-radius:2px;display:inline-block;background:${colorArea(r.department)}"></i>${esc(r.department)}</span></td>
+        <td><div class="fw-semibold text-truncate" style="max-width:240px" title="${esc(r.project_name)}">${esc(r.project_name)}</div><div class="small text-muted">FP ${esc(r.project_folio)}</div></td>
+        <td class="small text-truncate" style="max-width:260px" title="${esc(r.activity)}">${esc(r.activity)}</td>
+        <td class="small text-muted text-nowrap">${esc(r.start_time)}</td>
+        <td class="text-end"><span class="badge ${cls}" title="${r.duration_minutes > 480 ? 'Más de 8 horas abierto' : ''}">${esc(r.duration)}</span></td></tr>`;
+    }).join('');
   }
+  buscarActivos.addEventListener('input', pintarActivos);
 
-  function hideLoading() {
-    loadingSpinner.style.display = 'none';
-  }
+  /* ───────────── Cronograma semanal ───────────── */
+  const TZ = 'America/Mexico_City';
+  const gantt = document.getElementById('ganttChart');
+  const ganttTooltip = document.getElementById('ganttTooltip');
+  const vista = document.getElementById('ganttViewType');
+  const ganttDepto = document.getElementById('ganttDepartmentFilter');
+  const semana = document.getElementById('ganttWeekSelector');
+  let ganttData = [], weekInfo = [], colorPor = 'area';
+  const HORA_INI = 7, HORAS = 14, ANCHO_HORA = 26, ANCHO_DIA = ANCHO_HORA * HORAS;
 
-  function updateUI() {
-    activeRecordsCount.textContent = activeRecordsData.length;
-    recordsCountBadge.textContent = activeRecordsData.length;
+  semana.value = `${moment().isoWeekYear()}-W${String(moment().isoWeek()).padStart(2, '0')}`;
+  [vista, ganttDepto, semana].forEach((el) => el.addEventListener('change', cargarGantt));
+  document.getElementById('ganttRefresh').addEventListener('click', cargarGantt);
+  document.querySelectorAll('#ganttColor button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('#ganttColor button').forEach((x) => x.classList.toggle('active', x === b));
+    colorPor = b.dataset.color;
+    pintarGantt();
+  }));
 
-    if (activeRecordsData.length === 0) {
-      tableContainer.style.display = 'none';
-      noRecordsMessage.style.display = 'block';
-      return;
-    }
+  // Proyectos en el orden en que aparecen en la semana: así cada uno conserva
+  // su color mientras se mira esa semana. Más de 8 → gris.
+  let proyectosSemana = [];
+  const colorProyecto = (p) => { const i = proyectosSemana.indexOf(p); return i >= 0 && i < 8 ? C.T.series[i] : C.T.otros; };
 
-    tableContainer.style.display = 'block';
-    noRecordsMessage.style.display = 'none';
-    renderTable();
-  }
-
-  function renderTable() {
-    tableBody.innerHTML = '';
-    activeRecordsData.forEach(record => {
-      const row = createTableRow(record);
-      tableBody.appendChild(row);
-    });
-  }
-
-  function createTableRow(record) {
-    const tr = document.createElement('tr');
-    tr.dataset.recordId = record.id;
-
-    let durationClass = 'bg-success';
-    if (record.duration_minutes > 480) { // > 8 horas
-      durationClass = 'duration-danger';
-    } else if (record.duration_minutes > 360) { // > 6 horas
-      durationClass = 'duration-warning';
-    }
-
-    tr.innerHTML = `
-      <td>
-        <div class="employee-info">
-          <div class="employee-name">${record.employee_name}</div>
-          <div class="employee-subtitle">${record.employee_full_name}</div>
-        </div>
-      </td>
-      <td><span class="badge" style="background-color: var(--primary-orange);">${record.department}</span></td>
-      <td>
-        <div>
-          <div class="fw-semibold">${record.project_name}</div>
-          <small class="text-muted">FP: ${record.project_folio}</small>
-        </div>
-      </td>
-      <td><div class="activity-text">${record.activity}</div></td>
-      <td><small class="text-muted">${record.start_time}</small></td>
-      <td><span class="badge duration-badge ${durationClass}">${record.duration}</span></td>
-    `;
-    return tr;
-  }
-
-  function showError(message) {
-    showAlert(message, 'danger');
-  }
-
-  function showAlert(message, type) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show alert-custom`;
-    const icon = type === 'success' ? 'check-circle' : 'exclamation-circle';
-    alertDiv.innerHTML = `<i class="fas fa-${icon} me-2"></i>${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
-    document.body.appendChild(alertDiv);
-    setTimeout(() => alertDiv.remove(), 5000);
-  }
-
-  // Actualizar cada 30 segundos
-  setInterval(loadActiveRecords, 30000);
-  loadActiveRecords();
-})();
-</script>
-
-<script>
-(function() {
-  const colors = {
-    primary: '#FF8800', secondary: '#FFA726', success: '#28A745',
-    info: '#17A2B8', warning: '#FFC107', danger: '#DC3545',
-    purple: '#6F42C1', indigo: '#6610F2', teal: '#20C997',
-    gradient1: 'rgba(255, 136, 0, 0.8)', gradient2: 'rgba(255, 167, 38, 0.6)',
-    gradient3: 'rgba(255, 167, 38, 0.4)',
-  };
-
-  Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
-  Chart.defaults.font.size = 12;
-  Chart.defaults.color = '#343A40';
-
-  function generateColors(count) {
-    const palette = [
-      colors.primary, colors.secondary, colors.success, colors.info,
-      colors.warning, colors.danger, colors.purple, colors.indigo, colors.teal
-    ];
-    const result = [];
-    for (let i = 0; i < count; i++) {
-      result.push(palette[i % palette.length]);
-    }
-    return result;
-  }
-
-  function getWeekDates() {
-    const dates = [];
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(new Date().setDate(diff + i));
-      dates.push(date.toISOString().split('T')[0]);
-    }
-    return dates;
-  }
-
-  const weekDates = getWeekDates();
-
-  // 1. Gráfica: Trabajadores Activos
-  if (Object.keys(window.dashboardData.active_workers).length > 0) {
-    const ctxActive = document.getElementById('activeWorkersChart').getContext('2d');
-    const activeData = Object.values(window.dashboardData.active_workers);
-    new Chart(ctxActive, {
-      type: 'doughnut',
-      data: {
-        labels: Object.keys(window.dashboardData.active_workers),
-        datasets: [{
-          data: activeData,
-          backgroundColor: generateColors(activeData.length),
-          borderWidth: 3,
-          borderColor: '#ffffff'
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              padding: 20,
-              usePointStyle: true
-            }
-          }
-        }
-      }
-    });
-  }
-
-  // 2. Gráfica: Tiempo Invertido
-  if (Object.keys(window.dashboardData.time_invested).length > 0) {
-    const ctxTime = document.getElementById('timeInvestedChart').getContext('2d');
-    const timeData = Object.values(window.dashboardData.time_invested);
-    new Chart(ctxTime, {
-      type: 'bar',
-      data: {
-        labels: Object.keys(window.dashboardData.time_invested),
-        datasets: [{
-          label: 'Horas',
-          data: timeData,
-          backgroundColor: colors.gradient1,
-          borderColor: colors.primary,
-          borderWidth: 2,
-          borderRadius: 8,
-          borderSkipped: false
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            grid: { color: 'rgba(0,0,0,0.1)' },
-            ticks: { callback: value => value + 'h' }
-          },
-          x: { grid: { display: false } }
-        }
-      }
-    });
-  }
-
-  // 3. Gráfica: Productividad Diaria
-  const dailyData = weekDates.map(date => window.dailyActivityMetrics[date] || 0);
-  const ctxDaily = document.getElementById('dailyProductivityChart').getContext('2d');
-  new Chart(ctxDaily, {
-    type: 'line',
-    data: {
-      labels: weekDates.map(date => new Date(date + 'T00:00:00').toLocaleDateString('es-MX', { weekday: 'short' })),
-      datasets: [{
-        label: 'Horas',
-        data: dailyData,
-        borderColor: colors.primary,
-        backgroundColor: colors.gradient3,
-        borderWidth: 3,
-        fill: true,
-        tension: 0.4
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        y: { beginAtZero: true },
-        x: { grid: { display: false } }
-      }
-    }
-  });
-
-  // 4. Gráfica: Distribución por Departamento (Global)
-  const ctxDeptDist = document.getElementById('departmentDistributionChart').getContext('2d');
-  const deptTotals = {};
-  Object.values(window.deptInvestedData).forEach(projectDepts => {
-    Object.entries(projectDepts).forEach(([dept, hours]) => {
-      deptTotals[dept] = (deptTotals[dept] || 0) + hours;
-    });
-  });
-
-  if (Object.keys(deptTotals).length > 0) {
-    new Chart(ctxDeptDist, {
-      type: 'pie',
-      data: {
-        labels: Object.keys(deptTotals),
-        datasets: [{
-          data: Object.values(deptTotals),
-          backgroundColor: generateColors(Object.keys(deptTotals).length),
-          borderWidth: 2,
-          borderColor: '#ffffff'
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              padding: 15,
-              usePointStyle: true
-            }
-          }
-        }
-      }
-    });
-  }
-
-  // 5. Gráfica: Tendencia Semanal
-  const ctxWeekly = document.getElementById('weeklyTrendChart').getContext('2d');
-  new Chart(ctxWeekly, {
-    type: 'bar',
-    data: {
-      labels: weekDates.map(date => new Date(date + 'T00:00:00').toLocaleDateString('es-MX', { month: 'short', day: 'numeric' })),
-      datasets: [{
-        label: 'Horas Trabajadas',
-        data: dailyData,
-        backgroundColor: generateColors(7),
-        borderRadius: 6
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        y: { beginAtZero: true },
-        x: { grid: { display: false } }
-      }
-    }
-  });
-
-  // 6. Gráfica: Horas por Departamento (con selector de proyecto)
-  let deptChart;
-  const ctxDept = document.getElementById('deptInvestedChart').getContext('2d');
-
-  // Inicializar gráfica vacía
-  deptChart = new Chart(ctxDept, {
-    type: 'bar',
-    data: {
-      labels: [],
-      datasets: [{
-        label: 'Horas Invertidas',
-        data: [],
-        backgroundColor: colors.gradient2,
-        borderColor: colors.secondary,
-        borderWidth: 2,
-        borderRadius: 6
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      indexAxis: 'y',
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        x: {
-          beginAtZero: true,
-          grid: { color: 'rgba(0,0,0,0.1)' },
-          ticks: { callback: function(value) { return value + 'h'; } }
-        },
-        y: { grid: { display: false } }
-      }
-    }
-  });
-
-  // Mostrar mensaje inicial
-  document.getElementById('deptNoData').style.display = 'block';
-  deptChart.canvas.style.display = 'none';
-
-  // Selector de proyecto para departamentos
-  document.getElementById('projectSelector').addEventListener('change', function() {
-    const projId = this.value;
-    const noDataDiv = document.getElementById('deptNoData');
-    const chartCanvas = deptChart.canvas;
-
-    if (!projId) {
-      noDataDiv.style.display = 'block';
-      chartCanvas.style.display = 'none';
-      return;
-    }
-
-    const deptData = window.deptInvestedData[projId];
-
-    if (!deptData || Object.keys(deptData).length === 0) {
-      noDataDiv.innerHTML = `
-        <i class="fas fa-chart-bar fa-3x mb-3 opacity-50"></i>
-        <p>No hay datos de departamentos para el proyecto seleccionado</p>
-      `;
-      noDataDiv.style.display = 'block';
-      chartCanvas.style.display = 'none';
-      return;
-    }
-
-    noDataDiv.style.display = 'none';
-    chartCanvas.style.display = 'block';
-    updateDeptChart(Object.keys(deptData), Object.values(deptData));
-  });
-
-  function updateDeptChart(labels, data) {
-    deptChart.data.labels = labels;
-    deptChart.data.datasets[0].data = data;
-    deptChart.data.datasets[0].backgroundColor = generateColors(data.length);
-    deptChart.update();
-  }
-
-  // 7. Gráfica: Actividades
-  let activityChart;
-  const ctxActivity = document.getElementById('activityChart').getContext('2d');
-
-  function renderActivityChart(projectName) {
-    const projectNames = Object.keys(window.activityMetrics || {});
-
-    if (projectNames.length === 0) {
-      showActivityNoData('No hay datos de actividades disponibles');
-      return;
-    }
-
-    const activitiesSet = new Set();
-    projectNames.forEach(proj => {
-      const activities = window.activityMetrics[proj] || {};
-      Object.keys(activities).forEach(act => activitiesSet.add(act));
-    });
-    const allActivities = Array.from(activitiesSet);
-
-    let labels, data;
-    if (projectName && window.activityMetrics[projectName]) {
-      labels = Object.keys(window.activityMetrics[projectName]);
-      data = labels.map(act => window.activityMetrics[projectName][act] || 0);
-    } else if (projectName) {
-      showActivityNoData(`No hay datos de actividades para el proyecto: ${projectName}`);
-      return;
+  function pintarLeyendaGantt() {
+    const ley = document.getElementById('ganttLegend');
+    if (colorPor === 'area') {
+      const presentes = new Set();
+      ganttData.forEach((r) => (r.records || []).forEach((x) => presentes.add(x.department)));
+      const lista = areasOrden.filter((a) => presentes.has(a));
+      ley.innerHTML = lista.map((a) => `<span><i style="background:${colorArea(a)}"></i>${esc(a)}</span>`).join('');
     } else {
-      labels = allActivities;
-      data = labels.map(act =>
-        projectNames.reduce((sum, proj) =>
-          sum + ((window.activityMetrics[proj] || {})[act] || 0), 0)
-      );
+      ley.innerHTML = proyectosSemana.slice(0, 8).map((p) => `<span><i style="background:${colorProyecto(p)}"></i>${esc(C.recortar(p, 28))}</span>`).join('') +
+        (proyectosSemana.length > 8 ? `<span><i style="background:${C.T.otros}"></i>Otros ${proyectosSemana.length - 8}</span>` : '');
     }
+  }
 
-    if (labels.length === 0 || data.every(d => d === 0)) {
-      showActivityNoData('No hay actividades con tiempo registrado');
+  window.loadGanttData = cargarGantt;
+  function cargarGantt() {
+    document.getElementById('ganttLoading').style.display = '';
+    document.getElementById('ganttNoData').style.display = 'none';
+    document.getElementById('ganttChartContainer').style.display = 'none';
+    const p = new URLSearchParams({ view_type: vista.value, selected_week: semana.value });
+    if (ganttDepto.value) p.append('department', ganttDepto.value);
+    fetch(`{{ url_for('main.get_gantt_data') }}?${p}`)
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then((res) => {
+        if (!res.success) throw new Error(res.message || res.error);
+        ganttData = res.data || [];
+        weekInfo = res.weekInfo || [];
+        const vistos = [];
+        ganttData.forEach((r) => (r.records || []).forEach((x) => { if (!vistos.includes(x.project)) vistos.push(x.project); }));
+        // Los proyectos con más registros se quedan con los colores
+        const cuenta = {};
+        ganttData.forEach((r) => (r.records || []).forEach((x) => { cuenta[x.project] = (cuenta[x.project] || 0) + x.duration; }));
+        proyectosSemana = vistos.sort((a, b) => cuenta[b] - cuenta[a]);
+        pintarGantt();
+      })
+      .catch((e) => sinDatos('No se pudo cargar el cronograma: ' + e.message))
+      .finally(() => { document.getElementById('ganttLoading').style.display = 'none'; });
+  }
+  function sinDatos(msg) {
+    document.getElementById('ganttChartContainer').style.display = 'none';
+    const n = document.getElementById('ganttNoData');
+    n.style.display = '';
+    n.querySelector('p').textContent = msg;
+  }
+
+  function pintarGantt() {
+    pintarLeyendaGantt();
+    if (!ganttData.length || !weekInfo.length) {
+      sinDatos(ganttDepto.value ? `No hay actividad de ${ganttDepto.value} en esta semana.` : 'No hay actividad registrada en esta semana.');
       return;
     }
-
-    hideActivityNoData();
-
-    if (activityChart) {
-      activityChart.destroy();
-    }
-
-    activityChart = new Chart(ctxActivity, {
-      type: 'bar',
-      data: {
-        labels: labels.map(label => {
-          return label.length > 30 ? label.substring(0, 30) + '...' : label;
-        }),
-        datasets: [{
-          label: projectName ? `Proyecto: ${projectName}` : 'Todos los Proyectos',
-          data: data,
-          backgroundColor: generateColors(data.length),
-          borderWidth: 2,
-          borderRadius: 6,
-          borderSkipped: false
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: true,
-            position: 'top'
-          },
-          tooltip: {
-            callbacks: {
-              title: function(context) {
-                return labels[context[0].dataIndex];
-              },
-              label: function(context) {
-                return `${context.parsed.y.toFixed(2)} horas`;
-              }
-            }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            grid: { color: 'rgba(0,0,0,0.1)' },
-            ticks: { callback: function(value) { return value + 'h'; } }
-          },
-          x: {
-            grid: { display: false },
-            ticks: {
-              maxRotation: 45,
-              minRotation: 45,
-              callback: function(value, index) {
-                const label = this.getLabelForValue(value);
-                return label.length > 15 ? label.substring(0, 15) + '...' : label;
-              }
-            }
-          }
-        }
-      }
+    document.getElementById('ganttChartContainer').style.display = '';
+    document.getElementById('ganttNoData').style.display = 'none';
+    const horas = Array.from({ length: HORAS / 2 }, (_, i) => `<span>${HORA_INI + i * 2}</span>`).join('');
+    let html = `<div class="gantt-header"><div class="gantt-header-label">${vista.value === 'employee' ? 'Persona' : 'Área'}</div><div class="gantt-header-timeline">`;
+    weekInfo.forEach((d) => {
+      const f = moment.tz(d.date, TZ).locale('es');
+      html += `<div class="gantt-day-header ${d.isWeekend ? 'weekend' : ''} ${d.isToday ? 'today' : ''}" style="width:${ANCHO_DIA}px"><div class="d">${f.format('ddd D')}</div><div class="gantt-hours">${horas}</div></div>`;
     });
-  }
+    html += '</div></div>';
+    gantt.innerHTML = html;
+    const anchoTotal = ANCHO_DIA * weekInfo.length;
+    gantt.style.width = (220 + anchoTotal) + 'px';
 
-  function showActivityNoData(message) {
-    const noDataDiv = document.getElementById('activityNoData');
-    const chartCanvas = document.getElementById('activityChart');
-    noDataDiv.innerHTML = `
-      <i class="fas fa-tasks fa-3x mb-3 opacity-50"></i>
-      <p>${message}</p>
-    `;
-    noDataDiv.style.display = 'block';
-    chartCanvas.style.display = 'none';
-  }
-
-  function hideActivityNoData() {
-    const noDataDiv = document.getElementById('activityNoData');
-    const chartCanvas = document.getElementById('activityChart');
-    noDataDiv.style.display = 'none';
-    chartCanvas.style.display = 'block';
-  }
-
-  // Inicializar gráfica de actividades
-  renderActivityChart('');
-
-  document.getElementById('activityProjectSelector').addEventListener('change', function() {
-    renderActivityChart(this.value);
-  });
-
-  // 8. Gráfica: Tiempo Promedio por Actividad
-  const ctxAvgTime = document.getElementById('avgTimePerActivityChart').getContext('2d');
-
-  const activityCounts = {};
-  const activityTotals = {};
-
-  // Calcular promedios
-  Object.values(window.activityMetrics || {}).forEach(projectActivities => {
-    Object.entries(projectActivities || {}).forEach(([activity, hours]) => {
-      activityCounts[activity] = (activityCounts[activity] || 0) + 1;
-      activityTotals[activity] = (activityTotals[activity] || 0) + hours;
-    });
-  });
-
-  const avgActivities = Object.keys(activityTotals).map(activity => ({
-    name: activity,
-    avg: activityTotals[activity] / activityCounts[activity]
-  })).sort((a, b) => b.avg - a.avg).slice(0, 10); // Top 10
-
-  if (avgActivities.length > 0) {
-    new Chart(ctxAvgTime, {
-      type: 'bar',
-      data: {
-        labels: avgActivities.map(a => {
-          const shortName = a.name.length > 25 ? a.name.substring(0, 25) + '...' : a.name;
-          return shortName;
-        }),
-        datasets: [{
-          label: 'Promedio (horas)',
-          data: avgActivities.map(a => a.avg),
-          backgroundColor: colors.gradient1,
-          borderColor: colors.primary,
-          borderWidth: 2,
-          borderRadius: 6
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        indexAxis: 'y',
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: function(context) {
-                return avgActivities[context[0].dataIndex].name;
-              },
-              label: function(context) {
-                return `Promedio: ${context.parsed.x.toFixed(2)} horas`;
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            beginAtZero: true,
-            grid: { color: 'rgba(0,0,0,0.1)' },
-            ticks: {
-              callback: function(value) {
-                return value.toFixed(1) + 'h';
-              }
-            }
-          },
-          y: {
-            grid: { display: false },
-            ticks: {
-              callback: function(value, index) {
-                const activity = avgActivities[index];
-                if (activity) {
-                  return activity.name.length > 20 ?
-                    activity.name.substring(0, 20) + '...' :
-                    activity.name;
-                }
-                return '';
-              }
-            }
-          }
-        }
-      }
-    });
-  } else {
-    // Mostrar mensaje cuando no hay datos
-    const canvas = document.getElementById('avgTimePerActivityChart');
-    const container = canvas.parentElement;
-    container.innerHTML = `
-      <div class="no-data-message">
-        <i class="fas fa-stopwatch fa-3x mb-3 opacity-50"></i>
-        <p>No hay suficientes datos de actividades para calcular promedios</p>
-      </div>
-    `;
-  }
-
-  // 9. Gráfica: Productividad por Empleado
-  const ctxEmpProd = document.getElementById('employeeProductivityChart').getContext('2d');
-
-  // Crear datos más realistas basados en actividad real si es posible
-  let employeeProductivity = [];
-
-  if (window.employeesData && window.employeesData.length > 0) {
-    // Usar datos reales de empleados
-    employeeProductivity = window.employeesData.slice(0, 8).map((name, index) => {
-      // Simular productividad basada en algunos datos reales
-      const baseProductivity = 75 + (index * 3); // Base entre 75-96%
-      const randomVariation = Math.floor(Math.random() * 15) - 7; // ±7%
-      const finalProductivity = Math.min(100, Math.max(60, baseProductivity + randomVariation));
-
-      // Acortar nombres para mejor visualización
-      const shortName = name.length > 15 ? name.substring(0, 15) + '...' : name;
-
-      return {
-        name: shortName,
-        fullName: name,
-        productivity: finalProductivity
-      };
-    });
-  } else {
-    // Datos de ejemplo si no hay empleados
-    employeeProductivity = [
-      { name: 'Juan P.', fullName: 'Juan Pérez', productivity: 92 },
-      { name: 'María G.', fullName: 'María García', productivity: 88 },
-      { name: 'Carlos S.', fullName: 'Carlos Sánchez', productivity: 95 },
-      { name: 'Ana M.', fullName: 'Ana Martínez', productivity: 87 },
-      { name: 'Luis R.', fullName: 'Luis Rodríguez', productivity: 91 }
-    ];
-  }
-
-  if (employeeProductivity.length > 0) {
-    new Chart(ctxEmpProd, {
-      type: 'radar',
-      data: {
-        labels: employeeProductivity.map(e => e.name),
-        datasets: [{
-          label: 'Productividad (%)',
-          data: employeeProductivity.map(e => e.productivity),
-          backgroundColor: 'rgba(255, 136, 0, 0.2)',
-          borderColor: colors.primary,
-          borderWidth: 3,
-          pointBackgroundColor: colors.primary,
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          pointRadius: 6,
-          pointHoverBackgroundColor: '#fff',
-          pointHoverBorderColor: colors.primary,
-          pointHoverBorderWidth: 3,
-          pointHoverRadius: 8
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: true,
-            position: 'top'
-          },
-          tooltip: {
-            callbacks: {
-              title: function(context) {
-                const index = context[0].dataIndex;
-                return employeeProductivity[index].fullName;
-              },
-              label: function(context) {
-                return `Productividad: ${context.parsed.r}%`;
-              }
-            }
-          }
-        },
-        scales: {
-          r: {
-            beginAtZero: true,
-            min: 0,
-            max: 100,
-            ticks: {
-              stepSize: 20,
-              callback: function(value) {
-                return value + '%';
-              },
-              backdropColor: 'rgba(255, 255, 255, 0.8)',
-              color: '#666'
-            },
-            grid: {
-              color: 'rgba(0, 0, 0, 0.1)'
-            },
-            angleLines: {
-              color: 'rgba(0, 0, 0, 0.1)'
-            },
-            pointLabels: {
-              font: {
-                size: 11
-              },
-              color: '#333'
-            }
-          }
-        }
-      }
-    });
-  } else {
-    // Mostrar mensaje cuando no hay datos
-    const canvas = document.getElementById('employeeProductivityChart');
-    const container = canvas.parentElement;
-    container.innerHTML = `
-      <div class="no-data-message">
-        <i class="fas fa-user-chart fa-3x mb-3 opacity-50"></i>
-        <p>No hay datos de empleados disponibles para mostrar productividad</p>
-      </div>
-    `;
-  }
-
-  // 10. Análisis por Trabajador
-  document.getElementById('searchWorkerBtn').addEventListener('click', function() {
-    const workerId = document.getElementById('workerSelect').value;
-    if (!workerId) return;
-    const loadingSpinner = document.getElementById('loadingSpinner');
-    const workerMetrics = document.getElementById('workerMetrics');
-    loadingSpinner.style.display = 'block';
-    workerMetrics.innerHTML = '';
-    fetch(`{{ url_for('main.worker_analysis') }}?employee_id=${workerId}`)
-      .then(response => response.json())
-      .then(data => {
-        loadingSpinner.style.display = 'none';
-        workerMetrics.innerHTML = data.html ? data.html : '<div class="alert alert-warning">No se encontraron datos.</div>';
-        if (data.html) workerMetrics.classList.add('fade-in');
-      })
-      .catch(error => {
-        loadingSpinner.style.display = 'none';
-        workerMetrics.innerHTML = '<div class="alert alert-danger">Error al cargar los datos.</div>';
-        console.error('Error:', error);
+    ganttData.forEach((row) => {
+      const fila = document.createElement('div');
+      fila.className = 'gantt-row';
+      fila.innerHTML = row.type === 'employee'
+        ? `<div class="gantt-label" title="${esc(row.label)}"><span class="n">${esc(row.label)}</span><span class="s">${esc(row.department || 'Sin área')}</span></div>`
+        : `<div class="gantt-label" title="${esc(row.label)}"><span class="n">${esc(row.label)}</span></div>`;
+      const linea = document.createElement('div');
+      linea.className = 'gantt-timeline';
+      linea.style.width = anchoTotal + 'px';
+      linea.style.backgroundSize = `${ANCHO_HORA * 2}px 100%`;
+      (row.records || []).forEach((rec) => {
+        const ini = moment.utc(rec.startTimeUTC).tz(TZ);
+        const dia = weekInfo.findIndex((d) => d.date === ini.format('YYYY-MM-DD'));
+        if (dia === -1) return;
+        const h = ini.hour() + ini.minute() / 60;
+        if (h + rec.duration < HORA_INI || h > HORA_INI + HORAS) return;
+        const izq = dia * ANCHO_DIA + Math.max(0, h - HORA_INI) * ANCHO_HORA;
+        const recorte = Math.max(0, HORA_INI - h);
+        const ancho = Math.min(rec.duration - recorte, HORA_INI + HORAS - Math.max(h, HORA_INI)) * ANCHO_HORA;
+        const bar = document.createElement('div');
+        bar.className = 'gantt-bar' + (rec.isActive ? ' active' : '') + (row.type === 'employee' && rec.department !== row.department ? ' otra-area' : '');
+        bar.style.left = izq + 'px';
+        bar.style.width = Math.max(3, ancho) + 'px';
+        bar.style.backgroundColor = colorPor === 'area' ? colorArea(rec.department) : colorProyecto(rec.project);
+        rec.localStartTime = ini;
+        bar.addEventListener('mouseenter', (e) => verTooltip(e, rec, row.type));
+        bar.addEventListener('mousemove', moverTooltip);
+        bar.addEventListener('mouseleave', () => { ganttTooltip.style.display = 'none'; });
+        linea.appendChild(bar);
       });
-  });
-
-  // Funciones de actualización de UI
-  function updateKPIs() {
-    document.getElementById('totalActiveWorkers').textContent = Object.values(window.dashboardData.active_workers).reduce((sum, count) => sum + count, 0);
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('totalHoursToday').textContent = Math.round(window.dailyActivityMetrics[today] || 0);
-    document.getElementById('totalHoursWeek').textContent = Math.round(weekDates.reduce((sum, date) => sum + (window.dailyActivityMetrics[date] || 0), 0));
+      fila.appendChild(linea);
+      gantt.appendChild(fila);
+    });
+  }
+  function verTooltip(e, rec, tipo) {
+    const h = Math.floor(rec.duration), m = Math.round((rec.duration - h) * 60);
+    ganttTooltip.innerHTML = `
+      <div class="mb-1"><strong>${esc(rec.project)}</strong> <span style="color:#85888e">FP ${esc(rec.projectFolio)}</span></div>
+      <div class="tt-row"><i class="bi bi-list-check"></i>${esc(rec.activity)}</div>
+      <div class="tt-row"><i class="bi bi-diagram-3"></i>${esc(rec.department)}</div>
+      ${tipo === 'department' ? `<div class="tt-row"><i class="bi bi-person"></i>${esc(rec.employee)}</div>` : ''}
+      <div class="tt-row"><i class="bi bi-clock"></i>${rec.localStartTime.format('HH:mm')} – ${esc(rec.endTime)} · ${h} h ${m} min</div>
+      ${rec.isActive ? '<div class="tt-row mt-1" style="color:#47cd89"><i class="bi bi-record-circle" style="color:#47cd89"></i>En curso</div>' : ''}`;
+    ganttTooltip.style.display = 'block';
+    moverTooltip(e);
+  }
+  function moverTooltip(e) {
+    const r = ganttTooltip.getBoundingClientRect();
+    let x = e.clientX + 14, y = e.clientY + 14;
+    if (x + r.width > window.innerWidth - 8) x = e.clientX - r.width - 14;
+    if (y + r.height > window.innerHeight - 8) y = e.clientY - r.height - 14;
+    ganttTooltip.style.left = x + 'px';
+    ganttTooltip.style.top = y + 'px';
   }
 
-  function updateTime() {
-    document.getElementById('currentTime').textContent = new Date().toLocaleTimeString('es-MX');
-  }
-
-  updateKPIs();
-  updateTime();
-  setInterval(updateTime, 1000);
-  window.refreshTable = () => location.reload();
-
-  document.querySelectorAll('span.time').forEach(el => {
-      const utc = el.getAttribute('data-time');
-      el.textContent = moment.utc(utc).tz('America/Mexico_City').format('DD/MM HH:mm');
+  /* ───────────── Análisis individual ───────────── */
+  document.getElementById('searchWorkerBtn').addEventListener('click', () => {
+    const id = document.getElementById('workerSelect').value;
+    if (!id) { AD17.toast('Primero elige a una persona.', 'warning', 4000); return; }
+    const spin = document.getElementById('loadingSpinner');
+    const destino = document.getElementById('workerMetrics');
+    spin.style.display = '';
+    destino.innerHTML = '';
+    fetch(`{{ url_for('main.worker_analysis') }}?employee_id=${encodeURIComponent(id)}`)
+      .then((r) => r.json())
+      .then((data) => { destino.innerHTML = data.html || '<div class="alert alert-warning mb-0">No se encontraron datos.</div>'; })
+      .catch(() => { destino.innerHTML = '<div class="alert alert-danger mb-0">Error al cargar los datos.</div>'; })
+      .finally(() => { spin.style.display = 'none'; });
   });
-})();
-</script>
+  if (window.jQuery) $('#workerSelect').on('select2:select', () => document.getElementById('searchWorkerBtn').click());
 
-<script>
-// Correcciones completas para el JavaScript del Gantt Chart
-(function() {
-    let ganttData = [];
-    let weekInfo = [];
-    const ganttContainer = document.getElementById('ganttChart');
-    const ganttLoading = document.getElementById('ganttLoading');
-    const ganttNoData = document.getElementById('ganttNoData');
-    const ganttTooltip = document.getElementById('ganttTooltip');
-    const viewTypeSelect = document.getElementById('ganttViewType');
-    const departmentFilterSelect = document.getElementById('ganttDepartmentFilter');
-    const TIMEZONE = 'America/Mexico_City';
-    const weekSelector = document.getElementById('ganttWeekSelector');
-
-    function setCurrentWeek() {
-        const now = new Date();
-        const year = now.getFullYear();
-        const week = moment(now).isoWeek();
-        weekSelector.value = `${year}-W${week.toString().padStart(2, '0')}`;
-        console.log('Semana actual establecida:', weekSelector.value);
-    }
-
-    function setupEventListeners() {
-        // Mostrar filtro de departamento siempre
-        departmentFilterSelect.style.display = 'block';
-
-        viewTypeSelect.addEventListener('change', () => {
-            console.log('Tipo de vista cambiado a:', viewTypeSelect.value);
-            loadGanttData();
-        });
-
-        departmentFilterSelect.addEventListener('change', () => {
-            console.log('Filtro de departamento cambiado a:', departmentFilterSelect.value);
-            loadGanttData();
-        });
-
-        weekSelector.addEventListener('change', () => {
-            console.log('Semana cambiada a:', weekSelector.value);
-            loadGanttData();
-        });
-
-        // Botón de actualizar
-        document.querySelector('.metric-card .btn-outline-primary').onclick = () => {
-            console.log('Botón de actualizar presionado');
-            loadGanttData();
-        };
-    }
-
-    function getColorForProject(projectName) {
-        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F06292', '#AED581', '#FFD93D', '#6BCF7F', '#4FC3F7', '#BA68C8', '#FF8A65', '#81C784', '#64B5F6', '#A1887F'];
-        let hash = 0;
-        if (!projectName) return colors[0];
-        for (let i = 0; i < projectName.length; i++) {
-            hash = projectName.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        return colors[Math.abs(hash) % colors.length];
-    }
-
-    window.loadGanttData = function() {
-        showGanttLoading();
-
-        const params = new URLSearchParams({
-            view_type: viewTypeSelect.value,
-            selected_week: weekSelector.value
-        });
-
-        // CORRECCIÓN: Asegurar que el filtro de departamento se envíe
-        if (departmentFilterSelect.value) {
-            params.append('department', departmentFilterSelect.value);
-            console.log('Aplicando filtro de departamento:', departmentFilterSelect.value);
-        }
-
-        console.log('Parámetros de la solicitud:', params.toString());
-
-        fetch(`{{ url_for('main.get_gantt_data') }}?${params.toString()}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(result => {
-                console.log('Respuesta del servidor:', result);
-                if (result.success) {
-                    ganttData = result.data || [];
-                    weekInfo = result.weekInfo || [];
-                    console.log('Datos procesados:', {
-                        ganttDataLength: ganttData.length,
-                        weekInfoLength: weekInfo.length,
-                        weekStart: result.weekStart,
-                        departmentFilter: result.departmentFilter
-                    });
-                    renderGanttChart();
-                } else {
-                    console.error('Error en la respuesta:', result.error);
-                    showNoData('Error al cargar los datos: ' + (result.message || result.error));
-                }
-            })
-            .catch(error => {
-                console.error('Error en la solicitud Gantt:', error);
-                showNoData('Error de conexión: ' + error.message);
-            })
-            .finally(hideGanttLoading);
-    };
-
-    function showGanttLoading() {
-        ganttContainer.style.display = 'none';
-        ganttNoData.style.display = 'none';
-        ganttLoading.style.display = 'block';
-    }
-
-    function hideGanttLoading() {
-        ganttLoading.style.display = 'none';
-    }
-
-    function showNoData(message) {
-        ganttContainer.style.display = 'none';
-        ganttNoData.style.display = 'block';
-        if (message) {
-            const messageElement = ganttNoData.querySelector('p');
-            if (messageElement) {
-                messageElement.textContent = message;
-            }
-        }
-    }
-
-    function renderGanttChart() {
-        console.log('Renderizando gráfica con', ganttData.length, 'elementos');
-
-        if (ganttData.length === 0 || weekInfo.length === 0) {
-            const filterMsg = departmentFilterSelect.value ?
-                `No hay datos para el departamento "${departmentFilterSelect.value}" en la semana seleccionada.` :
-                'No hay datos de actividad para mostrar en la semana seleccionada.';
-            showNoData(filterMsg);
-            return;
-        }
-
-        ganttContainer.style.display = 'block';
-        ganttNoData.style.display = 'none';
-        ganttContainer.innerHTML = '';
-
-        const hourWidth = 50;
-        const totalHoursDisplay = 14;
-        const dayWidth = hourWidth * totalHoursDisplay;
-        const startHourDisplay = 7;
-
-        // Construir el encabezado de días
-        const header = document.createElement('div');
-        header.className = 'gantt-header';
-        header.innerHTML = `<div class="gantt-header-label">${viewTypeSelect.value === 'employee' ? 'Empleado' : 'Departamento'}</div>`;
-        const headerTimeline = document.createElement('div');
-        headerTimeline.className = 'gantt-header-timeline';
-
-        weekInfo.forEach(dayInfo => {
-            const dayHeader = document.createElement('div');
-            const date = moment.tz(dayInfo.date, TIMEZONE);
-            dayHeader.className = `gantt-day-header ${dayInfo.isWeekend ? 'weekend' : ''} ${dayInfo.isToday ? 'today' : ''}`;
-            dayHeader.style.width = dayWidth + 'px';
-            dayHeader.innerHTML = `<div style="font-weight: 600;">${date.format('ddd')}</div><div style="font-size: 0.9em;">${date.format('D')}</div>`;
-            headerTimeline.appendChild(dayHeader);
-        });
-        header.appendChild(headerTimeline);
-        ganttContainer.appendChild(header);
-
-        // Renderizar cada fila (empleado o departamento)
-        ganttData.forEach(row => {
-            const rowDiv = document.createElement('div');
-            rowDiv.className = 'gantt-row';
-            const label = document.createElement('div');
-            label.className = 'gantt-label';
-            label.title = row.label;
-
-            if (row.type === 'employee') {
-                // Para empleados, mostrar nombre y departamento
-                label.innerHTML = `
-                    <div style="font-weight: 500; font-size: 0.9em;">${row.label}</div>
-                    <div style="font-size: 0.75em; color: #666; margin-top: 2px;">
-                        <i class="fas fa-building" style="width: 12px; font-size: 0.8em;"></i> ${row.department || 'Sin departamento'}
-                    </div>`;
-            } else {
-                // Para departamentos, solo el nombre
-                label.innerHTML = `<div style="font-weight: 500;">${row.label}</div>`;
-            }
-
-            rowDiv.appendChild(label);
-
-            const timeline = document.createElement('div');
-            timeline.className = 'gantt-timeline';
-
-            (row.records || []).forEach(record => {
-                const localStartTime = moment.utc(record.startTimeUTC).tz(TIMEZONE);
-                const localDateStr = localStartTime.format('YYYY-MM-DD');
-
-                const dayIndex = weekInfo.findIndex(d => d.date === localDateStr);
-                if (dayIndex === -1) return;
-
-                const startHour = localStartTime.hour() + (localStartTime.minute() / 60);
-
-                if (startHour + record.duration < startHourDisplay || startHour > startHourDisplay + totalHoursDisplay) {
-                    return;
-                }
-
-                const bar = document.createElement('div');
-                bar.className = `gantt-bar ${record.isActive ? 'active' : ''}`;
-
-                const left = (dayIndex * dayWidth) + ((startHour - startHourDisplay) * hourWidth);
-                const width = record.duration * hourWidth;
-
-                bar.style.left = Math.max(0, left) + 'px';
-                bar.style.width = width + 'px';
-                bar.style.backgroundColor = getColorForProject(record.project);
-
-                // Agregar indicador visual si el registro es de un departamento diferente al del empleado
-                if (row.type === 'employee' && record.department !== row.department) {
-                    bar.style.border = '2px dashed #333';
-                    bar.style.opacity = '0.8';
-                }
-
-                record.localStartTime = localStartTime;
-
-                bar.addEventListener('mouseenter', e => showTooltip(e, record, row.type));
-                bar.addEventListener('mousemove', updateTooltipPosition);
-                bar.addEventListener('mouseleave', hideTooltip);
-                timeline.appendChild(bar);
-            });
-
-            rowDiv.appendChild(timeline);
-            ganttContainer.appendChild(rowDiv);
-        });
-
-        document.getElementById('ganttChart').style.minWidth = (200 + (dayWidth * weekInfo.length)) + 'px';
-        console.log('Gráfica renderizada exitosamente');
-    }
-
-    function showTooltip(event, record, rowType) {
-        const startTime = record.localStartTime.format('HH:mm');
-        const hours = Math.floor(record.duration);
-        const minutes = Math.round((record.duration - hours) * 60);
-        const durationText = `${hours}h ${minutes}m`;
-
-        let content = `
-            <div style="margin-bottom: 8px;">
-                <strong style="color: #FFA726;">${record.project}</strong>
-                <span style="margin-left: 8px; font-size: 0.9em; color: #ccc;">FP: ${record.projectFolio}</span>
-            </div>
-            <div style="margin-bottom: 4px;"><i class="fas fa-tasks" style="width: 16px;"></i> ${record.activity}</div>
-            <div style="margin-bottom: 4px;"><i class="fas fa-building" style="width: 16px;"></i> Departamento: ${record.department}</div>`;
-
-        if (rowType === 'department') {
-            content += `<div style="margin-bottom: 4px;"><i class="fas fa-user" style="width: 16px;"></i> ${record.employee}</div>`;
-        }
-
-        content += `
-            <div style="margin-bottom: 4px;"><i class="fas fa-play" style="width: 16px;"></i> Inicio: ${startTime}</div>
-            <div style="margin-bottom: 4px;"><i class="fas fa-stop" style="width: 16px;"></i> Fin: ${record.endTime}</div>
-            <div style="margin-bottom: 4px;"><i class="fas fa-hourglass-half" style="width: 16px;"></i> Duración: ${durationText}</div>`;
-
-        if (record.isActive) {
-            content += `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.3);">
-                <span style="color: #4CAF50;"><i class="fas fa-circle fa-xs"></i> En progreso</span>
-            </div>`;
-        }
-
-        ganttTooltip.innerHTML = content;
-        ganttTooltip.style.display = 'block';
-        updateTooltipPosition(event);
-    }
-
-    function updateTooltipPosition(event) {
-        const tooltipRect = ganttTooltip.getBoundingClientRect();
-        let x = event.pageX + 15;
-        let y = event.pageY + 15;
-        if (x + tooltipRect.width > window.innerWidth) x = event.pageX - tooltipRect.width - 15;
-        if (y + tooltipRect.height > window.innerHeight) y = event.pageY - tooltipRect.height - 15;
-        ganttTooltip.style.left = x + 'px';
-        ganttTooltip.style.top = y + 'px';
-    }
-
-    function hideTooltip() {
-        ganttTooltip.style.display = 'none';
-    }
-
-    // Inicialización
-    console.log('Inicializando Gantt Chart...');
-    setupEventListeners();
-    setCurrentWeek();
-    loadGanttData();
-
-    // Actualizar cada 5 minutos
-    setInterval(loadGanttData, 300000);
+  // Arranque y actualización automática
+  recargar();
+  cargarGantt();
+  setInterval(cargarActivos, 30000);
+  setInterval(cargarMetricas, 120000);
+  setInterval(cargarGantt, 300000);
 })();
 </script>
 {% endblock %}

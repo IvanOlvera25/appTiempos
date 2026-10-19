@@ -2,115 +2,168 @@
 {% block title %}Informes de incidencia{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
+{% set tipos_causante = {'AREA': 'Área', 'EMPLEADO': 'Empleado', 'CLIENTE': 'Cliente', 'OTRO': 'Otro'} %}
+{% set n_invalidos = informes|selectattr('invalido')|list|length %}
+{% set n_sueltos = informes|rejectattr('invalido')|selectattr('incident_id', 'none')|list|length %}
+{% set n_vinculados = informes|length - n_invalidos - n_sueltos %}
+{% set filtrado = estado or clasificacion_id %}
 
-  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <div>
-      <h1 class="h4 mb-1">Informes de incidencia</h1>
-      <p class="text-muted mb-0">
-        Ves los informes de perfiles de tu nivel o menor, los tuyos y aquellos en los
-        que se te señala como causante.
-      </p>
-    </div>
-    <div class="d-flex gap-2">
-      {% if administra %}
-      <a href="{{ url_for('incidencias.lista') }}" class="btn btn-outline-primary">
-        <i class="bi bi-collection"></i> Incidencias
-      </a>
-      {% endif %}
-      <a href="{{ url_for('incidencias.nuevo_informe') }}" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Nuevo informe
-      </a>
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-clipboard"></i> Incidencias</div>
+    <h1>Informes de incidencia</h1>
+    <p>
+      Ves los informes de perfiles de tu nivel o menor, los tuyos y aquellos en los
+      que se te señala como causante.
+    </p>
+  </div>
+  <div class="actions">
+    {% if administra %}
+    <a href="{{ url_for('incidencias.lista') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-collection"></i> Incidencias
+    </a>
+    {% endif %}
+    <a href="{{ url_for('incidencias.nuevo_informe') }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i> Nuevo informe
+    </a>
+  </div>
+</div>
+
+<!-- Indicadores -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-clipboard"></i></span>
+      <div class="stat-label">Informes</div>
+      <div class="stat-value">{{ informes|length }}</div>
+      <div class="stat-foot">{{ 'Con los filtros actuales' if filtrado else 'Todos los que puedes ver' }}</div>
     </div>
   </div>
-
-  <form method="GET" class="row g-2 mb-3">
-    <div class="col-md-3">
-      <select name="estado" class="form-select" onchange="this.form.submit()">
-        <option value="">Todos los informes</option>
-        <option value="sueltos" {% if estado == 'sueltos' %}selected{% endif %}>Sin agrupar</option>
-        <option value="vinculados" {% if estado == 'vinculados' %}selected{% endif %}>Ya en una incidencia</option>
-        {% if administra %}
-        <option value="invalidos" {% if estado == 'invalidos' %}selected{% endif %}>Marcados como inválidos</option>
-        {% endif %}
-      </select>
+  <div class="col-6 col-xl">
+    <div class="stat">
+      <span class="stat-icon{% if n_sueltos %} brand{% endif %}"><i class="bi bi-inbox"></i></span>
+      <div class="stat-label">Sin agrupar</div>
+      <div class="stat-value">{{ n_sueltos }}</div>
+      <div class="stat-foot">Aún no forman parte de una incidencia</div>
     </div>
-    <div class="col-md-3">
-      <select name="clasificacion_id" class="form-select" onchange="this.form.submit()">
-        <option value="">Todas las clasificaciones</option>
-        {% for c in clasificaciones %}
-        <option value="{{ c.id }}" {% if clasificacion_id == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+  </div>
+  <div class="col-6 col-xl">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-collection"></i></span>
+      <div class="stat-label">En una incidencia</div>
+      <div class="stat-value">{{ n_vinculados }}</div>
+      <div class="stat-foot">Ya agrupados por Administración o RH</div>
+    </div>
+  </div>
+  {% if administra %}
+  <div class="col-6 col-xl">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-eye-slash"></i></span>
+      <div class="stat-label">Inválidos</div>
+      <div class="stat-value">{{ n_invalidos }}</div>
+      <div class="stat-foot">Solo los ven Administración y RH</div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+  /* Celular: el folio como título y el texto completo a lo ancho, sin etiqueta */
+  @media (max-width: 575.98px) {
+    .inc-tabla.tabla-tarjetas > tbody > tr > td.td-titulo { font-size: 1rem; }
+    .inc-tabla.tabla-tarjetas > tbody > tr > td.inc-texto { padding-bottom: .5rem !important; line-height: 1.45; }
+    .inc-tabla.tabla-tarjetas > tbody > tr > td.inc-texto .small { margin-top: .15rem; }
+  }
+</style>
+
+<form method="GET" class="filter-bar">
+  <i class="bi bi-funnel text-muted ms-1"></i>
+  <select name="estado" class="form-select form-select-sm" aria-label="Estado" onchange="this.form.submit()">
+    <option value="">Todos los informes</option>
+    <option value="sueltos" {% if estado == 'sueltos' %}selected{% endif %}>Sin agrupar</option>
+    <option value="vinculados" {% if estado == 'vinculados' %}selected{% endif %}>Ya en una incidencia</option>
+    {% if administra %}
+    <option value="invalidos" {% if estado == 'invalidos' %}selected{% endif %}>Marcados como inválidos</option>
+    {% endif %}
+  </select>
+  <select name="clasificacion_id" class="form-select form-select-sm" aria-label="Clasificación" onchange="this.form.submit()">
+    <option value="">Todas las clasificaciones</option>
+    {% for c in clasificaciones %}
+    <option value="{{ c.id }}" {% if clasificacion_id == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+    {% endfor %}
+  </select>
+  {% if filtrado %}
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('incidencias.informes') }}"><i class="bi bi-x-lg"></i> Limpiar</a>
+  {% endif %}
+</form>
+
+<div class="card">
+  {% if informes %}
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle inc-tabla" data-buscable="Buscar por motivo, causante, FP o quién reportó…">
+      <thead>
+        <tr>
+          <th style="width:70px;" data-titulo>#</th>
+          <th style="min-width: 300px;">Motivo</th>
+          <th style="width:170px;">Clasificación</th>
+          <th style="width:190px;">Causante</th>
+          <th style="width:120px;">FP</th>
+          <th style="width:170px;">Reportó</th>
+          <th style="width:150px;">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in informes %}
+        <tr class="{% if i.invalido %}table-secondary{% endif %}">
+          <td data-valor="{{ i.id }}">
+            <a href="{{ url_for('incidencias.ver_informe', report_id=i.id) }}"
+               class="fw-semibold text-decoration-none">#{{ i.id }}</a>
+          </td>
+          <td class="inc-texto" data-label="">
+            <a href="{{ url_for('incidencias.ver_informe', report_id=i.id) }}"
+               class="text-decoration-none text-body fw-medium">
+              {{ i.motivo|truncate(110) }}
+            </a>
+            <div class="small text-muted">{{ i.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
+          </td>
+          <td class="small">{{ i.clasificacion.nombre if i.clasificacion else '—' }}</td>
+          <td class="small">
+            <div class="text-muted" style="font-size: .7rem; text-transform: uppercase; letter-spacing: .04em;">{{ tipos_causante.get(i.causante_tipo, i.causante_tipo|capitalize) }}</div>
+            {{ i.causante_label }}
+          </td>
+          <td class="small">
+            <div class="d-flex flex-wrap gap-1">
+              {% for p in i.projects %}
+              <span class="badge bg-secondary" title="{{ p.project.name }}">{{ p.project.folio if p.project.folio is not none else '—' }}</span>
+              {% else %}<span class="text-muted">—</span>{% endfor %}
+            </div>
+          </td>
+          <td class="small">
+            {{ i.reporter.username if i.reporter else '—' }}
+            <div class="text-muted">{{ i.reporter.ROLE_LABELS[i.nivel_autor] if i.reporter else '' }}</div>
+          </td>
+          <td>
+            {% if i.invalido %}
+              <span class="badge bg-dark"><i class="bi bi-eye-slash"></i>Inválido</span>
+            {% elif i.incident_id %}
+              <a href="{{ url_for('incidencias.ver', incident_id=i.incident_id) }}"
+                 class="badge bg-success text-decoration-none"><i class="bi bi-collection"></i>Incidencia #{{ i.incident_id }}</a>
+            {% else %}
+              <span class="badge bg-warning">Sin agrupar</span>
+            {% endif %}
+          </td>
+        </tr>
         {% endfor %}
-      </select>
-    </div>
-  </form>
-
-  <div class="card">
-    <div class="card-body p-0">
-      {% if informes %}
-      <div class="table-responsive">
-        <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light">
-            <tr>
-              <th style="width:70px;">#</th>
-              <th>Motivo</th>
-              <th style="width:170px;">Clasificación</th>
-              <th style="width:170px;">Causante</th>
-              <th style="width:150px;">FP</th>
-              <th style="width:160px;">Reportó</th>
-              <th style="width:150px;">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for i in informes %}
-            <tr class="{% if i.invalido %}table-secondary{% endif %}">
-              <td>
-                <a href="{{ url_for('incidencias.ver_informe', report_id=i.id) }}"
-                   class="fw-bold text-decoration-none">#{{ i.id }}</a>
-              </td>
-              <td>
-                <a href="{{ url_for('incidencias.ver_informe', report_id=i.id) }}"
-                   class="text-decoration-none text-body">
-                  {{ i.motivo|truncate(110) }}
-                </a>
-                <div class="small text-muted">{{ i.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
-              </td>
-              <td class="small">{{ i.clasificacion.nombre if i.clasificacion else '—' }}</td>
-              <td class="small">
-                <span class="badge bg-light text-dark">{{ i.causante_tipo|capitalize }}</span>
-                {{ i.causante_label }}
-              </td>
-              <td class="small">
-                {% for p in i.projects %}
-                <span class="badge bg-secondary">{{ p.project.folio if p.project.folio is not none else '—' }}</span>
-                {% else %}<span class="text-muted">—</span>{% endfor %}
-              </td>
-              <td class="small">
-                {{ i.reporter.username if i.reporter else '—' }}
-                <div class="text-muted">{{ i.reporter.ROLE_LABELS[i.nivel_autor] }}</div>
-              </td>
-              <td>
-                {% if i.invalido %}
-                  <span class="badge bg-dark">Inválido</span>
-                {% elif i.incident_id %}
-                  <a href="{{ url_for('incidencias.ver', incident_id=i.incident_id) }}"
-                     class="badge bg-success text-decoration-none">Incidencia #{{ i.incident_id }}</a>
-                {% else %}
-                  <span class="badge bg-warning text-dark">Sin agrupar</span>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <div class="p-5 text-center text-muted">
-        <i class="bi bi-clipboard-x fs-1 d-block mb-2"></i>
-        No hay informes que puedas ver con estos filtros.
-      </div>
-      {% endif %}
-    </div>
+      </tbody>
+    </table>
   </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon"><i class="bi bi-clipboard-x"></i></div>
+    <h6>No hay informes</h6>
+    <p>{{ 'No hay informes que puedas ver con estos filtros.' if filtrado else 'Todavía no hay informes de incidencia que puedas ver.' }}</p>
+    <a href="{{ url_for('incidencias.nuevo_informe') }}" class="btn btn-sm btn-primary mt-3"><i class="bi bi-plus-lg"></i> Nuevo informe</a>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

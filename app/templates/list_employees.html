@@ -2,38 +2,81 @@
 
 {% extends "layout.html" %}
 
-{% block title %}Lista de Empleados{% endblock %}
+{% block title %}Lista de empleados{% endblock %}
 
 {% block content %}
-  <h2>Lista de Empleados</h2>
-  <table class="table table-striped">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Número de Empleado</th>
-        <th>Nombre Completo</th>
-        <th>Departamento</th>
-        <th>Puesto</th>
-        <th>Código QR</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for employee in employees %}
+<style>
+  /* Áreas con nombre largo ("Infraestructura, Exportaciones e Importaciones"):
+     salto de línea dentro de la insignia en lugar de ensanchar la tabla */
+  .le-tabla .badge { white-space: normal; text-align: left; }
+  @media (max-width: 1199.98px) {
+    .le-tabla .badge { line-height: 1.35; }
+    .le-tabla thead th.le-num { white-space: normal; }
+  }
+  @media (max-width: 575.98px) {
+    .le-tabla .badge { text-align: right; }
+  }
+</style>
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-people"></i> Personal</div>
+    <h1>Lista de empleados</h1>
+    <p>Directorio con número de empleado, área, puesto y código QR de cada persona.</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <i class="bi bi-person-vcard"></i>Directorio
+    <span class="badge bg-secondary">{{ employees|length }}</span>
+  </div>
+  {% if employees %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle le-tabla" data-buscable="Nombre, número, área o puesto…">
+      <thead>
         <tr>
-          <td>{{ employee.id }}</td>
-          <td>{{ employee.n_empleado }}</td>
-          <td>{{ employee.nombre }} {{ employee.apellido_paterno }} {{ employee.apellido_materno }}</td>
-          <td>{{ employee.departamento }}</td>
-          <td>{{ employee.puesto }}</td>
-          <td>
-            {# El endpoint main.employee_qr nunca existió y rompía la página;
-               se enlaza directo a la imagen del QR. #}
-            <a href="{{ url_for('static', filename='qr_codes/' ~ employee.qr_code) }}" target="_blank">
-              <img src="{{ url_for('static', filename='qr_codes/' ~ employee.qr_code) }}" alt="QR de {{ employee.nompropio }}" width="50">
-            </a>
-          </td>
+          <th data-movil-oculto class="d-none d-xl-table-cell">ID</th>
+          <th class="le-num">Nº de empleado</th>
+          <th data-titulo>Nombre completo</th>
+          <th>Área</th>
+          <th>Puesto</th>
+          <th data-nosort class="text-end">Código QR</th>
         </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {% for employee in employees %}
+          <tr>
+            <td class="small text-muted d-none d-xl-table-cell">{{ employee.id }}</td>
+            <td class="fw-semibold">{{ employee.n_empleado }}</td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <span class="avatar avatar-sm avatar-brand">{{ iniciales(employee.nompropio) }}</span>
+                <span>{{ employee.nombre }} {{ employee.apellido_paterno }} {{ employee.apellido_materno }}</span>
+              </div>
+            </td>
+            <td>{% if employee.departamento %}<span class="badge bg-secondary">{{ employee.departamento }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            <td class="small">{{ employee.puesto or '—' }}</td>
+            <td class="text-end">
+              {# El endpoint main.employee_qr nunca existió y rompía la página;
+                 se enlaza directo a la imagen del QR. #}
+              <a href="{{ url_for('static', filename='qr_codes/' ~ employee.qr_code) }}" target="_blank" class="d-inline-block" title="Abrir QR de {{ employee.nompropio }}">
+                <img src="{{ url_for('static', filename='qr_codes/' ~ employee.qr_code) }}" alt="QR de {{ employee.nompropio }}" width="44" height="44"
+                     style="border: 1px solid var(--ad-border); border-radius: 6px; background: #fff;"
+                     onerror="this.parentElement.classList.add('d-none'); this.parentElement.nextElementSibling.classList.remove('d-none');">
+              </a>
+              <span class="small text-muted d-none" title="No se encontró la imagen del QR en el servidor">Sin QR</span>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon"><i class="bi bi-people"></i></div>
+    <h6>No hay empleados</h6>
+    <p>El personal se sincroniza desde el sistema de RH.</p>
+  </div>
+  {% endif %}
+</div>
 {% endblock %}

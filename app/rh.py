@@ -6,6 +6,10 @@ escribe ahi. Todo lo que la app necesita saber de un empleado sale de la vista
 `AD17_RH.empleados_activos`, de modo que un cambio de contrato en RH se resuelve
 ajustando la vista y no el codigo de la aplicacion.
 """
+import os
+import sys
+import threading
+import time
 import unicodedata
 
 import pymysql
@@ -28,6 +32,78 @@ def rh_conn():
     )
 
 
+# ─────────────────────────────────────────────────────────────
+# Conexiones de lectura reutilizables
+# ─────────────────────────────────────────────────────────────
+# Abrir una conexión al servidor remoto cuesta ~230 ms y algunas páginas hacían
+# 5 o más por carga. Para LECTURAS se reutiliza una conexión por hilo: en modo
+# autocommit (cada consulta ve los datos al día) y con un ping si estuvo
+# inactiva un rato. Las escrituras siguen abriendo su propia conexión.
+_POOL = threading.local()
+_PING_SI_INACTIVA = 30  # segundos
+
+
+class _ConexionPrestada:
+    """Se usa igual que la conexión de pymysql; close() la devuelve al hilo."""
+
+    def __init__(self, clave, conn):
+        self._clave = clave
+        self._conn = conn
+
+    def __getattr__(self, nombre):
+        return getattr(self._conn, nombre)
+
+    def close(self):
+        conn, self._conn = self._conn, None
+        if conn is None:
+            return
+        # Si se cierra por una excepción, o el servidor la cortó, no se reusa
+        if sys.exc_info()[0] is not None or not conn.open:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            return
+        cache = _cache_del_hilo()
+        if self._clave in cache:  # ya hay otra guardada: sobra esta
+            conn.close()
+            return
+        cache[self._clave] = (conn, os.getpid(), time.monotonic())
+
+
+def _cache_del_hilo():
+    cache = getattr(_POOL, 'conexiones', None)
+    if cache is None:
+        cache = _POOL.conexiones = {}
+    return cache
+
+
+def conexion_lectura(clave, fabrica):
+    """Conexión de solo lectura reutilizable. `fabrica` crea una nueva si hace falta."""
+    guardada = _cache_del_hilo().pop(clave, None)
+    if guardada:
+        conn, pid, ultimo_uso = guardada
+        if pid == os.getpid() and conn.open:
+            try:
+                if time.monotonic() - ultimo_uso > _PING_SI_INACTIVA:
+                    conn.ping(reconnect=True)
+                return _ConexionPrestada(clave, conn)
+            except Exception:
+                pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+    conn = fabrica()
+    conn.autocommit(True)
+    return _ConexionPrestada(clave, conn)
+
+
+def rh_conn_lectura():
+    """Como rh_conn(), pero reutilizable. Solo para SELECT."""
+    return conexion_lectura('rh', rh_conn)
+
+
 def _general_db():
     return current_app.config.get('GENERAL_DB_NAME', 'AD17_General')
 
@@ -40,7 +116,7 @@ def listar_areas():
     administrador elige que areas habilita para registrar tiempos.
     """
     sql = "SELECT regID AS id, area AS nombre FROM `%s`.Areas ORDER BY area" % _general_db()
-    conn = rh_conn()
+    conn = rh_conn_lectura()
     try:
         with conn.cursor() as cur:
             cur.execute(sql)
@@ -83,7 +159,7 @@ def listar_empleados(area_id=None):
         params.append(area_id)
     sql += " ORDER BY nomPropio"
 
-    conn = rh_conn()
+    conn = rh_conn_lectura()
     try:
         with conn.cursor() as cur:
             cur.execute(sql, params)
@@ -131,7 +207,7 @@ def listar_personal_completo():
           LEFT JOIN `{rh}`.Posiciones AS p ON p.regID = hp.posicionID
          ORDER BY i.regID
     """.format(rh=rh, gen=gen)
-    conn = rh_conn()
+    conn = rh_conn_lectura()
     try:
         with conn.cursor() as cur:
             cur.execute(sql)

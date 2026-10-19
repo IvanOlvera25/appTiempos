@@ -1,144 +1,317 @@
 {% extends "layout.html" %}
-{% block title %}Registros de Area - Sistema de Gestión Operativa{% endblock %}
+{% block title %}Registros de {{ area }}{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  #areaFiltros .select2-container .select2-selection__rendered { line-height: 1.45 !important; }
+  #areaFiltros .input-group { width: auto; flex-wrap: nowrap; }
+  #areaFiltros .input-group .form-control { min-width: 140px; }
+  .filtros-activos { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: -.5rem 0 1.25rem; }
+  .filtros-activos .lbl { font-size: .75rem; font-weight: 600; color: var(--ad-text-3); text-transform: uppercase; letter-spacing: .04em; margin-right: .2rem; }
+  .filtro-chip {
+    display: inline-flex; align-items: center; gap: .35rem; max-width: 320px;
+    padding: .2rem .35rem .2rem .6rem; border-radius: 999px; font-size: .78rem; font-weight: 500;
+    background: var(--ad-brand-soft); color: var(--ad-brand-ink); border: 1px solid var(--ad-brand-soft-2);
+  }
+  .filtro-chip .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .filtro-chip .t b { font-weight: 600; }
+  .filtro-chip .x { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; }
+  .filtro-chip:hover { border-color: #f5a56b; color: var(--ad-brand-press); }
+  .filtro-chip:hover .x { background: var(--ad-brand-soft-2); }
+  #tablaArea .fp { font-size: .7rem; font-weight: 600; color: var(--ad-text-2); background: var(--ad-surface-3); border: 1px solid var(--ad-border); border-radius: 5px; padding: 0 .3rem; margin-right: .3rem; }
+  #tablaArea tr.activo > td:first-child { box-shadow: inset 3px 0 0 var(--ad-success); }
+  #tablaArea .celda-persona { min-width: 210px; }
+  .tabla-cargando { opacity: .55; pointer-events: none; transition: opacity .15s; }
+  #tablaArea .act-inline { display: none; }
 
-<div class="container-fluid py-4">
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
-    <div>
-      <h2 class="fw-bold mb-1">Registros de {{ area }}</h2>
-      <p class="text-muted mb-0">Consulta de solo lectura por empleado, proyecto y fecha de inicio</p>
-    </div>
-    <a class="btn btn-outline-primary" href="{{ url_for('main.area_status') }}">
-      <i class="bi bi-activity me-1"></i>Estatus actual
+  /* Tableta y escritorio angosto: la actividad va bajo el proyecto */
+  @media (max-width: 1199.98px) {
+    #tablaArea .c-act { display: none; }
+    #tablaArea .act-inline { display: block; max-width: 100%; }
+  }
+  #tablaArea .ubic-corta { display: none; }
+  /* Proyecto y actividad toman el ancho que sobra (con elipsis) para que la tabla no se salga */
+  @media (min-width: 576px) {
+    #tablaArea td.c-proy { width: 60%; max-width: 0; }
+    #tablaArea td.c-act { width: 40%; max-width: 0; }
+    #tablaArea .c-proy .text-truncate, #tablaArea .c-act .text-truncate { max-width: 100% !important; }
+  }
+  @media (min-width: 576px) and (max-width: 1199.98px) {
+    #tablaArea > :not(caption) > * > * { padding-left: .6rem; padding-right: .6rem; }
+    #tablaArea > :not(caption) > * > *:first-child { padding-left: 1rem; }
+    #tablaArea > :not(caption) > * > *:last-child { padding-right: 1rem; }
+    #tablaArea .celda-persona { min-width: 180px; }
+    #tablaArea td.c-proy { width: 100%; }
+    #tablaArea .ubic-larga { display: none; }
+    #tablaArea .ubic-corta { display: inline; }
+  }
+
+  /* Celular: filtros plegados tras el botón "Filtros" */
+  @media (max-width: 767.98px) {
+    #areaFiltros:not(.abierto) { display: none; }
+    #areaFiltros > * { flex: 1 1 100%; }
+    #areaFiltros .form-select, #areaFiltros .input-group { width: 100%; }
+    #areaFiltros .select2-container { width: 100% !important; }
+    #areaFiltros .dropdown > .btn { width: 100%; }
+    #areaFiltros .acciones-filtro > .btn { flex: 1 1 0; }
+    .filtros-activos { margin-top: 0; }
+    .filtro-chip { position: relative; max-width: 100%; padding-top: .3rem; padding-bottom: .3rem; }
+    .filtro-chip::after { content: ''; position: absolute; inset: -5px 0; }
+    .filtro-chip .x { width: 22px; height: 22px; }
+    .filtros-activos .quitar { display: inline-flex; align-items: center; min-height: 40px; padding: 0 .4rem; }
+  }
+
+  /* Celular: cada registro como tarjeta */
+  @media (max-width: 575.98px) {
+    #tablaArea.tabla-tarjetas > tbody > tr {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: .75rem; row-gap: .4rem;
+      align-items: center; padding: .85rem .95rem;
+    }
+    #tablaArea.tabla-tarjetas > tbody > tr > td { padding: 0 !important; min-height: 0; text-align: left !important; box-shadow: none; }
+    #tablaArea.tabla-tarjetas > tbody > tr.activo > td:first-child { box-shadow: none; }
+    #tablaArea.tabla-tarjetas > tbody > tr > td::before { display: none; }
+    #tablaArea.tabla-tarjetas > tbody > tr.activo { box-shadow: inset 3px 0 0 var(--ad-success); }
+    #tablaArea .celda-persona { grid-column: 1; grid-row: 1; min-width: 0; font-weight: 400; }
+    #tablaArea .celda-persona .fw-semibold { line-height: 1.25; }
+    #tablaArea.tabla-tarjetas > tbody > tr > td.c-dur { grid-column: 2; grid-row: 1; text-align: right !important; }
+    #tablaArea .c-proy { grid-column: 1 / -1; }
+    #tablaArea .c-proy .text-truncate { white-space: normal; overflow: visible; }
+    #tablaArea .c-fecha { grid-column: 1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .5rem; font-size: .875rem; }
+    #tablaArea.tabla-tarjetas > tbody > tr > td.c-ubic { grid-column: 2; text-align: right !important; }
+    #tablaArea .c-ubic .btn { min-height: 40px; }
+    #recordMap { height: min(420px, 58vh) !important; }
+    .pag-movil .btn { min-height: 42px; }
+  }
+</style>
+{% set n_filtros = [filters.employee_id, filters.project_id, filters.date_from]|select|list|length %}
+
+{% set hay_filtros = filters.employee_id or filters.project_id or filters.date_from %}
+{% set desde_n = (records.page - 1) * records.per_page + 1 %}
+{% set hasta_n = (records.page - 1) * records.per_page + records.items|length %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-clock-history"></i> Mi área</div>
+    <h1>Registros de {{ area }}</h1>
+    <p>Consulta de solo lectura por persona, proyecto y fecha de inicio.</p>
+  </div>
+  <div class="actions">
+    <button type="button" class="btn btn-outline-secondary d-md-none" data-filtros-toggle aria-controls="areaFiltros" aria-expanded="false">
+      <i class="bi bi-sliders"></i> Filtros{% if n_filtros %} <span class="badge bg-primary">{{ n_filtros }}</span>{% endif %}
+    </button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.area_status') }}">
+      <i class="bi bi-activity"></i> Estado actual
     </a>
   </div>
+</div>
 
-  <div class="card shadow-sm mb-4">
-    <div class="card-body">
-      <form method="get" class="row g-3 align-items-end">
-        <div class="col-md-3">
-          <label class="form-label fw-semibold small">Empleado</label>
-          <select name="employee_id" class="form-select">
-            <option value="">Todos</option>
-            {% for emp in employees %}
-            <option value="{{ emp.id }}" {% if filters.employee_id == emp.id %}selected{% endif %}>{{ emp.nompropio }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label fw-semibold small">Proyecto</label>
-          <select name="project_id" class="form-select" id="projectFilterSelect">
-            <option value="">Todos</option>
-            {% for project in projects %}
-            <option value="{{ project.id }}" {% if filters.project_id == project.id %}selected{% endif %}>
-              {{ project.folio }} - {{ project.name }}
-            </option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label fw-semibold small">Desde fecha de inicio</label>
-          <input type="date" name="date_from" class="form-control" value="{{ filters.date_from }}">
-        </div>
-        <div class="col-md-3 d-flex gap-2">
-          <button class="btn btn-primary flex-fill" type="submit">
-            <i class="bi bi-funnel me-1"></i>Filtrar
-          </button>
-          <a class="btn btn-outline-secondary" href="{{ url_for('main.area_records') }}">Limpiar</a>
-        </div>
-      </form>
-    </div>
+<!-- Filtros -->
+<form method="get" class="filter-bar" id="areaFiltros" role="search" aria-label="Filtrar registros">
+  <i class="bi bi-funnel text-muted ms-1 d-none d-sm-inline"></i>
+  <select name="employee_id" class="form-select form-select-sm" id="areaEmpleado" aria-label="Persona">
+    <option value="">Todas las personas</option>
+    {% for emp in employees %}
+    <option value="{{ emp.id }}" {% if filters.employee_id == emp.id %}selected{% endif %}>{{ emp.nompropio }}</option>
+    {% endfor %}
+  </select>
+  <select name="project_id" class="form-select form-select-sm" id="projectFilterSelect" aria-label="Proyecto">
+    <option value="">Todos los proyectos</option>
+    {% for project in projects %}
+    <option value="{{ project.id }}" {% if filters.project_id == project.id %}selected{% endif %}>
+      {{ project.folio }} - {{ project.name }}
+    </option>
+    {% endfor %}
+  </select>
+  <div class="input-group input-group-sm">
+    <span class="input-group-text">Desde</span>
+    <input type="date" name="date_from" class="form-control form-control-sm" id="areaDesde" value="{{ filters.date_from }}" aria-label="Desde fecha de inicio">
   </div>
+  <div class="dropdown">
+    <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="bi bi-calendar3"></i> Periodo
+    </button>
+    <ul class="dropdown-menu" id="areaPeriodos">
+      <li><button type="button" class="dropdown-item" data-dias="0">Desde hoy</button></li>
+      <li><button type="button" class="dropdown-item" data-dias="semana">Desde el lunes</button></li>
+      <li><button type="button" class="dropdown-item" data-dias="6">Últimos 7 días</button></li>
+      <li><button type="button" class="dropdown-item" data-dias="mes">Desde el día 1 del mes</button></li>
+      <li><hr class="dropdown-divider"></li>
+      <li><button type="button" class="dropdown-item" data-dias="todo">Sin límite de fecha</button></li>
+    </ul>
+  </div>
+  <div class="d-flex gap-2 ms-auto acciones-filtro">
+    {% if hay_filtros %}
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.area_records') }}"><i class="bi bi-x-lg"></i> Limpiar</a>
+    {% endif %}
+    <button class="btn btn-sm btn-primary" type="submit">
+      <i class="bi bi-funnel"></i> Filtrar
+    </button>
+  </div>
+</form>
 
-  <div class="card shadow-sm">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-      <h6 class="mb-0 fw-semibold">Historial</h6>
-      <span class="badge bg-info">{{ records.total }} registros</span>
-    </div>
-    <div class="card-body p-0">
-      {% if records.items %}
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th class="ps-4">Empleado</th>
-              <th>Proyecto</th>
-              <th>Actividad</th>
-              <th>Inicio</th>
-              <th>Fin</th>
-              <th>Duración</th>
-              <th class="text-end pe-4">Ubicación</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for record in records.items %}
-            <tr>
-              <td class="ps-4">{{ record.employee.nompropio if record.employee else '—' }}</td>
-              <td>
-                <div class="fw-medium">{{ record.project.name if record.project else '—' }}</div>
-                <small class="text-muted">FP {{ record.project.folio if record.project else '—' }}</small>
-              </td>
-              <td>{{ record.actividad or 'Sin especificar' }}</td>
-              <td>{{ record.start_time_mx.strftime('%d/%m/%Y %H:%M') if record.start_time_mx else '' }}</td>
-              <td>
-                {% if record.end_time_mx %}
-                {{ record.end_time_mx.strftime('%d/%m/%Y %H:%M') }}
-                {% else %}
-                <span class="badge bg-warning text-dark">Activo</span>
-                {% endif %}
-              </td>
-              <td>
-                {% if record.end_time %}
-                {{ "%.2f"|format((record.end_time - record.start_time).total_seconds() / 3600) }} h
-                {% else %}
-                —
-                {% endif %}
-              </td>
-              <td class="text-end pe-4">
-                {% if record.latitude and record.longitude %}
-                <button type="button" class="btn btn-sm btn-outline-primary js-map-btn"
-                  data-lat="{{ record.latitude }}"
-                  data-lng="{{ record.longitude }}"
-                  data-title="{{ record.employee.nompropio if record.employee else 'Registro' }}"
-                  data-subtitle="{{ record.project.name if record.project else '' }}">
-                  <i class="bi bi-geo-alt me-1"></i>Mapa
-                </button>
-                {% else %}
-                <span class="text-muted">Sin ubicación</span>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <div class="text-center py-5 text-muted">
-        <i class="bi bi-calendar-x" style="font-size:3rem;"></i>
-        <p class="mt-3 mb-0">No hay registros con los filtros seleccionados.</p>
-      </div>
-      {% endif %}
-    </div>
-    {% if records.pages > 1 %}
-    <div class="card-footer bg-white">
-      <nav aria-label="Paginación de registros">
-        <ul class="pagination justify-content-end mb-0">
-          {% for page_num in records.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-            {% if page_num %}
-            <li class="page-item {{ 'active' if page_num == records.page }}">
-              <a class="page-link" href="{{ url_for('main.area_records', page=page_num, employee_id=filters.employee_id, project_id=filters.project_id, date_from=filters.date_from) }}">{{ page_num }}</a>
-            </li>
-            {% else %}
-            <li class="page-item disabled"><span class="page-link">…</span></li>
-            {% endif %}
-          {% endfor %}
-        </ul>
-      </nav>
-    </div>
+{% if hay_filtros %}
+<div class="filtros-activos" aria-label="Filtros activos">
+  <span class="lbl">Filtrando por</span>
+  {% if filters.employee_id %}
+  {% set persona_sel = employees|selectattr('id', 'equalto', filters.employee_id)|first %}
+  <a class="filtro-chip" href="{{ url_for('main.area_records', **dict(filters, employee_id=None)) }}" title="Quitar este filtro">
+    <span class="t">Persona: <b>{{ persona_sel.nompropio if persona_sel else '#' ~ filters.employee_id }}</b></span><span class="x"><i class="bi bi-x"></i></span>
+  </a>
+  {% endif %}
+  {% if filters.project_id %}
+  {% set proyecto_sel = projects|selectattr('id', 'equalto', filters.project_id)|first %}
+  <a class="filtro-chip" href="{{ url_for('main.area_records', **dict(filters, project_id=None)) }}" title="Quitar este filtro">
+    <span class="t">Proyecto: <b>{% if proyecto_sel %}{% if proyecto_sel.folio is not none %}FP {{ proyecto_sel.folio }} · {% endif %}{{ proyecto_sel.name }}{% else %}#{{ filters.project_id }}{% endif %}</b></span><span class="x"><i class="bi bi-x"></i></span>
+  </a>
+  {% endif %}
+  {% if filters.date_from %}
+  {% set d = filters.date_from %}
+  <a class="filtro-chip" href="{{ url_for('main.area_records', **dict(filters, date_from=None)) }}" title="Quitar este filtro">
+    <span class="t">Desde: <b>{{ d[8:10] }}/{{ d[5:7] }}/{{ d[0:4] }}</b></span><span class="x"><i class="bi bi-x"></i></span>
+  </a>
+  {% endif %}
+  <a class="small fw-semibold ms-1 quitar" href="{{ url_for('main.area_records') }}">Quitar todos</a>
+</div>
+{% endif %}
+
+<div class="card" id="tarjetaArea">
+  <div class="card-header">
+    <i class="bi bi-clock-history"></i>Historial
+    <span class="badge bg-secondary">{{ "{:,}".format(records.total) }}</span>
+    {% if records.items %}
+    <span class="small text-muted fw-normal ms-auto">{{ "{:,}".format(desde_n) }}–{{ "{:,}".format(hasta_n) }} de {{ "{:,}".format(records.total) }} registros</span>
     {% endif %}
   </div>
+  {% if records.items %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle" id="tablaArea" data-tarjetas>
+      <thead>
+        <tr>
+          <th data-titulo>Persona</th>
+          <th>Proyecto</th>
+          <th class="c-act">Actividad</th>
+          <th>Fecha y horario</th>
+          <th class="text-end">Duración</th>
+          <th class="text-end"><span class="ubic-larga">Ubicación</span><span class="ubic-corta">Mapa</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in records.items %}
+        <tr class="{{ '' if record.end_time else 'activo' }}">
+          <td class="celda-persona">
+            <div class="d-flex align-items-center gap-2">
+              <span class="avatar avatar-sm avatar-brand">{{ iniciales(record.employee.nompropio) if record.employee else '?' }}</span>
+              <span class="fw-semibold">{{ record.employee.nompropio if record.employee else '—' }}</span>
+            </div>
+          </td>
+          <td class="c-proy">
+            <div class="fw-medium text-truncate" style="max-width: 280px;" title="{{ record.project.name if record.project else '' }}">
+              <span class="fp">FP {{ record.project.folio if record.project else '—' }}</span>{{ record.project.name if record.project else '—' }}
+            </div>
+            <div class="act-inline small text-muted text-truncate">{{ record.actividad or 'Sin especificar' }}</div>
+          </td>
+          <td class="c-act">
+            <span class="small text-truncate d-inline-block align-middle" style="max-width: 240px;" title="{{ record.actividad or '' }}">{{ record.actividad or 'Sin especificar' }}</span>
+          </td>
+          <td class="c-fecha text-nowrap">
+            {% if record.start_time_mx %}
+            <div>{{ record.start_time_mx.strftime('%d/%m/%Y') }}</div>
+            <div class="small text-muted">
+              {{ record.start_time_mx.strftime('%H:%M') }} –
+              {% if record.end_time_mx %}
+                {% if record.end_time_mx.date() != record.start_time_mx.date() %}<span class="text-danger" title="Termina en otro día">{{ record.end_time_mx.strftime('%d/%m %H:%M') }}</span>{% else %}{{ record.end_time_mx.strftime('%H:%M') }}{% endif %}
+              {% else %}
+                <span class="text-success">en curso</span>
+              {% endif %}
+            </div>
+            {% endif %}
+          </td>
+          <td class="c-dur text-end text-nowrap">
+            {% if record.end_time %}
+              {% set segundos = (record.end_time - record.start_time).total_seconds() %}
+              <div class="fw-semibold">{{ "%.2f"|format(segundos / 3600) }} h</div>
+              <div class="small text-muted">{{ (segundos // 3600)|int }} h {{ ((segundos % 3600) // 60)|int }} min</div>
+            {% else %}
+              <span class="badge bg-success"><span class="dot"></span>En curso</span>
+            {% endif %}
+          </td>
+          <td class="c-ubic text-end">
+            {% if record.latitude and record.longitude %}
+            <button type="button" class="btn btn-sm btn-outline-secondary js-map-btn" aria-label="Ver ubicación en el mapa"
+              data-lat="{{ record.latitude }}"
+              data-lng="{{ record.longitude }}"
+              data-title="{{ record.employee.nompropio if record.employee else 'Registro' }}"
+              data-subtitle="{{ record.project.name if record.project else '' }}">
+              <i class="bi bi-geo-alt"></i><span class="ubic-larga"> Mapa</span>
+            </button>
+            {% else %}
+            <span class="small text-muted text-nowrap ubic-larga">Sin ubicación</span><span class="text-muted ubic-corta" title="Sin ubicación">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon"><i class="bi bi-calendar-x"></i></div>
+    <h6>No hay registros {{ 'con estos filtros' if hay_filtros else 'en ' ~ area }}</h6>
+    <p>{{ 'Prueba quitando algún filtro o eligiendo una fecha anterior.' if hay_filtros else 'Cuando el personal registre tiempos en esta área aparecerán aquí.' }}</p>
+    {% if hay_filtros %}
+    <a class="btn btn-sm btn-outline-secondary mt-3" href="{{ url_for('main.area_records') }}"><i class="bi bi-x-lg"></i> Quitar filtros</a>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% if records.pages > 1 %}
+  <div class="card-footer d-flex flex-wrap align-items-center gap-2">
+    <nav class="pag-movil d-flex d-sm-none align-items-center gap-2 w-100" aria-label="Paginación de registros">
+      {% if records.has_prev %}
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.area_records', page=records.prev_num, employee_id=filters.employee_id, project_id=filters.project_id, date_from=filters.date_from) }}"><i class="bi bi-chevron-left"></i> Anterior</a>
+      {% else %}
+      <span class="btn btn-outline-secondary disabled" aria-disabled="true"><i class="bi bi-chevron-left"></i> Anterior</span>
+      {% endif %}
+      <span class="flex-grow-1 text-center small text-muted lh-sm">Página <b class="text-body">{{ records.page }}</b><br>de {{ "{:,}".format(records.pages) }}</span>
+      {% if records.has_next %}
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.area_records', page=records.next_num, employee_id=filters.employee_id, project_id=filters.project_id, date_from=filters.date_from) }}">Siguiente <i class="bi bi-chevron-right"></i></a>
+      {% else %}
+      <span class="btn btn-outline-secondary disabled" aria-disabled="true">Siguiente <i class="bi bi-chevron-right"></i></span>
+      {% endif %}
+    </nav>
+    <span class="small text-muted d-none d-sm-inline">Página {{ records.page }} de {{ "{:,}".format(records.pages) }}</span>
+    <nav aria-label="Paginación de registros" class="ms-auto d-none d-sm-block">
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item {{ '' if records.has_prev else 'disabled' }}">
+          {% if records.has_prev %}
+          <a class="page-link" href="{{ url_for('main.area_records', page=records.prev_num, employee_id=filters.employee_id, project_id=filters.project_id, date_from=filters.date_from) }}" aria-label="Anterior"><i class="bi bi-chevron-left"></i></a>
+          {% else %}
+          <span class="page-link"><i class="bi bi-chevron-left"></i></span>
+          {% endif %}
+        </li>
+        {% for page_num in records.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+          {% if page_num %}
+          <li class="page-item {{ 'active' if page_num == records.page }}">
+            <a class="page-link" href="{{ url_for('main.area_records', page=page_num, employee_id=filters.employee_id, project_id=filters.project_id, date_from=filters.date_from) }}">{{ page_num }}</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+        <li class="page-item {{ '' if records.has_next else 'disabled' }}">
+          {% if records.has_next %}
+          <a class="page-link" href="{{ url_for('main.area_records', page=records.next_num, employee_id=filters.employee_id, project_id=filters.project_id, date_from=filters.date_from) }}" aria-label="Siguiente"><i class="bi bi-chevron-right"></i></a>
+          {% else %}
+          <span class="page-link"><i class="bi bi-chevron-right"></i></span>
+          {% endif %}
+        </li>
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
 </div>
 
 <div class="modal fade" id="recordMapModal" tabindex="-1" aria-hidden="true">
@@ -152,12 +325,14 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
-        <div id="recordMap" style="height:420px;border-radius:8px;"></div>
+        <div id="recordMap" style="height: 420px; border-radius: var(--ad-radius);"></div>
       </div>
     </div>
   </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
@@ -166,14 +341,52 @@
     const modalEl = document.getElementById('recordMapModal');
     const modal = new bootstrap.Modal(modalEl);
 
-    // Inicializar Select2 para el filtro de proyectos
+    // Filtros: las listas aplican en cuanto cambian
+    const form = document.getElementById('areaFiltros');
+    const enviar = () => {
+      document.getElementById('tarjetaArea').classList.add('tabla-cargando');
+      form.submit();
+    };
+    form.addEventListener('submit', () => document.getElementById('tarjetaArea').classList.add('tabla-cargando'));
+
+    // Celular: mostrar u ocultar los filtros
+    const btnFiltros = document.querySelector('[data-filtros-toggle]');
+    if (btnFiltros) btnFiltros.addEventListener('click', () => {
+      const abierto = form.classList.toggle('abierto');
+      btnFiltros.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+      btnFiltros.classList.toggle('active', abierto);
+    });
+
+    // Inicializar Select2 para los filtros de persona y proyecto
     if (typeof $ !== 'undefined' && $.fn.select2) {
       $('#projectFilterSelect').select2({
         theme: 'bootstrap4',
-        placeholder: 'Todos',
-        allowClear: true
+        placeholder: 'Todos los proyectos',
+        allowClear: true,
+        width: '300px'
       });
+      $('#areaEmpleado').select2({
+        theme: 'bootstrap4',
+        placeholder: 'Todas las personas',
+        allowClear: true,
+        width: '240px'
+      });
+      $('#projectFilterSelect, #areaEmpleado').on('change', enviar);
+    } else {
+      ['projectFilterSelect', 'areaEmpleado'].forEach(id => document.getElementById(id).addEventListener('change', enviar));
     }
+
+    // Periodos rápidos: llenan "Desde" y aplican
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    document.querySelectorAll('#areaPeriodos [data-dias]').forEach(b => b.addEventListener('click', () => {
+      const d = new Date(); d.setHours(0, 0, 0, 0);
+      const v = b.dataset.dias;
+      if (v === 'semana') d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      else if (v === 'mes') d.setDate(1);
+      else if (v !== 'todo') d.setDate(d.getDate() - Number(v));
+      document.getElementById('areaDesde').value = v === 'todo' ? '' : iso(d);
+      enviar();
+    }));
 
     document.querySelectorAll('.js-map-btn').forEach(btn => {
       btn.addEventListener('click', () => {

@@ -2,97 +2,178 @@
 {% block title %}{{ 'Editar informe' if informe else 'Nuevo informe de incidencia' }}{% endblock %}
 
 {% block content %}
-<div class="container py-4" style="max-width: 900px;">
+<style>
+  .form-sec { display: grid; grid-template-columns: 220px 1fr; gap: 1rem 2rem; padding: 1.4rem 0; border-top: 1px solid var(--ad-border); }
+  .form-sec:first-child { border-top: 0; padding-top: .25rem; }
+  .form-sec:last-child { padding-bottom: .25rem; }
+  .form-sec-tit { font-weight: 600; font-size: .9rem; color: var(--ad-text); margin-bottom: .2rem; }
+  .form-sec-ayuda { font-size: .8rem; color: var(--ad-text-3); margin: 0; }
+  @media (max-width: 767.98px) { .form-sec { grid-template-columns: 1fr; gap: .75rem; } }
 
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h4 mb-0">
-      {{ 'Editar informe #%s'|format(informe.id) if informe else 'Nuevo informe de incidencia' }}
-    </h1>
-    <a href="{{ url_for('incidencias.informes') }}" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left"></i> Volver
-    </a>
+  /* Tarjetas de FP agregados */
+  .fp-tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: .5rem; }
+  .fp-tarjetas:empty { display: none; }
+  .fp-card {
+    display: flex; align-items: flex-start; gap: .65rem; padding: .6rem .7rem;
+    border: 1px solid var(--ad-border); border-radius: var(--ad-radius); background: var(--ad-surface-2);
+  }
+  .fp-folio {
+    flex-shrink: 0; font-size: .72rem; font-weight: 700; padding: .2rem .45rem; border-radius: 6px;
+    background: var(--ad-brand-soft); color: var(--ad-brand-ink); border: 1px solid var(--ad-brand-soft-2);
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .fp-info { min-width: 0; }
+  .fp-nombre { font-size: .82rem; font-weight: 600; line-height: 1.3; color: var(--ad-text); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .fp-cliente { font-size: .75rem; color: var(--ad-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fp-card .btn-close { font-size: .6rem; margin-top: .2rem; flex-shrink: 0; }
+  /* En pantallas táctiles la × tiene un área de toque cómoda (el icono no cambia) */
+  @media (pointer: coarse) {
+    .fp-card { align-items: center; padding-right: .3rem; }
+    .fp-card .btn-close { box-sizing: border-box; width: 40px; height: 40px; padding: 0; margin: -.4rem 0; background-size: .75rem; }
+  }
+  /* Celular: guardar siempre a la mano (la barra inferior global se oculta con .k-actions) */
+  @media (max-width: 767.98px) {
+    .inf-acciones {
+      position: sticky; bottom: 0; z-index: 5;
+      padding-bottom: calc(.75rem + env(safe-area-inset-bottom));
+      box-shadow: 0 -6px 16px rgba(16, 24, 40, .06);
+    }
+    .inf-acciones .btn { flex: 1 1 0; }
+    .inf-acciones .btn-primary { flex-grow: 2; }
+  }
+</style>
+
+<div style="max-width: 920px;" class="mx-auto">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow"><i class="bi bi-clipboard"></i> Informes de incidencia</div>
+      <h1>{{ 'Editar informe #%s'|format(informe.id) if informe else 'Nuevo informe de incidencia' }}</h1>
+      <p>Cuenta qué pasó, quién lo causó y a qué proyectos afectó. Administración y RH lo agrupan después en una incidencia.</p>
+    </div>
+    <div class="actions">
+      <a href="{{ url_for('incidencias.informes') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+      </a>
+    </div>
   </div>
 
   <form method="POST" class="card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="card-body">
 
-      <div class="mb-3">
-        <label class="form-label">Motivo de la incidencia <span class="text-danger">*</span></label>
-        <textarea name="motivo" class="form-control" rows="4" required
-                  placeholder="¿Qué pasó?">{{ informe.motivo if informe else '' }}</textarea>
-      </div>
-
-      <div class="row g-3 mb-3">
-        <div class="col-md-6">
-          <label class="form-label">Clasificación</label>
-          <select name="clasificacion_id" class="form-select">
-            <option value="">Sin clasificar</option>
-            {% for c in clasificaciones %}
-            <option value="{{ c.id }}"
-              {% if informe and informe.clasificacion_id == c.id %}selected{% endif %}>{{ c.nombre }}</option>
-            {% endfor %}
-          </select>
+      <!-- Qué pasó -->
+      <div class="form-sec">
+        <div>
+          <div class="form-sec-tit">Qué pasó</div>
+          <p class="form-sec-ayuda">Describe el problema con el detalle suficiente para que alguien más lo entienda.</p>
         </div>
-        <div class="col-md-6">
-          <label class="form-label">Tipo de causante <span class="text-danger">*</span></label>
-          <select name="causante_tipo" id="causante_tipo" class="form-select" required>
-            {% set tipo_actual = informe.causante_tipo if informe else 'AREA' %}
-            <option value="AREA"     {% if tipo_actual == 'AREA' %}selected{% endif %}>Área</option>
-            <option value="EMPLEADO" {% if tipo_actual == 'EMPLEADO' %}selected{% endif %}>Empleado</option>
-            <option value="CLIENTE"  {% if tipo_actual == 'CLIENTE' %}selected{% endif %}>Cliente</option>
-            <option value="OTRO"     {% if tipo_actual == 'OTRO' %}selected{% endif %}>Otro</option>
-          </select>
+        <div>
+          <div class="mb-3">
+            <label class="form-label" for="inf_motivo">Motivo de la incidencia <span class="text-danger">*</span></label>
+            <textarea name="motivo" id="inf_motivo" class="form-control" rows="4" required
+                      placeholder="¿Qué pasó?">{{ informe.motivo if informe else '' }}</textarea>
+          </div>
+          <div>
+            <label class="form-label" for="inf_clasificacion">Clasificación</label>
+            <select name="clasificacion_id" id="inf_clasificacion" class="form-select">
+              <option value="">Sin clasificar</option>
+              {% for c in clasificaciones %}
+              <option value="{{ c.id }}"
+                {% if informe and informe.clasificacion_id == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
       </div>
 
-      <div class="mb-3" data-causante="AREA">
-        <label class="form-label">Área causante</label>
-        <select name="causante_area" class="form-select">
-          <option value="">Selecciona un área…</option>
-          {% for a in areas %}
-          <option value="{{ a }}" {% if informe and informe.causante_area == a %}selected{% endif %}>{{ a }}</option>
-          {% endfor %}
-        </select>
+      <!-- Causante -->
+      <div class="form-sec">
+        <div>
+          <div class="form-sec-tit">Causante</div>
+          <p class="form-sec-ayuda">Un área, una persona, el cliente u otro.</p>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-5">
+            <label class="form-label" for="causante_tipo">Tipo de causante <span class="text-danger">*</span></label>
+            <select name="causante_tipo" id="causante_tipo" class="form-select" required>
+              {% set tipo_actual = informe.causante_tipo if informe else 'AREA' %}
+              <option value="AREA"     {% if tipo_actual == 'AREA' %}selected{% endif %}>Área</option>
+              <option value="EMPLEADO" {% if tipo_actual == 'EMPLEADO' %}selected{% endif %}>Empleado</option>
+              <option value="CLIENTE"  {% if tipo_actual == 'CLIENTE' %}selected{% endif %}>Cliente</option>
+              <option value="OTRO"     {% if tipo_actual == 'OTRO' %}selected{% endif %}>Otro</option>
+            </select>
+          </div>
+          <div class="col-md-7">
+            <div data-causante="AREA">
+              <label class="form-label" for="inf_area">Área causante</label>
+              <select name="causante_area" id="inf_area" class="form-select">
+                <option value="">Selecciona un área…</option>
+                {% for a in areas %}
+                <option value="{{ a }}" {% if informe and informe.causante_area == a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div data-causante="EMPLEADO">
+              <label class="form-label" for="inf_empleado">Empleado causante</label>
+              <select name="causante_employee_id" id="inf_empleado" class="form-select">
+                <option value="">Selecciona un empleado…</option>
+                {% for e in empleados %}
+                <option value="{{ e.id }}"
+                  {% if informe and informe.causante_employee_id == e.id %}selected{% endif %}>{{ e.nompropio }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div data-causante="CLIENTE OTRO">
+              <label class="form-label" for="inf_texto">¿Quién?</label>
+              <input type="text" name="causante_texto" id="inf_texto" class="form-control" maxlength="200"
+                     value="{{ informe.causante_texto or '' if informe else '' }}"
+                     placeholder="Nombre del cliente o descripción">
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="mb-3" data-causante="EMPLEADO">
-        <label class="form-label">Empleado causante</label>
-        <select name="causante_employee_id" class="form-select">
-          <option value="">Selecciona un empleado…</option>
-          {% for e in empleados %}
-          <option value="{{ e.id }}"
-            {% if informe and informe.causante_employee_id == e.id %}selected{% endif %}>{{ e.nompropio }}</option>
-          {% endfor %}
-        </select>
+      <!-- Proyectos -->
+      <div class="form-sec">
+        <div>
+          <div class="form-sec-tit">Proyectos afectados</div>
+          <p class="form-sec-ayuda">Escribe el folio y toca Agregar (o presiona Enter, espacio o coma). Puedes agregar varios.</p>
+        </div>
+        <div>
+          <label class="form-label" for="fp_entrada">FP de proyecto(s) afectado(s)</label>
+          <div class="input-group">
+            <span class="input-group-text fw-semibold">FP</span>
+            <input type="text" id="fp_entrada" class="form-control" inputmode="numeric" enterkeyhint="enter"
+                   autocomplete="off" placeholder="Escribe el folio">
+            <button type="button" class="btn btn-outline-secondary" id="fp_agregar">
+              <i class="bi bi-plus-lg"></i> Agregar
+            </button>
+          </div>
+          <div id="fp_error" class="invalid-feedback d-block" hidden></div>
+          <div id="fp_tarjetas" class="fp-tarjetas mt-2"></div>
+          <div id="fp_hidden"></div>
+          <div class="form-text">Quita uno con la ×, o con Retroceso cuando el campo está vacío.</div>
+        </div>
       </div>
 
-      <div class="mb-3" data-causante="CLIENTE OTRO">
-        <label class="form-label">¿Quién?</label>
-        <input type="text" name="causante_texto" class="form-control" maxlength="200"
-               value="{{ informe.causante_texto or '' if informe else '' }}"
-               placeholder="Nombre del cliente o descripción">
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label" for="fp_entrada">FP de proyecto(s) afectado(s)</label>
-        <input type="text" id="fp_entrada" class="form-control" inputmode="numeric"
-               autocomplete="off" placeholder="Escribe el folio y presiona Enter o espacio">
-        <div id="fp_error" class="invalid-feedback d-block" hidden></div>
-        <div id="fp_tarjetas" class="d-flex flex-wrap gap-2 mt-2"></div>
-        <div id="fp_hidden"></div>
-        <div class="form-text">Puedes agregar varios FP. Quita uno con la ×.</div>
-      </div>
-
-      <div class="mb-0">
-        <label class="form-label">Repercusión de la incidencia</label>
-        <textarea name="repercusion" class="form-control" rows="3"
-                  placeholder="¿En qué afectó? Retrabajo, retraso, costo…">{{ informe.repercusion or '' if informe else '' }}</textarea>
+      <!-- Repercusión -->
+      <div class="form-sec">
+        <div>
+          <div class="form-sec-tit">Repercusión</div>
+          <p class="form-sec-ayuda">Opcional. Ayuda a estimar el costo de la incidencia.</p>
+        </div>
+        <div>
+          <label class="form-label" for="inf_repercusion">Repercusión de la incidencia</label>
+          <textarea name="repercusion" id="inf_repercusion" class="form-control" rows="3"
+                    placeholder="¿En qué afectó? Retrabajo, retraso, costo…">{{ informe.repercusion or '' if informe else '' }}</textarea>
+        </div>
       </div>
     </div>
 
-    <div class="card-footer d-flex justify-content-end gap-2">
-      <a href="{{ url_for('incidencias.informes') }}" class="btn btn-secondary">Cancelar</a>
+    <div class="card-footer d-flex justify-content-end gap-2 inf-acciones k-actions">
+      <a href="{{ url_for('incidencias.informes') }}" class="btn btn-outline-secondary">Cancelar</a>
       <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar informe</button>
     </div>
   </form>
@@ -113,6 +194,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   selector.addEventListener('change', sincronizar);
   sincronizar();
+
+  // El empleado causante se busca por nombre (la lista es larga)
+  if (window.jQuery && $.fn.select2) {
+    $('#inf_empleado').select2({ theme: 'bootstrap4', width: '100%', placeholder: 'Selecciona un empleado…', allowClear: true });
+  }
 
   // ── Captura de FP estilo destinatarios de correo ──
   // Catalogo: proyectos activos mas los que ya tenia el informe (aunque ya esten inactivos)
@@ -140,16 +226,14 @@ document.addEventListener('DOMContentLoaded', () => {
     ocultos.innerHTML = '';
     elegidos.forEach(p => {
       const card = document.createElement('div');
-      card.className = 'card shadow-sm';
+      card.className = 'fp-card';
       card.innerHTML = `
-        <div class="card-body py-2 px-3 d-flex align-items-start gap-3">
-          <div>
-            <div class="fw-semibold">FP ${p.folio}</div>
-            <div class="small">${escapar(p.name)}</div>
-            <div class="small text-muted">${escapar(p.client || '')}</div>
-          </div>
-          <button type="button" class="btn-close ms-auto" aria-label="Quitar FP ${p.folio}"></button>
-        </div>`;
+        <span class="fp-folio">FP ${escapar(p.folio)}</span>
+        <div class="fp-info">
+          <div class="fp-nombre" title="${escapar(p.name)}">${escapar(p.name)}</div>
+          <div class="fp-cliente">${escapar(p.client || '')}</div>
+        </div>
+        <button type="button" class="btn-close ms-auto" aria-label="Quitar FP ${escapar(p.folio)}" title="Quitar"></button>`;
       card.querySelector('.btn-close').addEventListener('click', () => {
         elegidos.delete(p.id);
         pintar();
@@ -198,6 +282,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   entrada.addEventListener('input', () => mostrarError(''));
+  // Teclados de celular: Android no avisa espacio ni coma en keydown y el teclado
+  // numérico de iPhone no tiene Enter. El separador se detecta al escribir y hay botón.
+  entrada.addEventListener('input', () => { if (/[\s,]/.test(entrada.value)) agregar(); });
+  const botonAgregar = document.getElementById('fp_agregar');
+  botonAgregar.addEventListener('mousedown', (e) => e.preventDefault());   // no le quita el foco al campo
+  botonAgregar.addEventListener('click', () => { agregar(); entrada.focus(); });
   // Si escribieron un folio y se van del campo sin confirmarlo, se agrega igual
   entrada.addEventListener('blur', () => { if (entrada.value.trim()) agregar(); });
 

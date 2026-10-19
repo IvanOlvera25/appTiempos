@@ -1,59 +1,115 @@
 {% extends "layout.html" %}
-{% block title %}Mapa de Trabajadores{% endblock %}
+{% block title %}Mapa en vivo{% endblock %}
 
-{% block content %}
-<div class="container mt-4">
-  <h1 class="text-center mb-3">Mapa de Ubicación de Trabajadores</h1>
-
-  <!-- Filtros -->
-  <form id="fp-form" class="row g-3 align-items-end mb-3">
-    <div class="col-sm-6 col-md-4">
-      <label for="fp-input" class="form-label">Buscar por FP</label>
-      <input list="fp-suggestions" id="fp-input" name="fp" class="form-control" placeholder="Ej. 123456" autocomplete="off">
-      <datalist id="fp-suggestions"></datalist>
-      <small class="text-muted" id="fp-hint"></small>
-    </div>
-
-    <div class="col-sm-3 col-md-2">
-      <label for="days-select" class="form-label">Rango</label>
-      <select id="days-select" class="form-select">
-        <option value="">Todos</option>
-        <option value="7" selected>Últimos 7 días</option>
-        <option value="30">30 días</option>
-        <option value="90">90 días</option>
-      </select>
-    </div>
-
-    <div class="col-sm-3 col-md-2">
-      <div class="form-check mt-4">
-        <input class="form-check-input" type="checkbox" id="only-active" checked>
-        <label class="form-check-label" for="only-active">Solo activos</label>
-      </div>
-    </div>
-
-    <div class="col-sm-12 col-md-4 text-end">
-      <button class="btn btn-primary" type="submit">Buscar</button>
-      <button class="btn btn-outline-secondary" type="button" id="clear-btn">Limpiar</button>
-    </div>
-  </form>
-
-  <div class="mb-2 d-flex justify-content-between align-items-center">
-    <span class="badge bg-primary" id="count-badge">0 puntos</span>
-    <small class="text-muted" id="status-text"></small>
-  </div>
-
-  <div id="map" style="height:600px;border-radius:12px;box-shadow:0 10px 30px rgba(2,6,23,.06);"></div>
-</div>
-
+{% block head_extra %}
 <!-- Leaflet base -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" crossorigin=""/>
-<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" crossorigin=""></script>
-
 <!-- Clustering -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" crossorigin="">
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" crossorigin="">
-<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js" crossorigin=""></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="">
+{% endblock %}
 
+{% block content %}
+<style>
+  #map { height: calc(100vh - var(--ad-top-h) - 290px); min-height: 440px; }
+  .leaflet-container { font-family: var(--ad-font); }
+  .leaflet-popup-content-wrapper { border-radius: var(--ad-radius-lg); box-shadow: var(--ad-shadow-lg); }
+  .leaflet-popup-content { margin: .8rem .9rem; font-size: .8rem; line-height: 1.5; color: var(--ad-text); }
+  .map-lista { min-height: 200px; overflow-y: auto; }
+  .map-item { display: flex; gap: .65rem; align-items: flex-start; text-align: left; }
+  .map-item .n { font-weight: 600; font-size: .82rem; color: var(--ad-text); }
+  .map-item .s { font-size: .74rem; color: var(--ad-text-3); }
+  #fp-hint:empty { display: none; }
+  /* Desde tableta, mapa y lista lado a lado: la lista mide lo mismo que el mapa */
+  @media (min-width: 768px) {
+    .map-lista { flex: 1 1 0; }
+  }
+  @media (min-width: 768px) and (max-width: 1199.98px) {
+    #fp-form > i:first-child { display: none; }
+    #fp-form .search-field.grow { flex: 1 1 140px; }
+  }
+  /* Celular: el mapa ocupa poco más de media pantalla para que quede dónde deslizar la página */
+  @media (max-width: 767.98px) {
+    #map { height: 56vh; min-height: 300px; }
+    .map-lista { max-height: 60vh; }
+  }
+  /* Controles del mapa del tamaño del dedo */
+  @media (pointer: coarse) {
+    .leaflet-touch .leaflet-bar a { width: 40px; height: 40px; line-height: 40px; font-size: 20px; }
+    .leaflet-container a.leaflet-popup-close-button { width: 36px; height: 36px; padding: 0; font: 24px/36px Tahoma, Verdana, sans-serif; }
+    .leaflet-popup-content { margin-right: 2rem; }
+  }
+  .map-vertodos i { font-size: 15px; }
+</style>
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><span class="dot live"></span> En vivo</div>
+    <h1>Mapa en vivo</h1>
+    <p>Dónde se registró cada tiempo con ubicación. Al abrir muestra los registros en curso de los últimos 7 días.</p>
+  </div>
+</div>
+
+<!-- Filtros -->
+<form id="fp-form" class="filter-bar">
+  <i class="bi bi-funnel text-muted ms-1"></i>
+  <div class="search-field grow" style="max-width: 360px;">
+    <i class="bi bi-search"></i>
+    <input list="fp-suggestions" id="fp-input" name="fp" class="form-control form-control-sm" placeholder="Buscar FP, ej. 10781" autocomplete="off" aria-label="Buscar por FP">
+  </div>
+  <datalist id="fp-suggestions"></datalist>
+  <select id="days-select" class="form-select form-select-sm" aria-label="Rango">
+    <option value="">Todo el historial</option>
+    <option value="7" selected>Últimos 7 días</option>
+    <option value="30">Últimos 30 días</option>
+    <option value="90">Últimos 90 días</option>
+  </select>
+  <div class="form-check form-switch mb-0">
+    <input class="form-check-input" type="checkbox" id="only-active" checked>
+    <label class="form-check-label small" for="only-active">Solo en curso</label>
+  </div>
+  <button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-search"></i> Buscar</button>
+  <button class="btn btn-sm btn-outline-secondary" type="button" id="clear-btn"><i class="bi bi-x-lg"></i> Limpiar</button>
+  <small class="text-muted ms-auto" id="fp-hint"></small>
+</form>
+
+<div class="row g-3">
+  <div class="col-md-7 col-xl-8">
+    <div class="card overflow-hidden">
+      <div class="card-header">
+        <i class="bi bi-geo-alt"></i>Ubicaciones
+        <span class="badge bg-primary" id="count-badge">0 puntos</span>
+        <small class="text-muted fw-normal ms-auto" id="status-text"></small>
+      </div>
+      <div id="map"></div>
+    </div>
+  </div>
+  <div class="col-md-5 col-xl-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <i class="bi bi-list-ul"></i>Registros en el mapa
+        <span class="badge bg-secondary ms-auto" id="nLista">0</span>
+      </div>
+      <div class="p-2 border-bottom">
+        <div class="search-field">
+          <i class="bi bi-search"></i>
+          <input type="search" id="buscarPunto" class="form-control form-control-sm" placeholder="Persona, proyecto o FP…" autocomplete="off" aria-label="Buscar en los registros del mapa">
+        </div>
+      </div>
+      <div class="list-group list-group-flush map-lista" id="listaPuntos"></div>
+      <div class="empty" id="listaVacia">
+        <div class="empty-icon"><i class="bi bi-geo"></i></div>
+        <h6>Sin puntos</h6>
+        <p>No hay registros con ubicación para estos filtros.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
 <script>
   // -------------------- Inicialización del mapa --------------------
   var map = L.map('map').setView([23.6345, -102.5528], 5); // centro aproximado de MX
@@ -63,6 +119,28 @@
 
   var clusterGroup = L.markerClusterGroup();
   map.addLayer(clusterGroup);
+
+  // Botón para volver a ver todos los puntos (tras acercarse a uno desde la lista)
+  let limitesPuntos = null;
+  const VerTodos = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd: function () {
+      const caja = L.DomUtil.create('div', 'leaflet-bar');
+      const a = L.DomUtil.create('a', 'map-vertodos', caja);
+      a.href = '#';
+      a.title = 'Ver todos los puntos';
+      a.setAttribute('role', 'button');
+      a.setAttribute('aria-label', 'Ver todos los puntos');
+      a.innerHTML = '<i class="bi bi-arrows-fullscreen"></i>';
+      L.DomEvent.disableClickPropagation(caja);
+      L.DomEvent.on(a, 'click', function (e) {
+        L.DomEvent.preventDefault(e);
+        if (limitesPuntos) map.fitBounds(limitesPuntos, { padding: [30, 30] });
+      });
+      return caja;
+    },
+  });
+  map.addControl(new VerTodos());
 
   // -------------------- Helpers UI --------------------
   const fpInput     = document.getElementById('fp-input');
@@ -74,44 +152,102 @@
   const fpForm      = document.getElementById('fp-form');
   const fpDatalist  = document.getElementById('fp-suggestions');
   const fpHint      = document.getElementById('fp-hint');
+  const esc         = AD17.escapar;
+
+  // Lista lateral con los mismos puntos del mapa
+  const listaPuntos = document.getElementById('listaPuntos');
+  const listaVacia  = document.getElementById('listaVacia');
+  const nLista      = document.getElementById('nLista');
+  const buscarPunto = document.getElementById('buscarPunto');
+  let puntos = [];
 
   function setStatus(msg) { statusText.textContent = msg || ''; }
 
+  // '2026-10-18 09:30:00' -> '18/10 09:30'
+  const fechaCorta = (s) => { const r = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(s || ''); return r ? `${r[3]}/${r[2]} ${r[4]}` : (s || ''); };
+  const iniciales = (s) => (s || '?').split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+
+  function pintarLista() {
+    const terminos = AD17.normalizar(buscarPunto.value.trim()).split(/\s+/).filter(Boolean);
+    const filas = puntos.filter((p) => terminos.every((w) => p.texto.includes(w)));
+    nLista.textContent = terminos.length ? `${filas.length} de ${puntos.length}` : puntos.length;
+    listaVacia.style.display = filas.length ? 'none' : '';
+    listaVacia.querySelector('h6').textContent = puntos.length ? 'Nada coincide' : 'Sin puntos';
+    listaVacia.querySelector('p').textContent = puntos.length
+      ? 'Prueba con otro nombre, proyecto o FP.'
+      : 'No hay registros con ubicación para estos filtros.';
+    listaPuntos.innerHTML = filas.map((p) => {
+      const m = p.m;
+      return `<button type="button" class="list-group-item list-group-item-action map-item" data-i="${p.i}">
+        <span class="avatar avatar-sm ${m.end_time ? '' : 'avatar-brand'}">${esc(iniciales(m.employee))}</span>
+        <span class="flex-grow-1" style="min-width:0">
+          <span class="n d-block">${esc(m.employee)}</span>
+          <span class="s d-block text-truncate" title="${esc(m.project)}">FP ${esc(m.folio)} · ${esc(m.project)}</span>
+          <span class="s d-block">${esc(m.department)} · desde ${esc(fechaCorta(m.start_time))}</span>
+        </span>
+        ${m.end_time ? '' : '<span class="badge bg-success flex-shrink-0"><span class="dot"></span>En curso</span>'}
+      </button>`;
+    }).join('');
+  }
+  buscarPunto.addEventListener('input', pintarLista);
+  listaPuntos.addEventListener('click', (e) => {
+    const item = e.target.closest('.map-item');
+    if (!item) return;
+    const p = puntos.find((x) => x.i === +item.dataset.i);
+    if (!p) return;
+    // En celular la lista va debajo del mapa: sube para ver el punto
+    if (window.innerWidth < 768) document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    clusterGroup.zoomToShowLayer(p.marker, () => p.marker.openPopup());
+  });
+
   function renderMarkers(markers) {
     clusterGroup.clearLayers();
+    puntos = [];
+    limitesPuntos = null;
 
     if (!markers || markers.length === 0) {
       countBadge.textContent = '0 puntos';
       setStatus('Sin resultados para los filtros seleccionados.');
+      pintarLista();
       return;
     }
 
     const bounds = [];
-    markers.forEach(m => {
+    markers.forEach((m, i) => {
       const lat = parseFloat(m.lat), lng = parseFloat(m.lng);
       if (isNaN(lat) || isNaN(lng)) return;
 
       const popupHtml = `
         <div style="min-width:220px">
-          <b>${m.employee}</b><br>
-          <small>${m.department}</small><br>
-          <hr class="my-1">
-          <b>Proyecto:</b> ${m.project} <span class="badge bg-secondary">FP ${m.folio}</span><br>
-          <b>Actividad:</b> ${m.activity}<br>
-          <b>Inicio:</b> ${m.start_time}<br>
-          ${m.end_time ? `<b>Fin:</b> ${m.end_time}<br>` : `<span class="badge bg-success">Activo</span><br>`}
-          <small>ID registro: ${m.record_id}</small>
+          <div class="fw-semibold">${esc(m.employee)}</div>
+          <div class="text-muted small">${esc(m.department)}</div>
+          <hr class="my-2">
+          <div><span class="text-muted">Proyecto:</span> ${esc(m.project)} <span class="badge bg-secondary">FP ${esc(m.folio)}</span></div>
+          <div><span class="text-muted">Actividad:</span> ${esc(m.activity)}</div>
+          <div><span class="text-muted">Inicio:</span> ${esc(m.start_time)}</div>
+          ${m.end_time ? `<div><span class="text-muted">Fin:</span> ${esc(m.end_time)}</div>` : `<span class="badge bg-success mt-1"><span class="dot"></span>En curso</span>`}
+          <div class="small text-muted mt-1">ID registro: ${esc(m.record_id)}</div>
         </div>
       `;
 
-      const marker = L.marker([lat, lng]).bindPopup(popupHtml);
+      // El globo se acomoda a la derecha de los controles del mapa y, en celular, no pasa de 220 px de texto
+      const marker = L.marker([lat, lng]).bindPopup(popupHtml, {
+        maxWidth: window.innerWidth < 576 ? 220 : 300,
+        autoPanPaddingTopLeft: L.point(56, 10),
+        autoPanPaddingBottomRight: L.point(6, 10),
+      });
       clusterGroup.addLayer(marker);
       bounds.push([lat, lng]);
+      puntos.push({
+        i, m, marker,
+        texto: AD17.normalizar(`${m.employee} ${m.project} FP ${m.folio} ${m.folio} ${m.department} ${m.activity}`),
+      });
     });
 
     countBadge.textContent = `${markers.length} punto${markers.length === 1 ? '' : 's'}`;
-    if (bounds.length) map.fitBounds(bounds, { padding: [30, 30] });
+    if (bounds.length) { limitesPuntos = bounds; map.fitBounds(bounds, { padding: [30, 30] }); }
     setStatus('');
+    pintarLista();
   }
 
   async function fetchMarkers(params) {
@@ -120,7 +256,7 @@
       if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
     });
     try {
-      setStatus('Cargando puntos...');
+      setStatus('Cargando puntos…');
       const res = await fetch(url, { credentials: 'same-origin' });
       const data = await res.json();
       if (!data.success) throw new Error(data.message || 'Error al cargar marcadores');
@@ -128,6 +264,7 @@
     } catch (err) {
       console.error(err);
       setStatus('Ocurrió un error al cargar los puntos.');
+      AD17.toast('Ocurrió un error al cargar los puntos del mapa.', 'danger');
       renderMarkers([]);
     }
   }
@@ -154,9 +291,9 @@
       // El datalist usa el FP como value para facilitar el match exacto
       fpDatalist.innerHTML = items.map(it => {
         const label = `${it.fp} — ${it.proyecto} (${it.cliente})`;
-        return `<option value="${it.fp}" label="${label}"></option>`;
+        return `<option value="${esc(it.fp)}" label="${esc(label)}"></option>`;
       }).join('');
-      fpHint.textContent = items.length ? `Sugerencias: ${items.length}` : 'Sin coincidencias';
+      fpHint.textContent = items.length ? `${items.length} sugerencia${items.length === 1 ? '' : 's'}` : 'Sin coincidencias';
     } catch (err) {
       console.warn('Sugerencias FP error:', err);
       fpDatalist.innerHTML = '';
@@ -184,6 +321,7 @@
     onlyActive.checked = true;
     fpDatalist.innerHTML = '';
     fpHint.textContent = '';
+    buscarPunto.value = '';
     fetchMarkers({ only_active: '1', days: 7 });
   });
 </script>

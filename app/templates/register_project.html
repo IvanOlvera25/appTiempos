@@ -1,400 +1,346 @@
 {% extends "layout.html" %}
+{% block title %}Registrar tiempo{% endblock %}
+
 {% block content %}
-<style>
-    /* TUS ESTILOS ORIGINALES */
-    .active-record {
-        border: 2px solid red !important;
-        color: red;
-    }
+{% include '_kiosco_estilos.html' %}
 
-    /* NUEVOS ESTILOS PARA IMPRESION (NO MODIFICAN TU CÓDIGO) */
-    .active-record::after {
-        content: "ACTIVO";
-        position: absolute;
-        top: 5px;
-        right: 5px;
-        background: red;
-        color: white;
-        padding: 2px 5px;
-        border-radius: 3px;
-        font-size: 0.8rem;
-    }
+{# Nombre de la persona: viene en las opciones del formulario, no hace falta otra consulta #}
+{% set ns = namespace(nombre='') %}
+{% for id, nombre in form.employee_id.choices %}{% if id|string == employee_id|string %}{% set ns.nombre = nombre %}{% endif %}{% endfor %}
 
-    .active-activity {
-        background-color: #ffe6e6 !important;
-        border: 2px solid #ff0000 !important;
-    }
-
-    .countdown-pulse {
-        animation: pulse 0.5s ease-in-out;
-    }
-
-    @keyframes pulse {
-        0% {
-            transform: scale(1);
-        }
-
-        50% {
-            transform: scale(1.1);
-        }
-
-        100% {
-            transform: scale(1);
-        }
-    }
-</style>
-
-<div class="container mt-5">
-    <!-- TOAST DE ADVERTENCIA NUEVO (NO AFECTA TU DISEÑO) -->
-    <div class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1100;">
-        <div id="activeWarningToast" class="toast align-items-center text-bg-danger border-0" role="alert"
-            aria-live="assertive" aria-atomic="true">
-            <div class="d-flex">
-                <div class="toast-body" id="activeWarningMessage"></div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
-                    aria-label="Close"></button>
-            </div>
+<div class="kiosco">
+  <!-- Encabezado: quién y en qué paso va -->
+  <div class="k-head">
+    <div class="k-who">
+      <span class="avatar avatar-lg avatar-brand">{{ iniciales(ns.nombre) if ns.nombre else '?' }}</span>
+      <div>
+        <div class="k-who-name">{{ ns.nombre or 'Registro de tiempo' }}</div>
+        <div class="k-who-sub">
+          {% if department %}<span class="badge bg-light"><i class="bi bi-diagram-3"></i>{{ department }}</span>{% endif %}
+          <span class="text-muted small"><span id="activeWorkersCount">{{ active_count }}</span> con tiempo activo en el área</span>
         </div>
+      </div>
+      {% if not (current_user.is_authenticated and current_user.is_employee) %}
+      <a class="btn btn-outline-secondary ms-auto" href="{{ url_for('main.register_employee', department=department) }}" aria-label="No soy yo">
+        <i class="bi bi-arrow-left"></i><span class="d-none d-sm-inline"> No soy yo</span>
+      </a>
+      {% endif %}
     </div>
+    <ol class="k-steps">
+      <li class="done"><span>1</span>Persona</li>
+      <li class="current" id="paso-proyecto"><span>2</span>Proyecto</li>
+      <li id="paso-actividad"><span>3</span>Actividad</li>
+    </ol>
+  </div>
 
-    <!-- TU CONTENIDO ORIGINAL COMPLETO -->
-    <h2 class="mb-4">Seleccionar Proyecto</h2>
-
-    {% if department %}
-    <div class="alert alert-info text-center">
-        Departamento <strong>{{ department }}</strong>:
-        <span id="activeWorkersCount">{{ active_count }}</span> trabajador(es) con tiempos activos sin finalizar.
+  {% if registro_abierto %}
+  {% set seg = (ahora - registro_abierto.start_time).total_seconds() %}
+  <div class="k-open">
+    <span class="dot live"></span>
+    <div class="min-w-0">
+      <div class="fw-semibold">Tienes un registro en curso desde las {{ registro_abierto.start_time|mx('%H:%M') }}
+        <span class="text-muted fw-normal">· {{ (seg // 3600)|int }} h {{ ((seg % 3600) // 60)|int }} min</span></div>
+      <div class="small text-muted text-truncate">
+        {% if registro_abierto.project.folio is not none %}FP {{ registro_abierto.project.folio }} · {% endif %}{{ registro_abierto.project.name }}
+        — {{ registro_abierto.actividad or 'Sin especificar' }}{% if registro_abierto.departamento and registro_abierto.departamento != department %} · {{ registro_abierto.departamento }}{% endif %}
+      </div>
     </div>
-    {% endif %}
+    <span class="small text-muted ms-auto d-none d-md-inline">Al iniciar otro, este se cierra solo.</span>
+  </div>
+  {% endif %}
 
-    <form method="POST" id="register-time-form">
-        {{ form.hidden_tag() }}
-        <input type="hidden" name="department" value="{{ department }}">
-        <input type="hidden" id="employee_id_hidden" name="employee_id" value="{{ employee_id }}">
-        <input type="hidden" id="project_id_hidden" name="project_id">
-        <input type="hidden" id="activity_hidden" name="activity">
-        <input type="hidden" name="latitude" id="latitude">
-        <input type="hidden" name="longitude" id="longitude">
+  <!-- Aviso propio de la vista (lo usa el flujo de impresión) -->
+  <div class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1100;">
+    <div id="activeWarningToast" class="toast align-items-center text-bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body" id="activeWarningMessage"></div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  </div>
 
-        <!-- SECCIÓN PROYECTOS (CON ADICIONES PARA IMPRESION) -->
-        <div class="mb-4" id="project-selection">
-            <label class="form-label">Seleccionar Proyecto</label>
-            <div class="row">
-                {% for project in projects %}
-                <div class="col-12 col-sm-6 col-md-4 mb-4">
-                    <div class="card h-100 project-card shadow-sm
-                        {% if project.id in active_activities %}active-record{% endif %}"
-                        data-project-id="{{ project.id }}" data-folio="{{ project.folio }}">
-                        <div class="card-body">
-                            <h5 class="card-title">
-                                <strong>FP:</strong>
-                                {{ project.folio if project.folio is not none else 'N/A' }}
-                            </h5>
-                            <h5 class="card-title">
-                                <strong>Proyecto:</strong> {{ project.name }}
-                            </h5>
-                            <p class="card-text"><strong>Cliente:</strong> {{ project.client }}</p>
-                            <!-- NUEVA SECCIÓN ACTIVIDADES ACTIVAS -->
-                            {% if project.id in active_activities %}
-                            <div class="mt-2 text-danger small">
-                                <strong>Actividades activas:</strong>
-                                {{ active_activities[project.id]|join(', ') }}
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
+  <form method="POST" id="register-time-form">
+    {{ form.hidden_tag() }}
+    <input type="hidden" name="department" value="{{ department }}">
+    <input type="hidden" id="employee_id_hidden" name="employee_id" value="{{ employee_id }}">
+    <input type="hidden" id="project_id_hidden" name="project_id">
+    <input type="hidden" id="activity_hidden" name="activity">
+    <input type="hidden" name="latitude" id="latitude">
+    <input type="hidden" name="longitude" id="longitude">
+
+    <!-- Paso 2: proyecto -->
+    <section id="project-selection">
+      <div class="k-title">
+        <h2>¿En qué proyecto vas a trabajar?</h2>
+        <span class="text-muted small"><span id="nProyectos">{{ projects|length }}</span> proyectos activos</span>
+      </div>
+      <div class="search-field k-search">
+        <i class="bi bi-search lg"></i>
+        <input type="search" class="form-control form-control-lg" id="buscarProyecto" inputmode="search" autocomplete="off"
+               placeholder="Busca por FP, proyecto o cliente"
+               data-filtra="#listaProyectos" data-vacio="#sinProyectos" data-contador="#nProyectos">
+      </div>
+      <div class="k-grid" id="listaProyectos">
+        {% for project in projects %}
+        <div data-filtrable="fp {{ project.folio }} {{ project.name }} {{ project.client }}">
+          <div class="project-card k-card {% if project.id in active_activities %}active-record{% endif %}"
+               data-project-id="{{ project.id }}" data-folio="{{ project.folio }}" role="button" tabindex="0">
+            <div class="k-fp">{% if project.folio == 0 %}<i class="bi bi-briefcase"></i> General{% else %}FP {{ project.folio if project.folio is not none else 'N/A' }}{% endif %}</div>
+            <div class="k-name">{{ project.name }}</div>
+            <div class="k-client">{{ project.client }}</div>
+            {% if project.id in active_activities %}
+            <div class="k-active"><span class="dot live"></span>{{ active_activities[project.id]|join(', ') }}</div>
+            {% endif %}
+          </div>
         </div>
+        {% endfor %}
+      </div>
+      <div id="sinProyectos" class="empty d-none">
+        <div class="empty-icon"><i class="bi bi-search"></i></div>
+        <h6>No hay proyectos que coincidan</h6>
+        <p>Revisa el número de FP o pide a tu jefe de área que lo dé de alta.</p>
+      </div>
+    </section>
 
-        {# Actividades generales del FP 0. Se administran en Administración → Actividades
-           (grupo "Generales (FP 0)") y se anteponen a las del área al elegir ese proyecto. #}
-        <template id="general-activities-template">
-            <div class="row">
-                {% for act in general_activities %}
-                <div class="col-12 col-sm-6 col-md-4 mb-3">
-                    <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn"
-                        data-activity="{{ act }}">
-                        {{ act }}
-                    </button>
-                </div>
-                {% endfor %}
-            </div>
-        </template>
+    {# Actividades generales del FP 0. Se administran en Administración → Actividades
+       (grupo "Generales (FP 0)") y se anteponen a las del área al elegir ese proyecto. #}
+    <template id="general-activities-template">
+      <div class="k-subtitle">Generales</div>
+      <div class="k-grid acts">
+        {% for act in general_activities %}
+        <button type="button" class="activity-btn k-act" data-activity="{{ act }}"><i class="bi bi-check-circle-fill"></i><span>{{ act }}</span></button>
+        {% endfor %}
+      </div>
+      <div class="k-subtitle">De {{ department or 'tu área' }}</div>
+    </template>
 
-        <!-- SECCIÓN DE ACTIVIDADES -->
-        <div class="mb-4" id="activity-section" style="display: none;">
-            <label class="form-label">Seleccionar Actividad</label>
-            <div class="row">
-                {% for act in activities %}
-                <div class="col-12 col-sm-6 col-md-4 mb-3">
-                    <button type="button" class="btn btn-primary btn-lg w-100 dept-btn activity-btn"
-                        data-activity="{{ act }}">
-                        {{ act }}
-                    </button>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
+    <!-- Paso 3: actividad -->
+    <section id="activity-section" style="display: none;">
+      <div class="k-picked" id="proyectoElegido"></div>
+      <div class="k-title"><h2>¿Qué actividad vas a hacer?</h2></div>
+      <div class="k-grid acts">
+        {% for act in activities %}
+        <button type="button" class="activity-btn k-act" data-activity="{{ act }}"><i class="bi bi-check-circle-fill"></i><span>{{ act }}</span></button>
+        {% endfor %}
+      </div>
+    </section>
 
-        <button type="submit" class="btn btn-success me-3" name="iniciar" value="iniciar" id="iniciarBtn" disabled>
-            Iniciar
-        </button>
-        <button type="submit" class="btn btn-danger me-3" name="finalizar" value="finalizar">
-            Finalizar
-        </button>
-    </form>
+    <!-- Acciones fijas abajo -->
+    <div class="k-actions">
+      <button type="submit" class="btn btn-lg {{ 'btn-danger' if registro_abierto else 'btn-outline-danger' }}" name="finalizar" value="finalizar">
+        <i class="bi bi-stop-circle"></i> Finalizar{{ ' mi registro' if registro_abierto else '' }}
+      </button>
+      <div class="k-hint d-none d-md-block" id="pistaAccion">Elige un proyecto para continuar.</div>
+      <button type="submit" class="btn btn-success btn-lg ms-auto" name="iniciar" value="iniciar" id="iniciarBtn" disabled>
+        <i class="bi bi-play-circle"></i> Iniciar
+      </button>
+    </div>
+  </form>
 </div>
 
-<!-- TUS MODALS Y TOASTS ORIGINALES COMPLETOS -->
+<!-- Modales y avisos que usa el flujo (cámara / QR) -->
 <div class="modal fade" id="qrModal" tabindex="-1" aria-labelledby="qrModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="qrModalLabel">Escanear Código QR</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-            </div>
-            <div class="modal-body">
-                <video id="modal-video" autoplay muted class="w-100 rounded"></video>
-                <p id="modal-qr-reader-status" class="mt-2 text-muted">Escaneando...</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-            </div>
-        </div>
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="qrModalLabel">Escanear código QR</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <video id="modal-video" autoplay muted class="w-100 rounded"></video>
+        <p id="modal-qr-reader-status" class="mt-2 text-muted">Escaneando...</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
     </div>
+  </div>
 </div>
 
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
-    <div id="qrSuccessToast" class="toast align-items-center text-bg-warning border-0" role="alert"
-        aria-live="assertive" aria-atomic="true">
-        <div class="d-flex">
-            <div class="toast-body">
-                QR escaneado exitosamente: <strong id="employeeNameToast">Nombre del Empleado</strong>
-            </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
-                aria-label="Cerrar"></button>
-        </div>
+  <div id="qrSuccessToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body">QR escaneado: <strong id="employeeNameToast">Nombre del Empleado</strong></div>
+      <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
     </div>
+  </div>
 </div>
 
 <div class="position-fixed top-50 start-50 translate-middle p-3" style="z-index: 1100;">
-    <div id="countdownToast" class="toast text-bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true"
-        style="opacity:1; min-width: 320px;">
-        <div class="toast-header text-bg-dark border-0">
-            <i class="bi bi-camera-fill me-2 text-white" style="font-size: 1.5rem;"></i>
-            <strong class="me-auto text-white">Atención</strong>
-        </div>
-        <div class="toast-body d-flex flex-column align-items-center">
-            <h4 class="my-2 text-center text-white fw-bold">¡Sonríe, te tomaremos una foto!</h4>
-            <h3 id="countdownMessage" class="my-2 display-6 fw-bold text-center text-white" style="font-size: 2rem;">
-            </h3>
-        </div>
+  <div id="countdownToast" class="toast k-countdown border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-body text-center">
+      <i class="bi bi-camera"></i>
+      <h4>¡Sonríe, te tomaremos una foto!</h4>
+      <div id="countdownMessage" class="k-count"></div>
     </div>
+  </div>
 </div>
 
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
-    <div id="qrErrorToast" class="toast align-items-center text-bg-danger border-0" role="alert" aria-live="assertive"
-        aria-atomic="true">
-        <div class="d-flex">
-            <div class="toast-body">Error al escanear QR</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
-                aria-label="Cerrar"></button>
-        </div>
+  <div id="qrErrorToast" class="toast align-items-center text-bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body">Error al escanear QR</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
     </div>
+  </div>
 </div>
 
 <!-- Canvas oculto para capturas de foto -->
 <canvas id="snapshotCanvas" width="640" height="480" style="display: none;"></canvas>
 
 <!-- Overlay para efecto flash -->
-<div id="flashOverlay"
-    style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; z-index: 9999; pointer-events: none; transition: opacity 0.3s;">
-</div>
+<div id="flashOverlay" style="position: fixed; inset: 0; background: white; opacity: 0; z-index: 9999; pointer-events: none; transition: opacity 0.3s;"></div>
 
 <script>
-    // 1) Geolocalización
-    function setGeolocation() {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                function (position) {
-                    document.getElementById('latitude').value = position.coords.latitude;
-                    document.getElementById('longitude').value = position.coords.longitude;
-                },
-                function (error) {
-                    console.error("Error al obtener la ubicación:", error);
-                }
-            );
-        }
+  // 1) Geolocalización
+  function setGeolocation() {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        function (position) {
+          document.getElementById('latitude').value = position.coords.latitude;
+          document.getElementById('longitude').value = position.coords.longitude;
+        },
+        function (error) { console.error("Error al obtener la ubicación:", error); }
+      );
     }
-    window.onload = setGeolocation;
+  }
+  window.onload = setGeolocation;
 
-    // Lógica para la selección de proyectos
-    const projectCards = document.querySelectorAll('.project-card');
-    const activitySection = document.getElementById('activity-section');
-    const generalTemplate = document.getElementById('general-activities-template');
-    const generalActivitiesHTML = generalTemplate ? generalTemplate.innerHTML : "";
-    let defaultActivityHTML = "";
-    if (activitySection) {
-        defaultActivityHTML = activitySection.innerHTML;
-    }
+  // Selección de proyecto y actividad
+  const projectCards = document.querySelectorAll('.project-card');
+  const activitySection = document.getElementById('activity-section');
+  const generalTemplate = document.getElementById('general-activities-template');
+  const generalActivitiesHTML = generalTemplate ? generalTemplate.innerHTML : "";
+  const activityGrid = activitySection.querySelector('.k-grid.acts');
+  const defaultActivityHTML = activityGrid ? activityGrid.outerHTML : "";
+  const iniciarBtn = document.getElementById('iniciarBtn');
+  const activityHid = document.getElementById('activity_hidden');
+  const pista = document.getElementById('pistaAccion');
+  const pasoProyecto = document.getElementById('paso-proyecto');
+  const pasoActividad = document.getElementById('paso-actividad');
 
-    // ─────────────────────────────────────────────────────────────
-    // helpers
-    const iniciarBtn = document.getElementById('iniciarBtn');
-    const activityHid = document.getElementById('activity_hidden');
+  function setIniciarEnabled(state) {
+    if (state) iniciarBtn.removeAttribute('disabled'); else iniciarBtn.setAttribute('disabled', 'disabled');
+    iniciarBtn.style.cursor = state ? 'pointer' : 'not-allowed';
+  }
 
-    function setIniciarEnabled(state) {
-        if (state) {
-            iniciarBtn.removeAttribute('disabled');
-        } else {
-            iniciarBtn.setAttribute('disabled', 'disabled');
-        }
-        // por claridad del usuario, podemos cambiar el cursor
-        iniciarBtn.style.cursor = state ? 'pointer' : 'not-allowed';
-    }
+  function attachActivityButtons(container) {
+    const buttons = container.querySelectorAll('.activity-btn');
+    buttons.forEach(btn => {
+      btn.addEventListener('click', function () {
+        buttons.forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        activityHid.value = this.getAttribute('data-activity');
+        setIniciarEnabled(true);
+        pasoActividad.classList.add('done');
+        if (pista) pista.innerHTML = 'Listo: presiona <strong>Iniciar</strong>.';
+        iniciarBtn.focus({ preventScroll: true });
+      });
+    });
+  }
 
-    function attachActivityButtons(container) {
-        const buttons = container.querySelectorAll('.activity-btn');
-        buttons.forEach(btn => {
-            btn.addEventListener('click', function () {
-                buttons.forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                activityHid.value = this.getAttribute('data-activity');
-                setIniciarEnabled(true);     // ✅ listo para enviar
-            });
-        });
-    }
+  setIniciarEnabled(false);
 
-    // Inicializar botones de actividad si existen
-    if (activitySection) {
-        attachActivityButtons(activitySection);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // 1) al cargar la página → botón deshabilitado
+  function volverAProyectos() {
+    document.getElementById('project_id_hidden').value = '';
+    activityHid.value = '';
     setIniciarEnabled(false);
+    activitySection.style.display = 'none';
+    document.getElementById('project-selection').style.display = '';
+    pasoProyecto.classList.remove('done'); pasoProyecto.classList.add('current');
+    pasoActividad.classList.remove('current', 'done');
+    if (pista) pista.textContent = 'Elige un proyecto para continuar.';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
-    projectCards.forEach(card => {
-        card.addEventListener('click', function () {
-            // Limpiar selecciones previas
-            projectCards.forEach(c => c.classList.remove('border', 'border-primary'));
-            this.classList.add('border', 'border-primary');
+  function elegirProyecto(card) {
+    projectCards.forEach(c => c.classList.remove('border', 'border-primary', 'selected'));
+    card.classList.add('border', 'border-primary', 'selected');
 
-            const projectId = this.getAttribute('data-project-id');
-            const projectFolio = this.getAttribute('data-folio');
+    const projectId = card.getAttribute('data-project-id');
+    const projectFolio = card.getAttribute('data-folio');
 
-            document.getElementById('project_id_hidden').value = projectId;
-            document.getElementById('project-selection').style.display = 'none';
+    document.getElementById('project_id_hidden').value = projectId;
+    document.getElementById('project-selection').style.display = 'none';
+    setIniciarEnabled(false);
+    activityHid.value = '';
 
-            // Reiniciar estado del botón
-            setIniciarEnabled(false);
-            activityHid.value = '';
+    // FP 0: las actividades generales van antes que las del área
+    const actividadesHTML = projectFolio === "0" ? generalActivitiesHTML + defaultActivityHTML : defaultActivityHTML;
+    activitySection.innerHTML = '<div class="k-picked" id="proyectoElegido"></div><div class="k-title"><h2>¿Qué actividad vas a hacer?</h2></div>' + actividadesHTML;
+    document.getElementById('proyectoElegido').innerHTML = `
+      <div class="min-w-0"><div class="k-fp">${card.querySelector('.k-fp').innerHTML}</div>
+      <div class="fw-semibold text-truncate">${AD17.escapar(card.querySelector('.k-name').textContent)}</div>
+      <div class="small text-muted text-truncate">${AD17.escapar(card.querySelector('.k-client').textContent)}</div></div>
+      <button type="button" class="btn btn-outline-secondary ms-auto" id="cambiarProyecto"><i class="bi bi-arrow-left-right"></i> Cambiar proyecto</button>`;
+    document.getElementById('cambiarProyecto').addEventListener('click', volverAProyectos);
+    activitySection.style.display = 'block';
+    attachActivityButtons(activitySection);
 
-            // Mostrar actividades para TODOS los departamentos que las tengan
-            if (projectFolio === "0") {
-                // Proyecto especial: las actividades generales van antes que las del área
-                activitySection.innerHTML = generalActivitiesHTML + defaultActivityHTML;
-            } else {
-                activitySection.innerHTML = defaultActivityHTML;
-            }
+    pasoProyecto.classList.remove('current'); pasoProyecto.classList.add('done');
+    pasoActividad.classList.add('current');
+    if (pista) pista.textContent = 'Elige la actividad.';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
-            activitySection.style.display = 'block';
-            attachActivityButtons(activitySection);
-        });
+  projectCards.forEach(card => {
+    card.addEventListener('click', () => elegirProyecto(card));
+    card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); elegirProyecto(card); } });
+  });
+
+  // Enter en el buscador: si queda un solo proyecto, se elige
+  document.getElementById('buscarProyecto').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const visibles = [...document.querySelectorAll('#listaProyectos > [data-filtrable]:not(.d-none) .project-card')];
+    if (visibles.length === 1) elegirProyecto(visibles[0]);
+  });
+
+  // Efecto flash para la foto
+  function doFlashEffect(onEnd) {
+    const flashOverlay = document.getElementById('flashOverlay');
+    flashOverlay.style.opacity = '0.8';
+    setTimeout(() => { flashOverlay.style.opacity = '0'; if (onEnd) onEnd(); }, 300);
+  }
+
+  // Evita doble envío y muestra el indicador de carga
+  (function () {
+    const form = document.getElementById('register-time-form');
+    if (!form) return;
+    let isSubmitting = false;
+    let clickedButtonName = null;
+
+    form.querySelectorAll('button[type="submit"]').forEach(btn => {
+      btn.addEventListener('click', function () { clickedButtonName = this.name; });
     });
 
-    // Efecto flash para la foto
-    function doFlashEffect(onEnd) {
-        const flashOverlay = document.getElementById('flashOverlay');
-        flashOverlay.style.opacity = '0.8';
-        setTimeout(() => {
-            flashOverlay.style.opacity = '0';
-            if (onEnd) onEnd();
-        }, 300);
-    }
+    form.addEventListener('submit', function (e) {
+      if (isSubmitting) { e.preventDefault(); return false; }
+      const isIniciar = clickedButtonName === 'iniciar';
+      const isFinalizar = clickedButtonName === 'finalizar';
 
-    // Agregar estilos dinámicos para el efecto flash
-    const flashOverlay = document.getElementById('flashOverlay');
-    if (flashOverlay) {
-        flashOverlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: white;
-            opacity: 0;
-            z-index: 9999;
-            pointer-events: none;
-            transition: opacity 0.3s;
-        `;
-    }
+      if (isIniciar && !activityHid.value) {
+        e.preventDefault();
+        clickedButtonName = null;
+        AD17.toast('Selecciona una actividad antes de iniciar.', 'warning', 5000);
+        return false;
+      }
 
-    // ═══════════════════════════════════════════════════════════
-    // LOADER INTEGRATION FOR TIME REGISTRATION
-    // Prevents double-click and shows professional loading state
-    // ═══════════════════════════════════════════════════════════
-    (function () {
-        const form = document.getElementById('register-time-form');
-        if (!form) return;
-
-        let isSubmitting = false;
-        let clickedButtonName = null;
-
-        // Track which button was clicked
+      isSubmitting = true;
+      setTimeout(function () {
         form.querySelectorAll('button[type="submit"]').forEach(btn => {
-            btn.addEventListener('click', function () {
-                clickedButtonName = this.name;
-            });
+          btn.disabled = true;
+          btn.style.opacity = '0.6';
+          btn.style.cursor = 'not-allowed';
         });
-
-        form.addEventListener('submit', function (e) {
-            // Prevent double submission
-            if (isSubmitting) {
-                e.preventDefault();
-                return false;
-            }
-
-            const isIniciar = clickedButtonName === 'iniciar';
-            const isFinalizar = clickedButtonName === 'finalizar';
-
-            // Validate that activity is selected for "iniciar"
-            if (isIniciar && !activityHid.value) {
-                e.preventDefault();
-                clickedButtonName = null;
-                alert('Por favor selecciona una actividad antes de iniciar.');
-                return false;
-            }
-
-            // Mark as submitting
-            isSubmitting = true;
-
-            // Show loader AFTER a small delay to allow form to submit
-            setTimeout(function () {
-                // Disable all submit buttons
-                form.querySelectorAll('button[type="submit"]').forEach(btn => {
-                    btn.disabled = true;
-                    btn.style.opacity = '0.6';
-                    btn.style.cursor = 'not-allowed';
-                });
-
-                // Show appropriate loader message
-                if (window.AD17Loader) {
-                    if (isIniciar) {
-                        AD17Loader.showTimeStart();
-                    } else if (isFinalizar) {
-                        AD17Loader.showTimeEnd();
-                    } else {
-                        AD17Loader.show('Procesando...', 'Por favor espere');
-                    }
-                }
-            }, 50);
-
-            // Allow form to submit normally
-            return true;
-        });
-    })();
+        if (window.AD17Loader) {
+          if (isIniciar) AD17Loader.showTimeStart();
+          else if (isFinalizar) AD17Loader.showTimeEnd();
+          else AD17Loader.show('Procesando...', 'Por favor espere');
+        }
+      }, 50);
+      return true;
+    });
+  })();
 </script>
 {% endblock %}

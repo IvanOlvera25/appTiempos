@@ -2,178 +2,236 @@
 {% block title %}Áreas de registro{% endblock %}
 
 {% block content %}
-<div class="container py-4">
-
-  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-    <div>
-      <h1 class="h4 mb-1">Áreas que registran tiempos</h1>
-      <p class="text-muted mb-0">
-        Cada área activa aparece como botón en la pantalla de inicio y tiene su propio catálogo de actividades.
-      </p>
-    </div>
-    <a href="{{ url_for('main.activities_admin') }}" class="btn btn-outline-primary">
+<style>
+  /* Celular: cada área es una tarjeta con sus botones con texto */
+  @media (max-width: 575.98px) {
+    .areas-tabla.tabla-tarjetas > tbody > tr > td.td-acciones { padding-top: .5rem !important; }
+    .areas-tabla .area-botones { display: flex !important; width: 100%; gap: .4rem !important; }
+    .areas-tabla .area-botones > .btn { min-height: 42px; }
+    .areas-tabla .area-botones > .btn:not(.btn-icon) { flex: 1 1 0; }
+    .areas-tabla .area-botones > .btn-icon { width: 42px; height: 42px; flex: 0 0 42px; }
+    .areas-tabla.tabla-tarjetas > tbody > tr:hover > * { --bs-table-bg-state: transparent; }
+    .areas-tabla .area-botones > .btn > span.d-none { display: inline !important; margin-left: .3rem; }
+  }
+  /* Tableta: columnas al ancho de su contenido y botones solo con icono para que la tabla quepa */
+  @media (min-width: 576px) and (max-width: 1199.98px) {
+    .areas-tabla > :not(caption) > tr > * { width: auto !important; padding-left: .45rem; padding-right: .45rem; }
+    .areas-tabla .area-botones > .btn > span { display: none !important; }
+  }
+  /* Celular: el botón Agregar va debajo de los campos, sin hueco */
+  @media (max-width: 767.98px) {
+    .area-agregar { padding-top: 0 !important; }
+  }
+</style>
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-diagram-3"></i> Configuración</div>
+    <h1>Áreas de registro</h1>
+    <p>Cada área activa aparece como botón en la pantalla de inicio y tiene su propio catálogo de actividades.</p>
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('main.activities_admin') }}" class="btn btn-outline-secondary">
       <i class="bi bi-list-task"></i> Actividades
     </a>
   </div>
+</div>
 
-  <!-- Alta -->
-  <div class="card mb-4">
-    <div class="card-header d-flex align-items-center">
-      <i class="bi bi-plus-circle me-2"></i> Agregar área
-    </div>
-    <div class="card-body">
-      <form method="POST" class="row g-3">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-
-        <div class="col-md-4">
-          <label class="form-label">Nombre del área</label>
-          <input type="text" name="nombre" class="form-control" maxlength="100"
-                 placeholder="Ej. Almacén / Diseño / Carpintería" required>
-        </div>
-
-        <div class="col-md-3">
-          <label class="form-label">Área en RH</label>
-          <select name="rh_area_id" class="form-select">
-            <option value="">Sin enlazar</option>
-            {% for a in rh_areas %}
-            <option value="{{ a.id }}">{{ a.nombre }}</option>
-            {% endfor %}
-          </select>
-          <div class="form-text">
-            {% if rh_areas %}
-              Enlaza con el catálogo de AD17_General.Areas.
-            {% else %}
-              No se pudo leer el catálogo de RH; puedes enlazarla después.
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="col-md-3">
-          <label class="form-label">Flujo de registro</label>
-          <select name="flujo" class="form-select">
-            <option value="estandar">Estándar — un registro abierto a la vez</option>
-            <option value="impresion">Impresión — varios registros simultáneos</option>
-          </select>
-        </div>
-
-        <div class="col-md-2 d-flex align-items-end">
-          <button type="submit" class="btn btn-primary w-100">
-            <i class="bi bi-save"></i> Guardar
-          </button>
-        </div>
-      </form>
+<!-- Indicadores -->
+{% set activas = areas|selectattr('activa')|list %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="stat">
+      <span class="stat-icon brand"><i class="bi bi-diagram-3"></i></span>
+      <div class="stat-label">Áreas activas</div>
+      <div class="stat-value">{{ activas|length }}</div>
+      <div class="stat-foot">de {{ areas|length }} configuradas</div>
     </div>
   </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-printer"></i></span>
+      <div class="stat-label">Flujo de impresión</div>
+      <div class="stat-value">{{ areas|selectattr('flujo', 'equalto', 'impresion')|list|length }}</div>
+      <div class="stat-foot">Varios registros a la vez</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-link-45deg"></i></span>
+      <div class="stat-label">Enlazadas con RH</div>
+      <div class="stat-value">{{ areas|selectattr('rh_area_id')|list|length }}</div>
+      <div class="stat-foot">{% if rh_areas %}{{ rh_areas|length }} áreas en el catálogo de RH{% else %}Catálogo de RH no disponible{% endif %}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-list-task"></i></span>
+      <div class="stat-label">Actividades</div>
+      {% set ns = namespace(n=0) %}{% for a in areas %}{% set ns.n = ns.n + conteo_actividades.get(a.nombre, 0) %}{% endfor %}
+      <div class="stat-value">{{ ns.n }}</div>
+      <div class="stat-foot">En todas las áreas</div>
+    </div>
+  </div>
+</div>
 
-  <!-- Listado -->
-  <div class="card">
-    <div class="card-header d-flex align-items-center">
-      <i class="bi bi-diagram-3 me-2"></i> Áreas configuradas
-    </div>
-    <div class="card-body p-0">
-      {% if areas %}
-      <div class="table-responsive">
-        <table class="table table-striped mb-0 align-middle">
-          <thead class="table-light">
-            <tr>
-              <th style="width:90px;">Orden</th>
-              <th>Área</th>
-              <th style="width:170px;">Flujo</th>
-              <th style="width:130px;">Actividades</th>
-              <th style="width:130px;">Registros</th>
-              <th style="width:100px;">Activa</th>
-              <th style="width:260px;" class="text-end">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for a in areas %}
-            <tr>
-              <td class="text-muted">{{ a.orden }}</td>
-              <td>
-                <strong>{{ a.nombre }}</strong>
-                {% if a.rh_area_id %}
-                  <span class="badge bg-light text-dark ms-1">RH #{{ a.rh_area_id }}</span>
-                {% endif %}
-              </td>
-              <td>
-                {% if a.flujo == 'impresion' %}
-                  <span class="badge bg-info text-dark">Impresión</span>
-                {% else %}
-                  <span class="badge bg-secondary">Estándar</span>
-                {% endif %}
-              </td>
-              <td>
-                <a href="{{ url_for('main.activities_admin') }}">
-                  {{ conteo_actividades.get(a.nombre, 0) }}
-                </a>
-              </td>
-              <td class="text-muted">{{ conteo_registros.get(a.nombre, 0) }}</td>
-              <td>
+<!-- Alta -->
+<div class="card mb-4">
+  <div class="card-header"><i class="bi bi-plus-circle"></i>Agregar área</div>
+  <div class="card-body">
+    <form method="POST" class="row g-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+      <div class="col-md-6 col-xl-3">
+        <label class="form-label" for="nuevaArea">Nombre del área</label>
+        <input type="text" name="nombre" id="nuevaArea" class="form-control" maxlength="100"
+               placeholder="Ej. Almacén / Diseño / Carpintería" required>
+      </div>
+
+      <div class="col-md-6 col-xl-3">
+        <label class="form-label" for="nuevaRh">Área en RH</label>
+        <select name="rh_area_id" id="nuevaRh" class="form-select">
+          <option value="">Sin enlazar</option>
+          {% for a in rh_areas %}
+          <option value="{{ a.id }}">{{ a.nombre }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">
+          {% if rh_areas %}
+            Enlaza con el catálogo de AD17_General.Areas.
+          {% else %}
+            No se pudo leer el catálogo de RH; puedes enlazarla después.
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="col-md-8 col-xl-4">
+        <label class="form-label" for="nuevoFlujo">Flujo de registro</label>
+        <select name="flujo" id="nuevoFlujo" class="form-select">
+          <option value="estandar">Estándar — un registro abierto a la vez</option>
+          <option value="impresion">Impresión — varios registros simultáneos</option>
+        </select>
+      </div>
+
+      <div class="col-md-4 col-xl-2 d-flex align-items-start area-agregar" style="padding-top: 1.6rem;">
+        <button type="submit" class="btn btn-primary w-100">
+          <i class="bi bi-plus-lg"></i> Agregar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Listado -->
+<div class="card">
+  <div class="card-header">
+    <i class="bi bi-diagram-3"></i>Áreas configuradas
+    <span class="badge bg-secondary">{{ areas|length }}</span>
+  </div>
+  {% if areas %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle areas-tabla" data-buscable="Buscar área…">
+      <thead>
+        <tr>
+          <th style="width:90px;" data-movil-oculto>Orden</th>
+          <th data-titulo>Área</th>
+          <th style="width:150px;">Flujo</th>
+          <th style="width:130px;" class="text-end">Actividades</th>
+          <th style="width:130px;" class="text-end">Registros</th>
+          <th style="width:110px;">Estado</th>
+          <th style="width:250px;" class="text-end" data-nosort>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in areas %}
+        <tr>
+          <td class="text-muted" data-valor="{{ a.orden }}">{{ a.orden }}</td>
+          <td>
+            <span class="fw-semibold">{{ a.nombre }}</span>
+            {% if a.rh_area_id %}
+              <span class="badge bg-light ms-1" title="Enlazada con el área {{ a.rh_area_id }} de RH"><i class="bi bi-link-45deg"></i>RH #{{ a.rh_area_id }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if a.flujo == 'impresion' %}
+              <span class="badge bg-info"><i class="bi bi-printer"></i> Impresión</span>
+            {% else %}
+              <span class="badge bg-secondary">Estándar</span>
+            {% endif %}
+          </td>
+          <td class="text-end" data-valor="{{ conteo_actividades.get(a.nombre, 0) }}">
+            <a href="{{ url_for('main.activities_admin') }}" class="fw-semibold" title="Ver actividades">
+              {{ conteo_actividades.get(a.nombre, 0) }}
+            </a>
+          </td>
+          <td class="text-end text-muted" data-valor="{{ conteo_registros.get(a.nombre, 0) }}">{{ '{:,}'.format(conteo_registros.get(a.nombre, 0)) }}</td>
+          <td>
+            {% if a.activa %}
+              <span class="badge bg-success">Activa</span>
+            {% else %}
+              <span class="badge bg-secondary">Inactiva</span>
+            {% endif %}
+          </td>
+          <td class="text-end text-nowrap td-acciones" data-label="">
+            <div class="d-inline-flex gap-1 area-botones">
+              <button class="btn btn-sm btn-outline-secondary btn-edit"
+                      data-id="{{ a.id }}"
+                      data-nombre="{{ a.nombre|e }}"
+                      data-flujo="{{ a.flujo }}"
+                      data-rh="{{ a.rh_area_id if a.rh_area_id is not none else '' }}"
+                      data-orden="{{ a.orden }}"
+                      data-activa="{{ 1 if a.activa else 0 }}"
+                      title="Editar">
+                <i class="bi bi-pencil"></i>
+                <span class="d-none d-lg-inline">Editar</span>
+              </button>
+              <button class="btn btn-sm {% if a.activa %}btn-outline-secondary{% else %}btn-outline-success{% endif %} btn-toggle"
+                      data-id="{{ a.id }}" title="{% if a.activa %}Desactivar{% else %}Activar{% endif %}">
                 {% if a.activa %}
-                  <span class="badge bg-success">Sí</span>
+                  <i class="bi bi-pause-circle"></i><span class="d-none d-lg-inline">Desactivar</span>
                 {% else %}
-                  <span class="badge bg-secondary">No</span>
+                  <i class="bi bi-play-circle"></i><span class="d-none d-lg-inline">Activar</span>
                 {% endif %}
-              </td>
-              <td class="text-end">
-                <div class="btn-group">
-                  <button class="btn btn-sm btn-outline-primary btn-edit"
-                          data-id="{{ a.id }}"
-                          data-nombre="{{ a.nombre|e }}"
-                          data-flujo="{{ a.flujo }}"
-                          data-rh="{{ a.rh_area_id if a.rh_area_id is not none else '' }}"
-                          data-orden="{{ a.orden }}"
-                          data-activa="{{ 1 if a.activa else 0 }}"
-                          title="Editar">
-                    <i class="bi bi-pencil-square"></i>
-                    <span class="d-none d-lg-inline">Editar</span>
-                  </button>
-                  <button class="btn btn-sm {% if a.activa %}btn-outline-warning{% else %}btn-outline-success{% endif %} btn-toggle"
-                          data-id="{{ a.id }}" title="{% if a.activa %}Desactivar{% else %}Activar{% endif %}">
-                    {% if a.activa %}
-                      <i class="bi bi-pause-circle"></i><span class="d-none d-lg-inline">Desactivar</span>
-                    {% else %}
-                      <i class="bi bi-play-circle"></i><span class="d-none d-lg-inline">Activar</span>
-                    {% endif %}
-                  </button>
-                  <button class="btn btn-sm btn-outline-danger btn-delete"
-                          data-id="{{ a.id }}" data-nombre="{{ a.nombre|e }}" title="Eliminar">
-                    <i class="bi bi-trash3"></i><span class="d-none d-lg-inline">Eliminar</span>
-                  </button>
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <div class="p-4 text-center text-muted">
-        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-        No hay áreas configuradas todavía.
-      </div>
-      {% endif %}
-    </div>
-    <div class="card-footer text-muted small">
+              </button>
+              <button class="btn btn-sm btn-outline-danger btn-icon btn-delete"
+                      data-id="{{ a.id }}" data-nombre="{{ a.nombre|e }}" title="Eliminar" aria-label="Eliminar">
+                <i class="bi bi-trash3"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+    <h6>No hay áreas configuradas todavía</h6>
+    <p>Agrega la primera con el formulario de arriba.</p>
+  </div>
+  {% endif %}
+  <div class="card-footer text-muted small d-flex gap-2">
+    <i class="bi bi-info-circle"></i>
+    <span>
       Cambiar el nombre de un área reetiqueta también sus registros históricos y sus actividades.
       Un área con registros no se puede eliminar: desactívala para sacarla de la pantalla de inicio
       sin perder el historial.
-    </div>
+    </span>
   </div>
 </div>
 
 <!-- Modal editar -->
 <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-dialog-centered">
     <form id="editForm" class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-pencil-square me-1"></i> Editar área</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title">Editar área</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="edit_id">
         <div class="mb-3">
-          <label class="form-label">Nombre</label>
+          <label class="form-label" for="edit_nombre">Nombre</label>
           <input type="text" id="edit_nombre" class="form-control" maxlength="100" required>
           <div class="form-text">Se actualizarán también los registros históricos de esta área.</div>
         </div>
@@ -208,8 +266,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
-        <button class="btn btn-primary" type="submit"><i class="bi bi-save"></i> Guardar cambios</button>
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> Guardar cambios</button>
       </div>
     </form>
   </div>
@@ -217,23 +275,25 @@
 
 <!-- Modal eliminar -->
 <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-1"></i> Confirmar eliminación</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-danger me-1"></i> Eliminar área</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <p class="mb-0">¿Eliminar el área <strong id="del_nombre"></strong> y sus actividades? Esta acción no se puede deshacer.</p>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button class="btn btn-danger" id="confirmDeleteBtn"><i class="bi bi-trash3"></i> Eliminar</button>
       </div>
     </div>
   </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const CSRF_TOKEN = "{{ csrf_token() }}";
@@ -252,7 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (r.redirected) { window.location = r.url; return null; }
     const ct = r.headers.get('content-type') || '';
     if (!ct.includes('application/json')) {
-      alert('Respuesta inesperada del servidor.');
+      AD17.toast('Respuesta inesperada del servidor.', 'danger');
       return null;
     }
     return await r.json();
@@ -284,7 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
       toggleBtn.disabled = false;
       if (!data) return;
       if (data.success) location.reload();
-      else alert(data.message || 'No se pudo cambiar el estado.');
+      else AD17.toast(data.message || 'No se pudo cambiar el estado.', 'danger');
       return;
     }
 
@@ -309,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.disabled = false;
     if (!data) return;
     if (data.success) location.reload();
-    else alert(data.message || 'No se pudieron guardar los cambios.');
+    else AD17.toast(data.message || 'No se pudieron guardar los cambios.', 'danger');
   });
 
   document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
@@ -319,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.disabled = false;
     if (!data) return;
     if (data.success) location.reload();
-    else alert(data.message || 'No se pudo eliminar el área.');
+    else AD17.toast(data.message || 'No se pudo eliminar el área.', 'danger');
   });
 });
 </script>

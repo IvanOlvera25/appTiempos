@@ -5,9 +5,12 @@ Antes ambos vivian hardcodeados (listas en routes.py, botones en las plantillas)
 Aqui quedan en base de datos para que un administrador pueda dar de alta areas
 nuevas y editar sus actividades sin tocar codigo.
 """
-from flask import current_app
-from sqlalchemy import asc, func
+from itertools import chain
+
+from flask import current_app, g, has_app_context
+from sqlalchemy import asc, event, func
 from sqlalchemy.exc import OperationalError, ProgrammingError
+from sqlalchemy.orm import Session
 
 from . import db
 from .models import AreaConfig, DepartmentActivity
@@ -16,6 +19,11 @@ from .models import AreaConfig, DepartmentActivity
 # las de area, bajo un departamento centinela que ningun area puede usar.
 GENERAL_KEY = '__GENERAL__'
 GENERAL_LABEL = 'Generales (FP 0)'
+
+
+# Los catálogos se siembran una vez; ya sembrados, no hace falta volver a
+# preguntarle a la base en cada página (eran 1-2 consultas extra por carga).
+_SEMBRADO = {'areas': False, 'actividades': False, 'clasificaciones': False}
 
 
 # ─────────────────────────────────────────────────────────────
@@ -34,13 +42,17 @@ _AREAS_SEED = [
 
 def ensure_seed_areas():
     """Siembra las areas historicas la primera vez que se consulta la tabla."""
+    if _SEMBRADO['areas']:
+        return
     if db.session.query(AreaConfig.id).first():
+        _SEMBRADO['areas'] = True
         return
     db.session.bulk_save_objects([
         AreaConfig(nombre=nombre, flujo=flujo, activa=True, orden=idx)
         for idx, (nombre, flujo) in enumerate(_AREAS_SEED)
     ])
     db.session.commit()
+    _SEMBRADO['areas'] = True
 
 
 def _areas_de_respaldo():
@@ -56,13 +68,22 @@ def _areas_de_respaldo():
 
 
 def get_areas(solo_activas=True):
-    """Areas configuradas, en el orden en que deben mostrarse."""
+    """
+    Areas configuradas, en el orden en que deben mostrarse.
+
+    El menú, el inicio y varias rutas la piden varias veces por página; se lee
+    una sola vez por petición (y se vuelve a leer si en esa misma petición se
+    modifica un área, ver `_invalidar_areas`).
+    """
+    cache = g.get('_areas_cache') if has_app_context() else None
+    if cache is not None:
+        return [a for a in cache if a.activa] if solo_activas else list(cache)
     try:
         ensure_seed_areas()
-        q = AreaConfig.query
-        if solo_activas:
-            q = q.filter(AreaConfig.activa.is_(True))
-        return q.order_by(asc(AreaConfig.orden), asc(AreaConfig.nombre)).all()
+        todas = AreaConfig.query.order_by(asc(AreaConfig.orden), asc(AreaConfig.nombre)).all()
+        if has_app_context():
+            g._areas_cache = todas
+        return [a for a in todas if a.activa] if solo_activas else list(todas)
     except (OperationalError, ProgrammingError) as e:
         db.session.rollback()
         current_app.logger.error(
@@ -70,6 +91,14 @@ def get_areas(solo_activas=True):
             "corre `flask db upgrade` para poder administrarlas.",
             str(e).split('\n')[0])
         return _areas_de_respaldo()
+
+
+@event.listens_for(Session, 'after_flush')
+def _invalidar_areas(session, _contexto):
+    """Si en la petición se crea, edita o borra un área, la siguiente lectura va a la base."""
+    if has_app_context() and any(isinstance(o, AreaConfig)
+                                 for o in chain(session.new, session.dirty, session.deleted)):
+        g.pop('_areas_cache', None)
 
 
 def get_area_names(solo_activas=True):
@@ -159,11 +188,14 @@ def ensure_seed_activities():
     Se siembra grupo por grupo: asi las actividades generales del FP 0 aparecen
     tambien en instalaciones que ya tenian sembradas las de area.
     """
+    if _SEMBRADO['actividades']:
+        return
     existentes = {
         d for (d,) in db.session.query(DepartmentActivity.department).distinct()
     }
     faltantes = [d for d in _ACTIVIDADES_SEED if d not in existentes]
     if not faltantes:
+        _SEMBRADO['actividades'] = True
         return
 
     db.session.bulk_save_objects([
@@ -172,6 +204,7 @@ def ensure_seed_activities():
         for idx, name in enumerate(_ACTIVIDADES_SEED[dept])
     ])
     db.session.commit()
+    _SEMBRADO['actividades'] = True
 
 
 def get_department_activities(dept):
@@ -224,13 +257,17 @@ _CLASIFICACIONES_SEED = [
 
 def ensure_seed_clasificaciones():
     from .models import IncidentClassification
+    if _SEMBRADO['clasificaciones']:
+        return
     if db.session.query(IncidentClassification.id).first():
+        _SEMBRADO['clasificaciones'] = True
         return
     db.session.bulk_save_objects([
         IncidentClassification(nombre=nombre, activa=True, orden=idx)
         for idx, nombre in enumerate(_CLASIFICACIONES_SEED)
     ])
     db.session.commit()
+    _SEMBRADO['clasificaciones'] = True
 
 
 def get_clasificaciones(solo_activas=True):

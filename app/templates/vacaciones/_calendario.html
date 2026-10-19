@@ -1,77 +1,175 @@
-{# Rejilla mensual reutilizable. Espera `semanas`, `nav` y `endpoint`. #}
-<div class="card mb-4">
-  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <div class="d-flex align-items-center gap-2">
-      <a class="btn btn-sm btn-outline-secondary"
+{# Rejilla mensual reutilizable. Espera `semanas`, `nav` y `endpoint`;
+   opcionalmente `extra_args` (filtros que la navegación conserva) y `mi_rh_id`. #}
+{% set _cal = namespace(hoy_visible=false, con_eventos=0) %}
+{% for semana in semanas %}{% for dia in semana %}{% if dia.hoy and dia.del_mes %}{% set _cal.hoy_visible = true %}{% endif %}{% if dia.del_mes and dia.eventos %}{% set _cal.con_eventos = _cal.con_eventos + 1 %}{% endif %}{% endfor %}{% endfor %}
+<div class="card mb-4 cal-card">
+  <div class="card-header">
+    <div class="d-flex align-items-center gap-1 cal-nav">
+      <a class="btn btn-sm btn-outline-secondary btn-icon" title="Mes anterior" aria-label="Mes anterior"
          href="{{ url_for(endpoint, anio=nav.anio_ant, mes=nav.mes_ant, **extra_args|default({})) }}">
         <i class="bi bi-chevron-left"></i>
       </a>
-      <strong class="mx-2">{{ nav.titulo }}</strong>
-      <a class="btn btn-sm btn-outline-secondary"
+      <a class="btn btn-sm btn-outline-secondary btn-icon" title="Mes siguiente" aria-label="Mes siguiente"
          href="{{ url_for(endpoint, anio=nav.anio_sig, mes=nav.mes_sig, **extra_args|default({})) }}">
         <i class="bi bi-chevron-right"></i>
       </a>
+      <span class="cal-titulo">{{ nav.titulo }}</span>
+      {% if not _cal.hoy_visible %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for(endpoint, **extra_args|default({})) }}">Hoy</a>
+      {% endif %}
     </div>
-    <div class="small text-muted d-flex flex-wrap gap-3">
-      <span><span class="cal-chip cal-autorizado"></span> Autorizado</span>
-      <span><span class="cal-chip cal-pendiente"></span> Pendiente</span>
-      <span><span class="cal-chip cal-denegado"></span> Denegado</span>
-      <span><i class="bi bi-circle-half"></i> Medio día</span>
+    <div class="cal-leyenda ms-auto">
+      <span><i class="cal-chip cal-autorizado"></i>Autorizado</span>
+      <span><i class="cal-chip cal-pendiente"></i>Pendiente</span>
+      <span><i class="cal-chip cal-denegado"></i>Denegado</span>
+      <span><i class="bi bi-circle-half"></i>Medio día</span>
       {% if mi_rh_id is defined and mi_rh_id %}
-      <span><i class="bi bi-person-fill"></i> Tus vacaciones</span>
+      <span><i class="bi bi-person-fill"></i>Tus vacaciones</span>
       {% endif %}
     </div>
   </div>
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-bordered mb-0 cal-table">
-        <thead class="table-light">
-          <tr>
-            <th>Lunes</th><th>Martes</th><th>Miércoles</th><th>Jueves</th>
-            <th>Viernes</th><th>Sábado</th><th>Domingo</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for semana in semanas %}
-          <tr>
-            {% for dia in semana %}
-            <td class="cal-dia {% if not dia.del_mes %}cal-fuera{% endif %} {% if dia.hoy %}cal-hoy{% endif %}">
-              <div class="cal-num">{{ dia.fecha.day }}</div>
-              {% for e in dia.eventos %}
-              {% set propio = mi_rh_id is defined and mi_rh_id and e.rh_id == mi_rh_id %}
-              <div class="cal-evento cal-{{ e.estatus|lower }}{% if propio %} cal-propio{% endif %}"
-                   title="{{ e.empleado }}{% if propio %} (tú){% endif %} — {{ e.area }} — {{ e.estatus|capitalize }}{% if e.tipo == 'MEDIO_DIA' %} (medio día {{ e.momento|lower }}){% endif %}">
-                {% if e.tipo == 'MEDIO_DIA' %}<i class="bi bi-circle-half"></i>{% endif %}
-                {% if propio %}<i class="bi bi-person-fill"></i>{% endif %}
-                {{ e.empleado.split(' ')[0] }} {{ e.empleado.split(' ')[1] if e.empleado.split(' ')|length > 1 else '' }}
-              </div>
-              {% endfor %}
-            </td>
-            {% endfor %}
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+  {# Celular: agenda con solo los días que tienen movimientos; la rejilla queda para tableta y escritorio #}
+  <div class="cal-agenda d-md-none">
+    {% for semana in semanas %}{% for dia in semana if dia.del_mes and dia.eventos %}
+    <div class="cal-ag-dia{% if dia.hoy %} cal-hoy{% endif %}">
+      <div class="cal-ag-fecha">
+        <span class="cal-ag-num">{{ dia.fecha.day }}</span>
+        <span class="cal-ag-sem">{{ ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'][dia.fecha.weekday()] }}</span>
+        {% if dia.hoy %}<span class="cal-ag-hoy">Hoy</span>{% endif %}
+      </div>
+      <div class="cal-ag-eventos">
+        {% for e in dia.eventos %}
+        {% set propio = mi_rh_id is defined and mi_rh_id and e.rh_id == mi_rh_id %}
+        <div class="cal-ag-evento cal-{{ e.estatus|lower }}{% if propio %} cal-propio{% endif %}">
+          <div class="cal-ag-nombre">
+            {% if propio %}<i class="bi bi-person-fill"></i>{% endif %}
+            <span>{{ e.empleado }}{% if propio %} (tú){% endif %}</span>
+          </div>
+          <div class="cal-ag-meta">
+            {{ e.estatus|capitalize }}{% if e.tipo == 'MEDIO_DIA' %} · <i class="bi bi-circle-half"></i> Medio día ({{ e.momento|lower }}){% endif %}{% if e.area %} · {{ e.area }}{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
     </div>
+    {% endfor %}{% endfor %}
+    {% if not _cal.con_eventos %}
+    <div class="empty py-4">
+      <div class="empty-icon"><i class="bi bi-calendar"></i></div>
+      <h6>Sin vacaciones en {{ nav.titulo }}</h6>
+      <p>Usa las flechas para ver otro mes.</p>
+    </div>
+    {% endif %}
+  </div>
+  <div class="table-responsive d-none d-md-block">
+    <table class="table mb-0 cal-table">
+      <thead>
+        <tr>
+          {% for nombre in ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'] %}
+          <th>{{ nombre }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for semana in semanas %}
+        <tr>
+          {% for dia in semana %}
+          {% set activos = dia.eventos|rejectattr('estatus', 'equalto', 'DENEGADO')|list %}
+          <td class="cal-dia{% if not dia.del_mes %} cal-fuera{% endif %}{% if dia.hoy %} cal-hoy{% endif %}{% if loop.index > 5 %} cal-finde{% endif %}">
+            <div class="cal-cab">
+              <span class="cal-num">{{ dia.fecha.day }}</span>
+              {% if activos|length > 1 %}
+              <span class="cal-cuenta" title="{{ activos|length }} personas con vacaciones autorizadas o pendientes">{{ activos|length }}</span>
+              {% endif %}
+            </div>
+            {% for e in dia.eventos %}
+            {% set propio = mi_rh_id is defined and mi_rh_id and e.rh_id == mi_rh_id %}
+            <div class="cal-evento cal-{{ e.estatus|lower }}{% if propio %} cal-propio{% endif %}"
+                 title="{{ e.empleado }}{% if propio %} (tú){% endif %} — {{ e.area }} — {{ e.estatus|capitalize }}{% if e.tipo == 'MEDIO_DIA' %} (medio día {{ e.momento|lower }}){% endif %}">
+              {% if e.tipo == 'MEDIO_DIA' %}<i class="bi bi-circle-half"></i>{% endif %}
+              {% if propio %}<i class="bi bi-person-fill"></i>{% endif %}
+              <span>{{ e.empleado.split(' ')[0] }} {{ e.empleado.split(' ')[1] if e.empleado.split(' ')|length > 1 else '' }}</span>
+            </div>
+            {% endfor %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 
 <style>
+  .cal-card .card-header { gap: .75rem; }
+  .cal-titulo { font-size: 1rem; font-weight: 650; letter-spacing: -.01em; margin: 0 .5rem 0 .6rem; min-width: 8.5rem; }
+  .cal-leyenda { display: flex; flex-wrap: wrap; gap: .35rem 1rem; font-size: .76rem; font-weight: 500; color: var(--ad-text-2); }
+  .cal-leyenda span { display: inline-flex; align-items: center; gap: .4rem; }
+  .cal-leyenda .bi { color: var(--ad-text-3); font-size: .8rem; }
+  .cal-chip { display: inline-block; width: 14px; height: 12px; border-radius: 3px; border: 1px solid; border-left-width: 3px; }
+
   .cal-table { table-layout: fixed; }
-  .cal-table th { font-size: .8rem; text-align: center; }
-  .cal-dia { height: 110px; vertical-align: top; padding: .35rem; }
-  .cal-fuera { background: #f8f9fa; color: #adb5bd; }
-  .cal-hoy { box-shadow: inset 0 0 0 2px #0d6efd; }
-  .cal-num { font-size: .75rem; font-weight: 600; color: #6c757d; margin-bottom: .2rem; }
-  .cal-evento {
-    font-size: .7rem; line-height: 1.2; padding: .12rem .3rem; margin-bottom: .15rem;
-    border-radius: .25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  .cal-table > thead > tr > th { padding: .55rem .65rem; border-right: 1px solid var(--ad-border); }
+  .cal-table > thead > tr > th:last-child, .cal-table > tbody > tr > td:last-child { border-right: 0; }
+  .cal-table > tbody > tr > td.cal-dia {
+    height: 116px; vertical-align: top; padding: .45rem .5rem;
+    border-right: 1px solid var(--ad-border); background: var(--ad-surface);
   }
-  .cal-autorizado, .cal-evento.cal-autorizado { background: #d1e7dd; color: #0a3622; }
-  .cal-pendiente, .cal-evento.cal-pendiente { background: #fff3cd; color: #664d03; }
-  .cal-denegado,  .cal-evento.cal-denegado  { background: #f8d7da; color: #58151c; }
-  .cal-chip { display: inline-block; width: .8rem; height: .8rem; border-radius: .2rem; vertical-align: -1px; }
-  /* Lo propio se distingue con un borde, no con otro color: el color ya indica
+  .cal-table > tbody > tr > td.cal-finde { background: var(--ad-surface-2); }
+  .cal-table > tbody > tr > td.cal-fuera { background: var(--ad-surface-3); }
+  .cal-fuera .cal-num { color: var(--ad-text-4); }
+  .cal-fuera .cal-evento { opacity: .55; }
+  .cal-cab { display: flex; align-items: center; justify-content: space-between; margin-bottom: .3rem; }
+  .cal-num {
+    display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; margin: -.1rem 0 0 -.15rem;
+    border-radius: 50%; font-size: .78rem; font-weight: 600; color: var(--ad-text-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .cal-hoy .cal-num { background: var(--ad-brand); color: #fff; }
+  .cal-table > tbody > tr > td.cal-hoy { box-shadow: inset 0 0 0 1px var(--ad-brand-soft-2); }
+  .cal-cuenta {
+    font-size: .68rem; font-weight: 600; line-height: 1.25rem; padding: 0 .45rem; border-radius: 999px;
+    color: var(--ad-text-3); background: var(--ad-surface-3); border: 1px solid var(--ad-border);
+  }
+  .cal-evento {
+    display: flex; align-items: center; gap: .25rem; min-width: 0;
+    font-size: .72rem; font-weight: 500; line-height: 1.25; padding: .2rem .4rem; margin-bottom: .2rem;
+    border-radius: 5px; border-left: 3px solid; white-space: nowrap; overflow: hidden; cursor: default;
+  }
+  .cal-evento span { overflow: hidden; text-overflow: ellipsis; }
+  .cal-evento .bi { font-size: .7rem; flex-shrink: 0; }
+  .cal-autorizado { background: var(--ad-success-soft); color: var(--ad-success-ink); border-color: var(--ad-success); }
+  .cal-pendiente  { background: var(--ad-warning-soft); color: var(--ad-warning-ink); border-color: var(--ad-warning); }
+  .cal-denegado   { background: var(--ad-danger-soft);  color: var(--ad-danger-ink);  border-color: var(--ad-danger); }
+  .cal-evento.cal-denegado span { text-decoration: line-through; }
+  /* Lo propio se distingue con un contorno, no con otro color: el color ya indica
      el estatus de la solicitud. */
-  .cal-evento.cal-propio { outline: 2px solid #0d6efd; font-weight: 600; }
+  .cal-evento.cal-propio { box-shadow: inset 0 0 0 1px currentColor; font-weight: 650; }
+
+  /* Agenda (celular) */
+  .cal-ag-dia { display: flex; gap: .85rem; padding: .75rem .95rem; border-bottom: 1px solid var(--ad-border); }
+  .cal-ag-dia:last-child { border-bottom: 0; }
+  .cal-ag-dia.cal-hoy { background: var(--ad-brand-soft); }
+  .cal-ag-fecha { flex: 0 0 2.6rem; display: flex; flex-direction: column; align-items: center; padding-top: .1rem; line-height: 1.1; }
+  .cal-ag-num { font-size: 1.25rem; font-weight: 650; color: var(--ad-text); font-variant-numeric: tabular-nums; }
+  .cal-ag-sem { font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ad-text-3); margin-top: .15rem; }
+  .cal-ag-hoy { margin-top: .3rem; font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #fff; background: var(--ad-brand); border-radius: 999px; padding: .05rem .4rem; }
+  .cal-ag-eventos { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: .35rem; }
+  .cal-ag-evento { border-left: 3px solid; border-radius: 6px; padding: .4rem .6rem; min-width: 0; }
+  .cal-ag-nombre { display: flex; align-items: center; gap: .3rem; font-size: .875rem; font-weight: 600; line-height: 1.3; }
+  .cal-ag-nombre span { min-width: 0; overflow-wrap: anywhere; }
+  .cal-ag-meta { font-size: .75rem; font-weight: 500; opacity: .85; margin-top: .1rem; }
+  .cal-ag-meta .bi { font-size: .7rem; }
+  .cal-ag-evento.cal-denegado .cal-ag-nombre span { text-decoration: line-through; }
+  .cal-ag-evento.cal-propio { box-shadow: inset 0 0 0 1px currentColor; }
+
+  /* Tableta: la rejilla cabe sin scroll lateral */
+  .cal-table { min-width: 700px; }
+  @media (max-width: 767.98px) {
+    .cal-card .card-header { flex-wrap: wrap; }
+    .cal-leyenda { display: none; }
+    .cal-nav { width: 100%; }
+    .cal-nav .btn { width: 42px !important; height: 42px !important; min-height: 42px; }
+    .cal-nav .cal-titulo { flex: 1 1 auto; min-width: 0; margin: 0 .25rem 0 .5rem; font-size: 1.05rem; }
+  }
 </style>

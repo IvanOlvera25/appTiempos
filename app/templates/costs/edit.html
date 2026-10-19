@@ -1,215 +1,247 @@
 {% extends "layout.html" %}
-{% block title %}Editar Registro - Costos{% endblock %}
+{% block title %}Editar registro #{{ record.id }} · Costos{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card">
-            <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">
-                        <i class="bi bi-pencil"></i> Editar Registro de Tiempo
-                    </h4>
-                    <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-outline-secondary">
-                        <i class="bi bi-arrow-left"></i> Volver
-                    </a>
-                </div>
-            </div>
-            <div class="card-body">
-                <!-- Información del registro -->
-                <div class="alert alert-light mb-4">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <strong>ID del Registro:</strong> #{{ record.id }}
-                        </div>
-                        <div class="col-md-4">
-                            <strong>Creado:</strong> {{ record.start_time.strftime('%d/%m/%Y %H:%M') }}
-                        </div>
-                        <div class="col-md-4">
-                            <strong>Estado:</strong>
-                            {% if record.end_time %}
-                                <span class="badge bg-success">Finalizado</span>
-                            {% else %}
-                                <span class="badge bg-warning">En progreso</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
+<style>
+  .form-registro { max-width: 880px; }
+  .resultados-fp .list-group-item { display: flex; align-items: center; gap: .6rem; cursor: pointer; }
+  .resultados-fp .fp, .proyecto-actual .fp {
+    font-size: .72rem; font-weight: 600; color: var(--ad-text-2); background: var(--ad-surface-3);
+    border: 1px solid var(--ad-border); border-radius: 5px; padding: .05rem .35rem; white-space: nowrap;
+  }
+  .ficha { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0; }
+  .ficha > div { padding: .85rem 1.15rem; border-right: 1px solid var(--ad-border); }
+  .ficha > div:last-child { border-right: 0; }
+  .ficha .k { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ad-text-3); margin-bottom: .2rem; }
+  .ficha .v { font-weight: 600; }
+  .duraciones { display: flex; flex-wrap: wrap; gap: .6rem; }
+  .duraciones > div { flex: 1 1 220px; display: flex; align-items: center; gap: .5rem; padding: .7rem .9rem; border-radius: var(--ad-radius); background: var(--ad-surface-2); border: 1px solid var(--ad-border); }
+  .duraciones > #newDurationInfo { background: var(--ad-brand-soft); border-color: var(--ad-brand-soft-2); color: var(--ad-brand-ink); }
+  @media (max-width: 575.98px) {
+    .ficha { grid-template-columns: 1fr 1fr; }
+    .ficha > div { padding: .7rem .95rem; border-right: 0; border-bottom: 1px solid var(--ad-border); min-width: 0; }
+    .ficha > div:nth-child(odd) { border-right: 1px solid var(--ad-border); }
+    .ficha > div:nth-last-child(-n+2) { border-bottom: 0; }
+    .ficha .v.text-truncate { white-space: normal; overflow-wrap: anywhere; }
+    .ficha .v { font-size: .875rem; }
+    .duraciones > div { flex-basis: 100%; }
+  }
+  /* Botones del formulario: en celular quedan fijos abajo (sobre la barra inferior) mientras se llena */
+  .acciones-form { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }
+  @media (max-width: 767.98px) {
+    .acciones-form {
+      position: sticky; z-index: 5; bottom: calc(var(--ad-bottom-h, 0px) + env(safe-area-inset-bottom));
+      margin: 1rem -.9rem 0; padding: .65rem .9rem;
+      background: rgba(255, 255, 255, .95); border-top: 1px solid var(--ad-border);
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    }
+    .acciones-form > .btn-primary { flex: 1 1 auto; }
+  }
+  @media (max-width: 575.98px) {
+    .resultados-fp .list-group-item { flex-wrap: wrap; align-items: baseline; row-gap: .15rem; padding-top: .7rem; padding-bottom: .7rem; }
+    .resultados-fp .list-group-item > .ms-auto { flex: 1 1 100%; margin-left: 0 !important; }
+    .resultados-fp .list-group-item > .fw-semibold { flex: 1 1 0; min-width: 0; white-space: normal; }
+  }
+</style>
 
-                <form method="POST" id="editRecordForm">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-
-                    <div class="row">
-                        <!-- Empleado -->
-                        <div class="col-md-6 mb-3">
-                            <label for="employee_id" class="form-label">
-                                Empleado <span class="text-danger">*</span>
-                            </label>
-                            <select name="employee_id" id="employee_id" class="form-select" required>
-                                <option value="">Selecciona un empleado</option>
-                                {% for employee in employees %}
-                                <option value="{{ employee.id }}"
-                                        {% if employee.id == record.employee_id %}selected{% endif %}>
-                                    {{ employee.nompropio }}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-
-                        <!-- Proyecto con búsqueda por FP -->
-                        <div class="col-md-6 mb-3">
-                            <label for="fp_search" class="form-label">
-                                Proyecto (buscar por FP) <span class="text-danger">*</span>
-                            </label>
-                            <div class="input-group">
-                                <input type="text" id="fp_search" class="form-control"
-                                       placeholder="Escribe el FP para buscar..."
-                                       value="{{ record.project.folio if record.project.folio != 0 else '' }}">
-                                <button type="button" id="search_fp_btn" class="btn btn-outline-secondary">
-                                    <i class="bi bi-search"></i>
-                                </button>
-                            </div>
-
-                            <!-- Campo principal del proyecto que se enviará -->
-                            <input type="hidden" name="project_id" id="project_id" value="{{ record.project_id }}">
-
-                            <!-- Mostrar proyecto actual -->
-                            <div id="current_project_info" class="mt-2">
-                                <div class="alert alert-info">
-                                    <strong>Proyecto actual:</strong>
-                                    {% if record.project.folio == 0 %}
-                                        {{ record.project.name }} (Proyecto especial)
-                                    {% else %}
-                                        FP: {{ record.project.folio }} - {{ record.project.name }} ({{ record.project.client }})
-                                    {% endif %}
-                                </div>
-                            </div>
-
-                            <div id="search_results" class="mt-2" style="display: none;">
-                                <!-- Aquí aparecerán los resultados de búsqueda -->
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <!-- Departamento -->
-                        <div class="col-md-6 mb-3">
-                            <label for="departamento" class="form-label">
-                                Departamento <span class="text-danger">*</span>
-                            </label>
-                            <select name="departamento" id="departamento" class="form-select" required>
-                                <option value="">Selecciona un departamento</option>
-                                {% for dept in area_departments %}
-                                <option value="{{ dept }}" {% if record.departamento == dept %}selected{% endif %}>{{ dept }}</option>
-                                {% endfor %}
-                                {# El área histórica del registro puede haberse desactivado #}
-                                {% if record.departamento and record.departamento not in area_departments %}
-                                <option value="{{ record.departamento }}" selected>{{ record.departamento }} (inactiva)</option>
-                                {% endif %}
-                            </select>
-                        </div>
-
-                        <!-- Actividad -->
-                        <div class="col-md-6 mb-3">
-                            <label for="actividad" class="form-label">Actividad</label>
-                            <input type="text" name="actividad" id="actividad" class="form-control"
-                                   placeholder="Descripción de la actividad"
-                                   value="{{ record.actividad or '' }}">
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <!-- Fecha y hora de inicio -->
-                        <div class="col-md-6 mb-3">
-                            <label for="start_time" class="form-label">
-                                Fecha y Hora de Inicio <span class="text-danger">*</span>
-                                <small class="text-muted">(CDMX)</small>
-                            </label>
-                            <input type="datetime-local" name="start_time" id="start_time"
-                                   class="form-control" required
-                                   value="{{ record.start_time_cdmx }}">
-                        </div>
-
-                        <!-- Fecha y hora de fin -->
-                        <div class="col-md-6 mb-3">
-                            <label for="end_time" class="form-label">
-                                Fecha y Hora de Fin
-                                <small class="text-muted">(opcional - CDMX)</small>
-                            </label>
-                            <input type="datetime-local" name="end_time" id="end_time"
-                                   class="form-control"
-                                   value="{{ record.end_time_cdmx if record.end_time else '' }}">
-                            <div class="form-text">
-                                Deja vacío si el registro debe estar en progreso
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Información calculada -->
-                    <div class="row">
-                        <div class="col-md-6 mb-3" id="originalDurationInfo">
-                            <div class="alert alert-light">
-                                <strong>Duración original:</strong>
-                                {% if record.end_time %}
-                                    {% set original_duration = (record.end_time - record.start_time).total_seconds() / 3600 %}
-                                    {{ "%.2f"|format(original_duration) }} horas
-                                {% else %}
-                                    En progreso
-                                {% endif %}
-                            </div>
-                        </div>
-
-                        <div class="col-md-6 mb-3" id="newDurationInfo" style="display: none;">
-                            <div class="alert alert-info">
-                                <strong>Nueva duración:</strong> <span id="calculatedDuration">0 horas</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Coordenadas (solo lectura) -->
-                    {% if record.latitude and record.longitude %}
-                    <div class="row">
-                        <div class="col-12 mb-3">
-                            <div class="alert alert-secondary">
-                                <i class="bi bi-geo-alt"></i>
-                                <strong>Ubicación registrada:</strong>
-                                {{ record.latitude }}, {{ record.longitude }}
-                                <a href="https://maps.google.com/?q={{ record.latitude }},{{ record.longitude }}"
-                                   target="_blank" class="btn btn-sm btn-outline-primary ms-2">
-                                    Ver en mapa
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="d-flex justify-content-end gap-2">
-                                <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-secondary">
-                                    Cancelar
-                                </a>
-                                <button type="submit" class="btn btn-primary" id="submitBtn">
-                                    <i class="bi bi-check-circle"></i> Guardar Cambios
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
+{% set ini = record.start_time_cdmx %}
+<div class="form-registro">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow"><i class="bi bi-calculator"></i> Costos · Registro #{{ record.id }}</div>
+      <h1>Editar registro de tiempo</h1>
+      <p>Corrige persona, proyecto, área u horario. Fechas y horas en hora del centro de México (CDMX).</p>
     </div>
+    <div class="actions">
+      <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver a registros
+      </a>
+    </div>
+  </div>
+
+  <!-- Información del registro -->
+  <div class="card mb-3">
+    <div class="ficha">
+      <div>
+        <div class="k">Registro</div>
+        <div class="v">#{{ record.id }}</div>
+      </div>
+      <div>
+        <div class="k">Persona</div>
+        <div class="v text-truncate" title="{{ record.employee.nompropio }}">{{ record.employee.nompropio }}</div>
+      </div>
+      <div>
+        <div class="k">Inicio registrado</div>
+        <div class="v">{{ ini[8:10] }}/{{ ini[5:7] }}/{{ ini[0:4] }} {{ ini[11:16] }}</div>
+      </div>
+      <div>
+        <div class="k">Estado</div>
+        <div class="v">
+          {% if record.end_time %}
+            <span class="badge bg-success">Finalizado</span>
+          {% else %}
+            <span class="badge bg-warning"><span class="dot"></span>En progreso</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form method="POST" id="editRecordForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-person"></i>Persona y área</div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label for="employee_id" class="form-label">Empleado <span class="text-danger">*</span></label>
+            <select name="employee_id" id="employee_id" class="form-select" required>
+              <option value="">Selecciona un empleado</option>
+              {% for employee in employees %}
+              <option value="{{ employee.id }}"
+                      {% if employee.id == record.employee_id %}selected{% endif %}>
+                {{ employee.nompropio }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label for="departamento" class="form-label">Área del registro <span class="text-danger">*</span></label>
+            <select name="departamento" id="departamento" class="form-select" required>
+              <option value="">Selecciona un área</option>
+              {% for dept in area_departments %}
+              <option value="{{ dept }}" {% if record.departamento == dept %}selected{% endif %}>{{ dept }}</option>
+              {% endfor %}
+              {# El área histórica del registro puede haberse desactivado #}
+              {% if record.departamento and record.departamento not in area_departments %}
+              <option value="{{ record.departamento }}" selected>{{ record.departamento }} (inactiva)</option>
+              {% endif %}
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-kanban"></i>Proyecto <span class="text-danger">*</span></div>
+      <div class="card-body">
+        <!-- Proyecto actual -->
+        <div id="current_project_info" class="mb-3 proyecto-actual">
+          <div class="alert alert-info d-flex align-items-center gap-2 mb-0">
+            <i class="bi bi-kanban"></i>
+            <div>
+              <strong>Proyecto actual:</strong>
+              {% if record.project.folio == 0 %}
+                {{ record.project.name }} (Proyecto especial)
+              {% else %}
+                <span class="fp">FP {{ record.project.folio }}</span> {{ record.project.name }} <span class="text-muted">({{ record.project.client }})</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <label for="fp_search" class="form-label">Cambiar proyecto: buscar por FP</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-hash"></i></span>
+          <input type="text" id="fp_search" class="form-control" inputmode="numeric" autocomplete="off"
+                 placeholder="Escribe el FP y presiona Enter"
+                 value="{{ record.project.folio if record.project.folio != 0 else '' }}">
+          <button type="button" id="search_fp_btn" class="btn btn-outline-secondary">
+            <i class="bi bi-search"></i>
+          </button>
+        </div>
+
+        <!-- Campo principal del proyecto que se enviará -->
+        <input type="hidden" name="project_id" id="project_id" value="{{ record.project_id }}">
+
+        <div id="search_results" class="mt-3 resultados-fp" style="display: none;">
+          <!-- Aquí aparecerán los resultados de búsqueda -->
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-clock"></i>Horario y actividad</div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label for="start_time" class="form-label">Inicio <span class="text-danger">*</span> <span class="text-muted fw-normal">(CDMX)</span></label>
+            <input type="datetime-local" name="start_time" id="start_time"
+                   class="form-control" required
+                   value="{{ record.start_time_cdmx }}">
+          </div>
+          <div class="col-md-6">
+            <label for="end_time" class="form-label">Fin <span class="text-muted fw-normal">(opcional, CDMX)</span></label>
+            <input type="datetime-local" name="end_time" id="end_time"
+                   class="form-control"
+                   value="{{ record.end_time_cdmx if record.end_time else '' }}">
+            <div class="form-text">Déjalo vacío si el registro debe seguir en curso.</div>
+          </div>
+          <div class="col-12">
+            <div class="duraciones">
+              <div id="originalDurationInfo">
+                <i class="bi bi-clock-history text-muted"></i>
+                <span class="text-muted">Duración original:</span>
+                <strong>
+                {% if record.end_time %}
+                  {% set original_duration = (record.end_time - record.start_time).total_seconds() / 3600 %}
+                  {{ "%.2f"|format(original_duration) }} horas
+                {% else %}
+                  En progreso
+                {% endif %}
+                </strong>
+              </div>
+              <div id="newDurationInfo" style="display: none;">
+                <i class="bi bi-arrow-right"></i>
+                <span>Nueva duración:</span>
+                <strong id="calculatedDuration">0 horas</strong>
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <label for="actividad" class="form-label">Actividad</label>
+            <input type="text" name="actividad" id="actividad" class="form-control"
+                   placeholder="Descripción de la actividad"
+                   value="{{ record.actividad or '' }}">
+          </div>
+        </div>
+
+        <!-- Coordenadas (solo lectura) -->
+        {% if record.latitude and record.longitude %}
+        <div class="d-flex flex-wrap align-items-center gap-2 mt-3 pt-3 border-top small">
+          <i class="bi bi-geo-alt text-muted"></i>
+          <span class="text-muted">Ubicación registrada:</span>
+          <span class="fw-semibold">{{ record.latitude }}, {{ record.longitude }}</span>
+          <a href="https://maps.google.com/?q={{ record.latitude }},{{ record.longitude }}"
+             target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary ms-auto">
+            <i class="bi bi-box-arrow-up-right"></i> Ver en mapa
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="acciones-form">
+      <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-outline-secondary">Cancelar</a>
+      <button type="submit" class="btn btn-primary" id="submitBtn">
+        <i class="bi bi-check-lg"></i> Guardar cambios
+      </button>
+    </div>
+  </form>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded, initializing form...');
+    const esc = (window.AD17 && AD17.escapar) || (s => String(s == null ? '' : s));
+    const avisar = (msg) => (window.AD17 ? AD17.toast(msg, 'warning') : alert(msg));
 
     // Inicializar Select2 para empleado y departamento
     $('#employee_id, #departamento').select2({
-        theme: 'bootstrap4'
+        theme: 'bootstrap4',
+        width: '100%'
     });
 
     // Función para buscar proyectos por FP
@@ -223,25 +255,21 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        console.log('Searching for FP:', fp);
-
         // Mostrar estado de carga
-        searchBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
         searchBtn.disabled = true;
 
         fetch(`/search_fp?fp=${encodeURIComponent(fp)}`)
             .then(response => response.json())
             .then(data => {
-                console.log('Search results:', data);
-
                 // Restaurar botón
                 searchBtn.innerHTML = '<i class="bi bi-search"></i>';
                 searchBtn.disabled = false;
 
                 if (data.error) {
                     searchResults.innerHTML = `
-                        <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i> ${data.error}
+                        <div class="alert alert-warning mb-0">
+                            <i class="bi bi-exclamation-triangle"></i> ${esc(data.error)}
                         </div>
                     `;
                     searchResults.style.display = 'block';
@@ -250,48 +278,37 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (data.length === 0) {
                     searchResults.innerHTML = `
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle"></i> No se encontraron proyectos con el FP "${fp}"
+                        <div class="alert alert-info mb-0">
+                            <i class="bi bi-info-circle"></i> No se encontraron proyectos con el FP “${esc(fp)}”.
                         </div>
                     `;
                     searchResults.style.display = 'block';
                     return;
                 }
 
-                // Crear cards para los resultados
-                let resultsHTML = '<div class="alert alert-success mb-3">';
-                resultsHTML += `<i class="bi bi-check-circle"></i> Se encontraron ${data.length} proyecto(s):`;
-                resultsHTML += '</div>';
+                // Lista de resultados
+                let resultsHTML = `<div class="small text-muted mb-2"><i class="bi bi-check-circle text-success"></i> ${data.length} ${data.length === 1 ? 'proyecto encontrado' : 'proyectos encontrados'}. Elige uno:</div>`;
+                resultsHTML += '<div class="list-group">';
 
                 data.forEach(project => {
-                    // Crear card visual
                     resultsHTML += `
-                        <div class="card project-result-card mb-2" style="cursor: pointer;"
-                             data-project-id="${project.project_id || project.fp}"
-                             data-fp="${project.fp}"
-                             data-client="${project.cliente}"
-                             data-name="${project.proyecto}">
-                            <div class="card-body py-2">
-                                <div class="row align-items-center">
-                                    <div class="col-2">
-                                        <strong class="text-primary">FP: ${project.fp}</strong>
-                                    </div>
-                                    <div class="col-6">
-                                        <span class="fw-medium">${project.proyecto || 'Sin nombre'}</span>
-                                    </div>
-                                    <div class="col-4">
-                                        <small class="text-muted">${project.cliente || 'Sin cliente'}</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <button type="button" class="list-group-item list-group-item-action project-result-card"
+                             data-project-id="${esc(project.project_id || project.fp)}"
+                             data-fp="${esc(project.fp)}"
+                             data-client="${esc(project.cliente)}"
+                             data-name="${esc(project.proyecto)}">
+                            <span class="fp">FP ${esc(project.fp)}</span>
+                            <span class="fw-semibold text-truncate">${esc(project.proyecto || 'Sin nombre')}</span>
+                            <span class="small text-muted ms-auto text-truncate">${esc(project.cliente || 'Sin cliente')}</span>
+                        </button>
                     `;
                 });
+                resultsHTML += '</div>';
 
                 searchResults.innerHTML = resultsHTML;
                 searchResults.style.display = 'block';
 
-                // Agregar event listeners a las cards
+                // Agregar event listeners a los resultados
                 document.querySelectorAll('.project-result-card').forEach(card => {
                     card.addEventListener('click', function() {
                         const projectId = this.dataset.projectId;
@@ -299,16 +316,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         const client = this.dataset.client;
                         const name = this.dataset.name;
 
-                        console.log('Project selected:', { projectId, fp, client, name });
-
                         // Actualizar el campo hidden del proyecto
                         document.getElementById('project_id').value = projectId;
 
                         // Actualizar información del proyecto actual
                         document.getElementById('current_project_info').innerHTML = `
-                            <div class="alert alert-success">
-                                <strong>Proyecto seleccionado:</strong>
-                                FP: ${fp} - ${name} (${client})
+                            <div class="alert alert-success d-flex align-items-center gap-2 mb-0">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <div><strong>Proyecto seleccionado:</strong> <span class="fp">FP ${esc(fp)}</span> ${esc(name)} <span class="text-muted">(${esc(client)})</span></div>
                             </div>
                         `;
 
@@ -317,16 +332,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         // Resaltar la selección
                         document.querySelectorAll('.project-result-card').forEach(c =>
-                            c.classList.remove('border-primary'));
-                        this.classList.add('border-primary');
-                    });
-
-                    // Hover effects
-                    card.addEventListener('mouseenter', function() {
-                        this.classList.add('bg-light');
-                    });
-                    card.addEventListener('mouseleave', function() {
-                        this.classList.remove('bg-light');
+                            c.classList.remove('border-primary', 'active'));
+                        this.classList.add('border-primary', 'active');
                     });
                 });
 
@@ -337,7 +344,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 searchBtn.disabled = false;
 
                 searchResults.innerHTML = `
-                    <div class="alert alert-danger">
+                    <div class="alert alert-danger mb-0">
                         <i class="bi bi-exclamation-triangle"></i> Error al buscar proyectos. Inténtalo de nuevo.
                     </div>
                 `;
@@ -371,14 +378,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 const diffHours = diffMs / (1000 * 60 * 60);
 
                 calculatedDuration.textContent = `${diffHours.toFixed(2)} horas`;
-                newDurationInfo.style.display = 'block';
+                newDurationInfo.style.display = 'flex';
             } else {
                 newDurationInfo.style.display = 'none';
             }
         } else {
             if (startTime && !endTime) {
                 calculatedDuration.textContent = 'En progreso';
-                newDurationInfo.style.display = 'block';
+                newDurationInfo.style.display = 'flex';
             } else {
                 newDurationInfo.style.display = 'none';
             }
@@ -397,8 +404,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const submitBtn = document.getElementById('submitBtn');
 
     form.addEventListener('submit', function(e) {
-        console.log('Form submit event triggered');
-
         // Prevenir envío múltiple
         if (submitBtn.disabled) {
             e.preventDefault();
@@ -407,7 +412,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Deshabilitar botón temporalmente
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Guardando...';
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando…';
 
         const startTime = document.getElementById('start_time').value;
         const endTime = document.getElementById('end_time').value;
@@ -415,39 +420,31 @@ document.addEventListener('DOMContentLoaded', function() {
         const employeeId = document.getElementById('employee_id').value;
         const departamento = document.getElementById('departamento').value;
 
-        console.log('Form data:', {
-            projectId,
-            employeeId,
-            departamento,
-            startTime,
-            endTime
-        });
-
         // Validaciones
         if (!projectId) {
             e.preventDefault();
-            alert('Debes seleccionar un proyecto.');
+            avisar('Debes seleccionar un proyecto.');
             resetSubmitButton();
             return false;
         }
 
         if (!employeeId) {
             e.preventDefault();
-            alert('Debes seleccionar un empleado.');
+            avisar('Debes seleccionar un empleado.');
             resetSubmitButton();
             return false;
         }
 
         if (!departamento) {
             e.preventDefault();
-            alert('Debes seleccionar un departamento.');
+            avisar('Debes seleccionar un departamento.');
             resetSubmitButton();
             return false;
         }
 
         if (!startTime) {
             e.preventDefault();
-            alert('Debes especificar la fecha y hora de inicio.');
+            avisar('Debes especificar la fecha y hora de inicio.');
             resetSubmitButton();
             return false;
         }
@@ -459,41 +456,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (end <= start) {
                 e.preventDefault();
-                alert('La hora de fin debe ser posterior a la hora de inicio.');
+                avisar('La hora de fin debe ser posterior a la hora de inicio.');
                 resetSubmitButton();
                 return false;
             }
         }
-
-        console.log('Form validation passed, submitting...');
         // Si llegamos aquí, el formulario es válido y se enviará
     });
 
     function resetSubmitButton() {
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Guardar Cambios';
+        submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Guardar cambios';
     }
 
     // Resetear botón en caso de error
     setTimeout(resetSubmitButton, 10000); // Reset después de 10 segundos por seguridad
-
-    // CSS adicional para las cards de resultados
-    const style = document.createElement('style');
-    style.textContent = `
-        .project-result-card {
-            transition: all 0.2s ease;
-        }
-        .project-result-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        .project-result-card.border-primary {
-            border-width: 2px !important;
-        }
-    `;
-    document.head.appendChild(style);
-
-    console.log('Form initialization complete');
 });
 </script>
 {% endblock %}

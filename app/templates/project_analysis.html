@@ -1,138 +1,339 @@
 {% extends "layout.html" %}
 
-{% block title %}Dashboard de Análisis de Proyectos{% endblock %}
-
-{% block head_extra %}
-{# La librería de Chart.js ya no se carga aquí, se movió al bloque de scripts al final #}
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
-<style>
-    body { background-color: #f8f9fa; }
-    .kpi-card { border-left: 5px solid #ff6600; transition: transform 0.2s; }
-    .kpi-card:hover { transform: translateY(-5px); }
-    .kpi-title { font-size: 0.9rem; font-weight: 600; color: #6c757d; }
-    .kpi-value { font-size: 2rem; font-weight: 700; color: #343a40; }
-    .card-header { background-color: #343a40; color: white; }
-    .chart-container { min-height: 350px; }
-    .no-data-message { display: flex; align-items: center; justify-content: center; height: 100%; color: #6c757d; font-style: italic; }
-</style>
-{% endblock %}
+{% block title %}Análisis de proyecto{% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4">
-    {% if not current_user.is_admin %}
-        <div class="alert alert-danger">Acceso denegado.</div>
-    {% else %}
-    <h2 class="mb-4"><i class="fas fa-chart-pie me-2"></i>Dashboard de Análisis de Proyectos</h2>
+{% if not current_user.is_admin %}
+  <div class="card">
+    <div class="empty">
+      <div class="empty-icon"><i class="bi bi-shield-lock"></i></div>
+      <h6>Acceso denegado.</h6>
+      <p>El análisis de proyectos solo está disponible para administradores.</p>
+    </div>
+  </div>
+{% else %}
+<style>
+  .pa-scroll { max-height: 560px; overflow-y: auto; }
+  .pa-people { max-height: 420px; overflow-y: auto; }
+  /* Tableta: el historial cabe sin desplazarse de lado (sin ID interno; fecha y hora en dos renglones) */
+  @media (min-width: 576px) and (max-width: 1199.98px) {
+    #timeRecordsTable > :not(caption) > tr > * { padding-left: .5rem; padding-right: .5rem; }
+    #timeRecordsTable .col-id { display: none; }
+    #timeRecordsTable > tbody > tr > td.col-fecha { white-space: normal !important; min-width: 5.5rem; }
+    #timeRecordsTable > tbody > tr > td.col-act { max-width: 200px !important; }
+  }
+  /* Celular: las listas son tarjetas; su recuadro con scroll ocupa casi toda la pantalla */
+  @media (max-width: 575.98px) {
+    .pa-scroll { max-height: 72vh; }
+    .pa-people { max-height: 62vh; }
+    .pa-people .tabla-tarjetas > tbody > tr > td.td-titulo { padding-bottom: .5rem !important; }
+    .pa-hist .card-header .chart-sub { margin-left: 0 !important; flex: 1 1 100%; }
+  }
+</style>
 
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <form id="projectSearchForm" method="GET" action="{{ url_for('main.project_analysis') }}">
-                <div class="row g-3 align-items-center">
-                    <div class="col-md-10">
-                        <label for="projectSearchInput" class="form-label"><b>Buscar Proyecto por Nombre o Folio:</b></label>
-                        <input class="form-control" list="projectOptions" id="projectSearchInput" name="project_search" placeholder="Escribe para buscar..." value="{{ search_term or '' }}">
-                        <datalist id="projectOptions">
-                            {% for proj in all_projects %}
-                                <option value="{{ proj.id }}">{{ proj.name }} (FP: {{ proj.folio }})</option>
-                            {% endfor %}
-                        </datalist>
-                    </div>
-                    <div class="col-md-2 d-grid">
-                        <label class="form-label">&nbsp;</label>
-                        <button type="submit" class="btn btn-primary">Analizar</button>
-                    </div>
-                </div>
-            </form>
-        </div>
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-graph-up"></i> Proyectos</div>
+    <h1>Análisis de proyecto</h1>
+    <p>Horas invertidas en un FP: qué áreas y personas participaron, en qué actividades y cuándo.</p>
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('main.project_page') }}" class="btn btn-outline-secondary"><i class="bi bi-list-ul"></i> Ver proyectos</a>
+  </div>
+</div>
+
+<form id="projectSearchForm" method="GET" action="{{ url_for('main.project_analysis') }}" class="filter-bar">
+  <i class="bi bi-search text-muted ms-1"></i>
+  <div class="grow" style="min-width: 0;">
+    <select class="form-select form-select-sm" id="projectSearchInput" name="project_search" aria-label="Proyecto a analizar">
+      <option value=""></option>
+      {% for proj in all_projects | sort(attribute='active', reverse=True) %}
+        <option value="{{ proj.id }}" {% if selected_project and selected_project.id == proj.id %}selected{% endif %}>FP {{ proj.folio }} · {{ proj.name }} — {{ proj.client }}{% if not proj.active %} (inactivo){% endif %}</option>
+      {% endfor %}
+      {% if search_term and not selected_project %}
+        <option value="{{ search_term }}" selected>{{ search_term }}</option>
+      {% endif %}
+    </select>
+  </div>
+  <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-graph-up"></i> Analizar</button>
+</form>
+
+{% if selected_project %}
+  {% set en_curso = en_curso_total %}
+  <div id="dashboard-container">
+    <!-- Proyecto elegido -->
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+      <h2 class="h5 mb-0 fw-semibold">{{ selected_project.name }}</h2>
+      <span class="badge bg-secondary">FP {{ selected_project.folio }}</span>
+      {% if selected_project.active %}
+        <span class="badge bg-success"><i class="bi bi-check-circle"></i> Activo</span>
+      {% else %}
+        <span class="badge bg-secondary"><i class="bi bi-pause-circle"></i> Inactivo</span>
+      {% endif %}
+      <span class="text-muted small">{{ selected_project.client }}</span>
+      {% if selected_project.folio != 0 %}
+        <a class="btn btn-sm btn-outline-secondary ms-auto" href="{{ url_for('main.edit_project', project_id=selected_project.id) }}"><i class="bi bi-pencil"></i> Editar proyecto</a>
+      {% endif %}
     </div>
 
-    {% if selected_project %}
-        <div id="dashboard-container">
-            <h3 class="mb-3">Análisis de: <span class="text-primary">{{ selected_project.name }}</span></h3>
-
-            <div class="row mb-4">
-                <div class="col-xl-4 col-md-6 mb-3"><div class="card kpi-card shadow-sm h-100"><div class="card-body"><div class="kpi-title text-uppercase">Horas Totales Invertidas</div><div class="kpi-value">{{ analysis_data.total_hours|round(2) if analysis_data.total_hours is not none else '0.0' }} hrs</div></div></div></div>
-                <div class="col-xl-4 col-md-6 mb-3"><div class="card kpi-card shadow-sm h-100"><div class="card-body"><div class="kpi-title text-uppercase">Duración del Proyecto</div><div class="kpi-value">{{ analysis_data.duration_days }} días</div><small class="text-muted">{{ analysis_data.start_date }} - {{ analysis_data.end_date }}</small></div></div></div>
-                <div class="col-xl-4 col-md-6 mb-3"><div class="card kpi-card shadow-sm h-100"><div class="card-body"><div class="kpi-title text-uppercase">Participantes</div><div class="kpi-value">{{ analysis_data.num_participants }}</div></div></div></div>
-            </div>
-
-            <div class="row mb-4">
-                <div class="col-lg-6 mb-4"><div class="card shadow-sm h-100"><div class="card-header"><i class="fas fa-building me-2"></i>Distribución por Departamento</div><div class="card-body chart-container"><canvas id="deptChart"></canvas></div></div></div>
-                <div class="col-lg-6 mb-4"><div class="card shadow-sm h-100"><div class="card-header"><i class="fas fa-tasks me-2"></i>Distribución por Actividad</div><div class="card-body chart-container"><canvas id="activityChart"></canvas></div></div></div>
-            </div>
-            <div class="row mb-4"><div class="col-12"><div class="card shadow-sm"><div class="card-header"><i class="fas fa-users me-2"></i>Horas por Trabajador</div><div class="card-body chart-container"><canvas id="workerChart"></canvas></div></div></div></div>
-
-            <div class="card shadow-sm"><div class="card-header"><i class="fas fa-history me-2"></i>Historial Detallado</div><div class="card-body table-responsive">{% if time_records %}<table id="timeRecordsTable" class="table table-striped table-bordered" style="width:100%"><thead><tr><th>ID</th><th>Trabajador</th><th>Departamento</th><th>Actividad</th><th>Inicio</th><th>Fin</th><th>Duración (H:M:S)</th></tr></thead><tbody>{% for rec in time_records %}<tr><td>{{ rec.id }}</td><td>{{ rec.employee.nombre }} {{ rec.employee.apellido_paterno }}</td><td>{{ rec.departamento or 'N/A' }}</td><td>{{ rec.actividad or 'N/A' }}</td><td>{{ rec.start_time.strftime('%Y-%m-%d %H:%M') }}</td><td>{% if rec.end_time %}{{ rec.end_time.strftime('%Y-%m-%d %H:%M') }}{% else %}<span class="badge bg-success">En proceso...</span>{% endif %}</td><td>{% if rec.end_time %}{{ rec.end_time - rec.start_time }}{% else %}-{% endif %}</td></tr>{% endfor %}</tbody></table>{% else %}<p class="text-muted text-center">No hay registros.</p>{% endif %}</div></div>
+    <!-- Indicadores -->
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-xl-3">
+        <div class="stat">
+          <span class="stat-icon brand"><i class="bi bi-clock-history"></i></span>
+          <div class="stat-label">Horas invertidas</div>
+          <div class="stat-value">{{ '{:,.1f}'.format(analysis_data.total_hours or 0) }}<small>h</small></div>
+          <div class="stat-foot">Registros cerrados</div>
         </div>
-    {% elif search_term %}
-        <div class="alert alert-warning">No se encontró ningún proyecto que coincida con "<b>{{ search_term }}</b>".</div>
-    {% else %}
-        <div class="alert alert-info text-center"><i class="fas fa-search fa-2x mb-2"></i><br>Selecciona un proyecto para comenzar el análisis.</div>
-    {% endif %}
-    {% endif %}
-</div>
+      </div>
+      <div class="col-6 col-xl-3">
+        <div class="stat">
+          <span class="stat-icon"><i class="bi bi-calendar-range"></i></span>
+          <div class="stat-label">Duración</div>
+          <div class="stat-value">{{ analysis_data.duration_days }}<small>días</small></div>
+          <div class="stat-foot">{% if analysis_data.start_date %}{{ analysis_data.start_date }} – {{ analysis_data.end_date }}{% else %}Sin registros cerrados{% endif %}</div>
+        </div>
+      </div>
+      <div class="col-6 col-xl-3">
+        <div class="stat">
+          <span class="stat-icon"><i class="bi bi-people"></i></span>
+          <div class="stat-label">Participantes</div>
+          <div class="stat-value">{{ analysis_data.num_participants }}</div>
+          <div class="stat-foot">{{ time_by_dept | length }} {{ 'área' if time_by_dept | length == 1 else 'áreas' }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-xl-3">
+        <div class="stat">
+          <span class="stat-icon"><i class="bi bi-list-check"></i></span>
+          <div class="stat-label">Registros</div>
+          <div class="stat-value">{{ '{:,}'.format(total_registros) }}</div>
+          <div class="stat-foot">{% if en_curso %}<span class="dot live"></span>{{ en_curso }} en curso ahora{% else %}Ninguno en curso{% endif %}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- En el tiempo -->
+    <div class="card chart-card mb-3">
+      <div class="card-header">Horas en el tiempo <span class="chart-sub" id="tendenciaSub"></span>
+        <div class="chart-legend ms-auto" id="leyendaTendencia"></div>
+      </div>
+      <div class="card-body"><div class="chart-box"><canvas id="trendChart" role="img" aria-label="Horas del proyecto en el tiempo"></canvas></div></div>
+    </div>
+
+    <!-- Áreas y actividades -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <div class="card chart-card h-100">
+          <div class="card-header">Horas por área</div>
+          <div class="card-body"><div class="chart-box"><canvas id="deptChart" role="img" aria-label="Horas por área"></canvas></div></div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card chart-card h-100">
+          <div class="card-header">Horas por actividad <span class="chart-sub">· las 10 con más horas</span></div>
+          <div class="card-body"><div class="chart-box"><canvas id="activityChart" role="img" aria-label="Horas por actividad"></canvas></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Personas -->
+    {% set personas = time_by_worker | dictsort(by='value', reverse=True) %}
+    {% set max_h = (personas | map(attribute='1') | max) if personas else 0 %}
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-people"></i>Horas por persona
+        <span class="badge bg-secondary">{{ personas | length }}</span>
+      </div>
+      {% if personas %}
+      <div class="table-responsive pa-people">
+        <table class="table table-sm align-middle" data-buscable="Buscar persona…">
+          <thead class="sticky-top">
+            <tr><th data-titulo>Persona</th><th>Horas</th><th class="text-end">% del total</th></tr>
+          </thead>
+          <tbody>
+            {% for nombre, horas in personas %}
+            <tr>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="avatar avatar-sm avatar-brand">{{ iniciales(nombre) }}</span>
+                  <span class="fw-semibold">{{ nombre }}</span>
+                </div>
+              </td>
+              <td data-valor="{{ horas }}" style="min-width: 220px;">
+                <div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width: {{ (horas / max_h * 100) if max_h else 0 }}%"></div></div><span class="v">{{ '{:,.1f}'.format(horas) }} h</span></div>
+              </td>
+              <td class="text-end text-muted" data-valor="{{ horas }}">{{ '{:.1f}'.format(horas / analysis_data.total_hours * 100) if analysis_data.total_hours else '0.0' }}%</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty">
+        <div class="empty-icon"><i class="bi bi-people"></i></div>
+        <h6>Sin horas cerradas</h6>
+        <p>Cuando se cierre el primer registro de este proyecto aparecerá aquí quién trabajó en él.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Historial -->
+    <div class="card pa-hist">
+      <div class="card-header"><i class="bi bi-clock-history"></i>Historial detallado
+        <span class="chart-sub ms-auto">
+          {% if not historial_completo and total_registros > time_records|length %}
+            Los {{ time_records|length }} más recientes de {{ '{:,}'.format(total_registros) }} ·
+            <a href="{{ url_for('main.project_analysis', project_search=selected_project.id, historial='todo') }}">ver todos</a> ·
+          {% endif %}
+          Hora de la Ciudad de México
+        </span>
+      </div>
+      {% if time_records %}
+      <div class="table-responsive pa-scroll">
+        <table id="timeRecordsTable" class="table table-hover align-middle" data-buscable="Buscar por persona, área o actividad…">
+          <thead class="sticky-top">
+            <tr><th class="col-id" data-movil-oculto>ID</th><th data-titulo>Persona</th><th>Área</th><th>Actividad</th><th>Inicio</th><th>Fin</th><th class="text-end">Duración</th></tr>
+          </thead>
+          <tbody>
+            {% for rec in time_records %}
+            {% set seg = ((rec.end_time - rec.start_time).total_seconds() | int) if rec.end_time else none %}
+            <tr data-ini="{{ rec.start_time|mx('%Y-%m-%d') }}" data-horas="{{ (seg / 3600) if seg is not none else 0 }}" data-area="{{ rec.departamento or 'N/A' }}">
+              <td class="text-muted small col-id">{{ rec.id }}</td>
+              <td class="fw-semibold">{{ rec.employee.nombre }} {{ rec.employee.apellido_paterno }}</td>
+              <td><span class="badge bg-secondary">{{ rec.departamento or 'N/A' }}</span></td>
+              <td class="small text-truncate col-act" style="max-width: 260px;" title="{{ rec.actividad or 'N/A' }}">{{ rec.actividad or 'N/A' }}</td>
+              <td class="small text-nowrap col-fecha" data-valor="{{ rec.start_time.isoformat() }}">{{ rec.start_time|mx('%d/%m/%Y %H:%M') }}</td>
+              <td class="small text-nowrap col-fecha" data-valor="{{ rec.end_time.isoformat() if rec.end_time else '9999' }}">
+                {% if rec.end_time %}{{ rec.end_time|mx('%d/%m/%Y %H:%M') }}{% else %}<span class="badge bg-success"><span class="dot live"></span>En curso</span>{% endif %}
+              </td>
+              <td class="text-end text-nowrap" data-valor="{{ seg if seg is not none else 99999999 }}">
+                {% if seg is not none %}<span class="small fw-semibold">{{ (seg // 3600) | int }}h {{ '%02d' | format(((seg % 3600) // 60) | int) }}m</span>{% else %}<span class="text-muted">–</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty">
+        <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+        <h6>No hay registros</h6>
+        <p>Nadie ha registrado tiempo en este proyecto todavía.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+{% elif search_term %}
+  <div class="card">
+    <div class="empty">
+      <div class="empty-icon"><i class="bi bi-search"></i></div>
+      <h6>No se encontró ningún proyecto que coincida con "{{ search_term }}"</h6>
+      <p>Busca por número de FP, nombre del proyecto o cliente y elige una opción de la lista.</p>
+    </div>
+  </div>
+{% else %}
+  <div class="card">
+    <div class="empty">
+      <div class="empty-icon"><i class="bi bi-graph-up"></i></div>
+      <h6>Elige un proyecto para comenzar el análisis</h6>
+      <p>Escribe el FP, el nombre o el cliente en el buscador de arriba.</p>
+    </div>
+  </div>
+{% endif %}
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
 
 <script>
   window.time_by_dept = {{ time_by_dept | tojson | safe }};
   window.time_by_activity = {{ time_by_activity | tojson | safe }};
   window.time_by_worker = {{ time_by_worker | tojson | safe }};
+  window.serie_tiempo = {{ serie_tiempo | tojson | safe }};
 </script>
 
 <script>
-$(document).ready(function() {
-    // Inicializar tabla
-    $('#timeRecordsTable').DataTable({
-        "language": { "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json" },
-        "order": [[ 4, "desc" ]]
+(function () {
+  'use strict';
+
+  // Buscador de proyectos: escribe FP, nombre o cliente; al elegir se analiza.
+  const sel = document.getElementById('projectSearchInput');
+  if (sel && window.jQuery && $.fn.select2) {
+    $(sel).select2({
+      theme: 'bootstrap4',
+      width: '100%',
+      placeholder: 'Busca por FP, nombre o cliente…',
+      tags: true,                                   // también acepta texto libre
+      insertTag: (data, tag) => { data.push(tag); }, // las coincidencias reales van primero
+      language: { noResults: () => 'Sin coincidencias' },
+    }).on('select2:select', () => {
+      if (window.AD17Loader) AD17Loader.show('Analizando proyecto…', 'Calculando horas y participantes');
+      document.getElementById('projectSearchForm').submit();
     });
+    // Sin proyecto elegido: el cursor queda en el buscador (al escribir se abre la lista)
+    if (!sel.value) $(sel).next('.select2').find('.select2-selection').trigger('focus');
+  }
 
-    // Función auxiliar para crear gráficas
-    const createChart = (canvasId, chartType, label, data, extraOptions = {}) => {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) return;
+  const C = window.AD17Charts;
+  if (!C || !document.getElementById('dashboard-container')) return;
 
-        const container = ctx.parentElement;
-        const labels = Object.keys(data);
-        const values = Object.values(data);
+  // Celular: las etiquetas del eje de horas no se giran (las que no caben se omiten)
+  if (window.Chart && window.matchMedia('(max-width: 575.98px)').matches) Chart.defaults.scale.ticks.maxRotation = 0;
 
-        if (labels.length === 0) {
-            container.innerHTML = '<div class="no-data-message">No hay datos para mostrar.</div>';
-            return;
-        }
+  // Horas por área y por actividad: rankings horizontales
+  const areas = C.top(window.time_by_dept, 10, true);
+  C.barrasH('deptChart', areas.labels, areas.values, { alto: areas.labels.length > 8 ? undefined : false, colores: areas.labels.map((a) => C.colorArea(a)), vacio: 'Aún no hay horas cerradas en este proyecto.' });
+  const act = C.top(window.time_by_activity, 10, true);
+  C.barrasH('activityChart', act.labels, act.values, { color: C.T.series[2], recorte: 40, vacio: 'Aún no hay horas cerradas en este proyecto.' });
 
-        const chartColors = ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff', '#ff9f40', '#c9cbcf'];
+  // Horas en el tiempo, apiladas por área. La serie viene del servidor con todos
+  // los registros cerrados, aunque el historial solo muestre los más recientes.
+  const filas = (window.serie_tiempo || []).filter((r) => r.dia && r.h > 0);
+  if (!filas.length) { C.vacio('trendChart', 'Aún no hay horas cerradas en este proyecto.', 'bi-graph-up'); return; }
 
-        new Chart(ctx.getContext('2d'), { // Esta línea es la que daba el error
-            type: chartType,
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: label,
-                    data: values,
-                    backgroundColor: chartType === 'bar' ? '#36a2eb' : chartColors,
-                    hoverOffset: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                ...extraOptions
-            }
-        });
-    };
+  const aFecha = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+  const iso = (dt) => dt.toISOString().slice(0, 10);
+  const lunes = (s) => { const dt = aFecha(s); dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7)); return iso(dt); };
+  const dias = filas.map((r) => r.dia).sort();
+  const span = (aFecha(dias[dias.length - 1]) - aFecha(dias[0])) / 864e5;
+  const porDia = span <= 45;
+  const clave = porDia ? (s) => s : lunes;
 
-    // Crear las 3 gráficas leyendo directamente desde el objeto window
-    {% if selected_project %}
-        createChart('deptChart', 'doughnut', 'Horas', window.time_by_dept, { plugins: { legend: { position: 'top' } } });
-        createChart('activityChart', 'doughnut', 'Horas', window.time_by_activity, { plugins: { legend: { position: 'top' } } });
-        createChart('workerChart', 'bar', 'Horas', window.time_by_worker, { indexAxis: 'y', plugins: { legend: { display: false } } });
-    {% endif %}
-});
+  // Eje continuo (sin huecos) del primer al último periodo
+  const etiquetas = [];
+  for (let dt = aFecha(clave(dias[0])), fin = aFecha(clave(dias[dias.length - 1])); dt <= fin; dt.setUTCDate(dt.getUTCDate() + (porDia ? 1 : 7))) etiquetas.push(iso(dt));
+  const idx = new Map(etiquetas.map((e, i) => [e, i]));
+
+  // Cada área usa su color de toda la app; las que no tienen color propio van juntas en "Otras áreas"
+  const totalArea = {};
+  filas.forEach((r) => { totalArea[r.area] = (totalArea[r.area] || 0) + r.h; });
+  const orden = Object.keys(totalArea);
+  const global = window.AD17_AREAS || [];
+  const conColor = orden.filter((a) => C.colorArea(a) !== C.T.otros).sort((a, b) => global.indexOf(a) - global.indexOf(b));
+  const series = conColor.map((a) => ({ label: a, data: etiquetas.map(() => 0), color: C.colorArea(a) }));
+  const otras = { label: 'Otras áreas', data: etiquetas.map(() => 0), color: C.T.otros };
+  filas.forEach((r) => {
+    const i = idx.get(clave(r.dia));
+    if (i == null) return;
+    const s = series[conColor.indexOf(r.area)] || otras;
+    s.data[i] += r.h;
+  });
+  if (orden.length > conColor.length) series.push(otras);
+
+  const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const corta = (s) => { const dt = aFecha(s); return `${dt.getUTCDate()} ${meses[dt.getUTCMonth()]}${etiquetas.length > 20 && !porDia ? ' ' + String(dt.getUTCFullYear()).slice(2) : ''}`; };
+  C.columnas('trendChart', etiquetas.map(corta), series, { vacio: 'Aún no hay horas cerradas en este proyecto.' });
+  const ch = Chart.getChart('trendChart');
+  if (ch) {
+    ch.options.plugins.legend.display = false;
+    if (!porDia) ch.options.plugins.tooltip.callbacks.title = (it) => 'Semana del ' + corta(etiquetas[it[0].dataIndex]);
+    ch.update('none');
+  }
+  document.getElementById('tendenciaSub').textContent = porDia ? '· por día, apiladas por área' : '· por semana, apiladas por área';
+  document.getElementById('leyendaTendencia').innerHTML = series.length > 1
+    ? series.map((s) => `<span><i style="background:${s.color}"></i>${AD17.escapar(s.label)}</span>`).join('')
+    : '';
+})();
 </script>
 {% endblock %}

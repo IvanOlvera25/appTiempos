@@ -10,6 +10,10 @@ class Config:
     EJECUTIVO_CODE = os.environ.get("EJECUTIVO_CODE") or "EJ38F6"
     SQLALCHEMY_DATABASE_URI = "mysql+pymysql://IvanUriel:iuOp20!!25@ad17solutions.dscloud.me:3307/AD17_Pruebas"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # La base está en otro servidor: se renuevan las conexiones del pool cada
+    # 30 min para que un corte de red por inactividad no deje una conexión
+    # muerta que haga fallar (o tardar) la siguiente petición.
+    SQLALCHEMY_ENGINE_OPTIONS = {'pool_recycle': 1800}
 
     # ---- Base remota de Adicionales (AD17_Adicionales) ----
     # La app solo consulta esta base; el usuario configurado no requiere permisos
