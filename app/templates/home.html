@@ -73,7 +73,7 @@
     </div>
   </div>
 
-  {% if current_user.is_authenticated and current_user.is_employee and current_user.employee %}
+  {% if current_user.is_authenticated and current_user.employee_id and current_user.employee and current_user.employee.active %}
   {% set mi_area = current_user.employee.departamento %}
   <a class="mi-registro" href="{{ url_for('main.register_employee', department=mi_area if mi_area and mi_area != 'N/A' else None) }}">
     <span class="avatar avatar-lg avatar-brand">{{ iniciales(current_user.employee.nompropio) }}</span>

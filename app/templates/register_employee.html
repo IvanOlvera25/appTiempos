@@ -39,6 +39,14 @@
     </div>
   </div>
 
+  {% if current_user.is_authenticated and not current_user.employee_id %}
+  <div class="alert alert-info d-flex gap-2 align-items-start">
+    <i class="bi bi-info-circle mt-1"></i>
+    <div>Tu usuario no está ligado a un empleado, por eso te preguntamos quién registra.
+      {% if current_user.is_admin %}Puedes ligarlo en <a href="{{ url_for('main.manage_users') }}" class="alert-link">Usuarios y accesos</a>.{% else %}Pide a un administrador que lo ligue para registrar directo.{% endif %}</div>
+  </div>
+  {% endif %}
+
   <div class="row g-4">
     <div class="col-xl-8">
       <div class="search-field k-search">

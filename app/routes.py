@@ -211,17 +211,30 @@ def list_employees():
     employees = Employee.query.all()
     return render_template('list_employees.html', employees=employees)
 
+def _empleado_de_sesion():
+    """
+    Empleado (activo) ligado a la cuenta con sesión iniciada, de cualquier perfil.
+
+    Con sesión, el registro de tiempos ya sabe quién es la persona y no le
+    pregunta "¿Quién eres?". Solo se pregunta sin sesión (el kiosco compartido)
+    o si la cuenta no está ligada a un empleado.
+    """
+    if not current_user.is_authenticated or not current_user.employee_id:
+        return None
+    emp = db.session.get(Employee, current_user.employee_id)
+    return emp if emp and emp.active else None
+
+
 @main.route('/register_employee', methods=['GET'])
 def register_employee():
     """
     Pantalla 1: Selección de Empleado (manual).
     MODIFICADA: Solo muestra empleados únicos por nompropio, eliminando duplicados.
     """
-    if current_user.is_authenticated and getattr(current_user, 'is_employee', False):
-        emp = Employee.query.get(current_user.employee_id)
-        if emp:
-            dept_param = request.args.get('department', '').strip() or None
-            return _redirect_employee_to_project(emp, dept_param)
+    emp = _empleado_de_sesion()
+    if emp:
+        dept_param = request.args.get('department', '').strip() or None
+        return _redirect_employee_to_project(emp, dept_param)
 
     department = request.args.get('department', '').strip()
     current_app.logger.debug("register_employee: department='%s'", department)
@@ -301,7 +314,7 @@ def register_project():
     if request.method == 'GET':
         department = request.args.get('department', '')
         employee_id = request.args.get('employee_id', '')
-        if not employee_id and current_user.is_authenticated and getattr(current_user, 'is_employee', False):
+        if not employee_id and _empleado_de_sesion():
             employee_id = current_user.employee_id
 
         if employee_id:
@@ -468,8 +481,8 @@ def register_project_imp():
     department  = request.args.get('department', 'Impresion').strip()
     employee_id = request.args.get('employee_id', '').strip()
 
-    if not employee_id and current_user.is_authenticated and getattr(current_user, 'is_employee', False):
-        employee_id = current_user.employee_id
+    if not employee_id and _empleado_de_sesion():
+        employee_id = str(current_user.employee_id)
 
     # validar empleado
     if not employee_id:
@@ -2857,6 +2870,7 @@ def _puede_ver_adicionales():
     return bool(
         current_user.is_admin
         or current_user.is_project_leader
+        or getattr(current_user, 'is_rh', False)
         or getattr(current_user, 'is_area_manager', False)
     )
 
@@ -2864,10 +2878,10 @@ def _puede_ver_adicionales():
 def _alcance_adicionales(areas):
     """
     Define qué adicionales puede ver el usuario:
-      · Administradores y líderes de proyecto: todo el personal, con costos.
+      · Administradores, líderes de proyecto y RH: todo el personal, con costos.
       · Jefes de área: los de su área (sin costo) y los propios (con costo).
     """
-    if current_user.is_admin or current_user.is_project_leader:
+    if current_user.is_admin or current_user.is_project_leader or getattr(current_user, 'is_rh', False):
         return {'total': True, 'area_id': None, 'rh_id': None, 'area_nombre': None}
 
     area_id = _area_id_por_nombre(current_user.area_manager_department, areas)

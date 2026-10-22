@@ -20,7 +20,7 @@
           <span class="text-muted small">Puedes tener varios proyectos abiertos a la vez</span>
         </div>
       </div>
-      {% if not (current_user.is_authenticated and current_user.is_employee) %}
+      {% if not (current_user.is_authenticated and current_user.employee_id == selected_employee.id) %}
       <a class="btn btn-outline-secondary ms-auto" href="{{ url_for('main.register_employee', department=department) }}" aria-label="No soy yo">
         <i class="bi bi-arrow-left"></i><span class="d-none d-sm-inline"> No soy yo</span>
       </a>
