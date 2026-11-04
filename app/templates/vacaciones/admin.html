@@ -307,7 +307,7 @@
   <div class="table-responsive">
     <table class="table table-hover mb-0 align-middle adm-detalle" data-tarjetas{% if eventos|length > 5 %} data-buscable="Buscar por nombre, área, estatus o quién autorizó…"{% endif %}>
       <thead>
-        <tr><th>Fecha</th><th data-titulo>Empleado</th><th class="d-none d-lg-table-cell" data-movil-oculto>Área</th><th>Tipo</th><th>Estatus</th><th>Autorizó</th></tr>
+        <tr><th>Fecha</th><th data-titulo>Empleado</th><th class="d-none d-lg-table-cell" data-movil-oculto>Área</th><th>Tipo</th><th>Estatus</th><th>Autorizó</th><th data-nosort></th></tr>
       </thead>
       <tbody>
         {% for e in eventos %}
@@ -334,6 +334,18 @@
             {% else %}<span class="badge bg-danger">Denegado</span>{% endif %}
           </td>
           <td class="small">{{ e.autorizador or '—' }}</td>
+          <td class="text-end">
+            <form method="POST" action="{{ url_for('vacaciones.eliminar_dia', tipo=e.tipo, reg_id=e.id) }}"
+                  data-confirmar="¿Eliminar el {{ e.fecha.strftime('%d/%m/%Y') }} de {{ e.empleado }}? Esta acción no se puede deshacer."
+                  onsubmit="return confirm(this.dataset.confirmar);">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="volver" value="{{ request.full_path }}">
+              <button class="btn btn-sm btn-outline-danger" title="Eliminar este día"
+                      aria-label="Eliminar el {{ e.fecha.strftime('%d/%m/%Y') }} de {{ e.empleado }}">
+                <i class="bi bi-trash"></i><span class="d-sm-none"> Eliminar este día</span>
+              </button>
+            </form>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

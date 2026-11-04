@@ -6,14 +6,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="AD17">
+  <meta name="apple-mobile-web-app-title" content="Gestión">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="description" content="AD17 · Sistema de Gestión Operativa">
+  <meta name="description" content="Sistema de Gestión Operativa">
   <meta name="theme-color" content="{{ '#ffffff' if current_user.is_authenticated else '#0c111d' }}">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
   <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-  <title>{% block title %}Sistema de Gestión Operativa{% endblock %} · AD17</title>
+  <title>{% block title %}Inicio{% endblock %} · Gestión Operativa</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,7 +29,7 @@
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script>
     // Estado del menú lateral (en escritorio): se aplica antes de pintar para que no "brinque"
-    try { var m = localStorage.getItem('ad17.sidebar'); if (m === 'mini' || m === 'hidden') document.documentElement.classList.add('pre-' + m); } catch (e) {}
+    try { var m = localStorage.getItem('app.sidebar'); if (m === 'mini' || m === 'hidden') document.documentElement.classList.add('pre-' + m); } catch (e) {}
   </script>
   {% block head_extra %}{% endblock %}
 </head>
@@ -49,7 +49,7 @@
   <aside class="app-sidebar" id="appSidebar" aria-label="Menú principal">
     <div class="side-head">
       <a class="side-brand" href="{{ url_for('main.home') }}">
-        <span class="brand-mark">AD17</span>
+        <span class="brand-mark"><i class="bi bi-stopwatch-fill"></i></span>
         <span class="brand-text"><strong>Gestión Operativa</strong><span>Tiempos · Personal · Proyectos</span></span>
       </a>
       <button type="button" class="side-close" data-sidebar-close aria-label="Cerrar menú"><i class="bi bi-x-lg"></i></button>
@@ -139,7 +139,7 @@
   <!-- ═══════════ Barra pública (kiosco / sin sesión) ═══════════ -->
   <header class="app-publicbar">
     <a class="side-brand" href="{{ url_for('main.home') }}">
-      <span class="brand-mark">AD17</span>
+      <span class="brand-mark"><i class="bi bi-stopwatch-fill"></i></span>
       <span class="brand-text"><strong>Gestión Operativa</strong><span>Registro de tiempos</span></span>
     </a>
     <nav>
@@ -221,7 +221,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-{% if current_user.is_authenticated %}<script>window.AD17_AREAS = {{ orden_areas() | tojson }};</script>{% endif %}
+{% if current_user.is_authenticated %}<script>window.APP_AREAS = {{ orden_areas() | tojson }};</script>{% endif %}
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 
 {% block scripts %}{% endblock %}

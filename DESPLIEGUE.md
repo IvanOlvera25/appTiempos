@@ -25,6 +25,30 @@ SELECT TABLE_NAME, PRIVILEGE_TYPE FROM information_schema.TABLE_PRIVILEGES
  WHERE TABLE_SCHEMA = 'AD17_RH';
 ```
 
+### Pendiente: permisos para días festivos y eliminar días
+
+La página de **Días festivos** y el botón de **eliminar un día de vacaciones**
+necesitan permisos que `IvanUriel` todavía no tiene. Mientras falten, la app
+responde con un mensaje de permiso (no truena) y lo demás sigue funcionando; los
+festivos que ya estén en la tabla sí se respetan, porque solo requieren leer.
+Debe correrlo quien administre `AD17_RH`:
+
+```sql
+GRANT INSERT, UPDATE, DELETE ON `AD17_RH`.`Festivos`   TO 'IvanUriel'@'%';
+GRANT DELETE                 ON `AD17_RH`.`Vacaciones` TO 'IvanUriel'@'%';
+GRANT DELETE                 ON `AD17_RH`.`MediosDias` TO 'IvanUriel'@'%';
+```
+
+Opcional, para que la base también lo garantice: `Festivos` no tiene llave
+primaria, `AUTO_INCREMENT` ni fecha única, así que hoy la app calcula el `regID` y
+evita fechas repetidas. Funciona igual con o sin este cambio:
+
+```sql
+ALTER TABLE `AD17_RH`.`Festivos`
+  MODIFY `regID` int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  ADD UNIQUE KEY `uq_festivos_fecha` (`fecha`);
+```
+
 ## 2. El despliegue va en DOS fases
 
 El código nuevo **no funciona sin migrar**: espera la tabla `areas_config` y las

@@ -137,22 +137,22 @@
       const $btn = $(this);
       isSubmitting = true;
       $btn.prop('disabled', true).css('opacity', '0.6');
-      if (window.AD17Loader) AD17Loader.showTimeEnd();
+      if (window.AppLoader) AppLoader.showTimeEnd();
 
       $.post(`/finalize_time_record/${recId}`, {}, res => {
         if (res.success) {
           location.reload();
         } else {
-          if (window.AD17Loader) AD17Loader.hide();
+          if (window.AppLoader) AppLoader.hide();
           isSubmitting = false;
           $btn.prop('disabled', false).css('opacity', '1');
-          AD17.toast(res.message || 'No se pudo finalizar.', 'danger');
+          App.toast(res.message || 'No se pudo finalizar.', 'danger');
         }
       }).fail(function () {
-        if (window.AD17Loader) AD17Loader.hide();
+        if (window.AppLoader) AppLoader.hide();
         isSubmitting = false;
         $btn.prop('disabled', false).css('opacity', '1');
-        AD17.toast('Error de conexión. Intenta de nuevo.', 'danger');
+        App.toast('Error de conexión. Intenta de nuevo.', 'danger');
       });
     });
 
@@ -203,8 +203,8 @@
 
       $('#proyectoElegido').html(`
         <div class="min-w-0"><div class="k-fp">${$card.find('.k-fp').html()}</div>
-        <div class="fw-semibold text-truncate">${AD17.escapar($card.find('.k-name').text())}</div>
-        <div class="small text-muted text-truncate">${AD17.escapar($card.find('.k-client').text())}</div></div>
+        <div class="fw-semibold text-truncate">${App.escapar($card.find('.k-name').text())}</div>
+        <div class="small text-muted text-truncate">${App.escapar($card.find('.k-client').text())}</div></div>
         <button type="button" class="btn btn-outline-secondary ms-auto" id="cambiarProyecto"><i class="bi bi-arrow-left-right"></i> Cambiar proyecto</button>`);
       $('#cambiarProyecto').on('click', volverAProyectos);
 
@@ -231,13 +231,13 @@
       if (isSubmitting) { e.preventDefault(); return false; }
       if (!$('#new-time-form input[name="activity"]').val()) {
         e.preventDefault();
-        AD17.toast('Selecciona una actividad antes de iniciar.', 'warning', 5000);
+        App.toast('Selecciona una actividad antes de iniciar.', 'warning', 5000);
         return false;
       }
       isSubmitting = true;
       setTimeout(function () {
         $('#start-btn').prop('disabled', true).css('opacity', '0.6');
-        if (window.AD17Loader) AD17Loader.showTimeStart();
+        if (window.AppLoader) AppLoader.showTimeStart();
       }, 50);
       return true;
     });

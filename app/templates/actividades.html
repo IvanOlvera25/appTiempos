@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     const data = await r.json();
     if (data.success) location.reload();
-    else AD17.toast(data.message || 'No se pudo crear la actividad.', 'danger');
+    else App.toast(data.message || 'No se pudo crear la actividad.', 'danger');
   });
 
   // Drag & drop sencillo
@@ -211,9 +211,9 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const data = await r.json();
       if (data.success) {
-        AD17.toast('Orden guardado.', 'success', 2500);
+        App.toast('Orden guardado.', 'success', 2500);
       } else {
-        AD17.toast(data.message || 'No se pudo guardar el orden.', 'danger');
+        App.toast(data.message || 'No se pudo guardar el orden.', 'danger');
       }
     });
   });
@@ -245,7 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
           span.classList.remove('d-none');
           btn.innerHTML = '<i class="bi bi-pencil"></i> Editar';
         } else {
-          AD17.toast(data.message || 'No se pudo actualizar.', 'danger');
+          App.toast(data.message || 'No se pudo actualizar.', 'danger');
         }
       }
     });
@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const data = await r.json();
       if (data.success) location.reload();
-      else AD17.toast(data.message || 'No se pudo cambiar el estado.', 'danger');
+      else App.toast(data.message || 'No se pudo cambiar el estado.', 'danger');
     });
   });
 
@@ -278,7 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const data = await r.json();
       if (data.success) tr.remove();
-      else AD17.toast(data.message || 'No se pudo eliminar.', 'danger');
+      else App.toast(data.message || 'No se pudo eliminar.', 'danger');
     });
   });
 

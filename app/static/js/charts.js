@@ -1,4 +1,4 @@
-/* AD17 · gráficas
+/* Gráficas
    Tema único de Chart.js y atajos para las formas que usa la app.
    Cárgalo después de Chart.js 4:
      <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -35,7 +35,7 @@
 
   if (!window.Chart) {
     console.warn('charts.js: Chart.js no está cargado');
-    window.AD17Charts = null;
+    window.AppCharts = null;
     return;
   }
 
@@ -89,9 +89,9 @@
   P.tooltip.caretSize = 5;
 
   /* Etiquetas de valor al final de cada barra (solo donde se pidan):
-     options.plugins.ad17Valores = { fmt: fn } */
+     options.plugins.appValores = { fmt: fn } */
   Chart.register({
-    id: 'ad17Valores',
+    id: 'appValores',
     afterDatasetsDraw(chart, _args, opts) {
       if (!opts || !opts.fmt) return;
       const { ctx } = chart;
@@ -200,7 +200,7 @@
           y: { grid: { display: false }, ticks: { color: T.ink2, autoSkip: false, callback(v) { return recortarPx(this.getLabelForValue(v), Math.max(90, el.parentElement.clientWidth * 0.36)); } } },
         },
         plugins: {
-          ad17Valores: { fmt: f },
+          appValores: { fmt: f },
           tooltip: { callbacks: { title: (it) => it[0].label, label: (it) => ` ${o.serie || 'Horas'}: ${f(it.raw)}` } },
         },
         onClick: o.onClick ? (_e, els) => { if (els.length) o.onClick(labels[els[0].index], els[0].index); } : undefined,
@@ -308,10 +308,10 @@
   /** Color fijo de un área en toda la app: su posición en el orden configurado
       (Configuración → Áreas). Las que pasan de 8 o no están configuradas, en gris. */
   function colorArea(area, orden) {
-    const lista = orden || window.AD17_AREAS || [];
+    const lista = orden || window.APP_AREAS || [];
     const i = lista.indexOf(area);
     return i >= 0 && i < T.series.length ? T.series[i] : T.otros;
   }
 
-  window.AD17Charts = { T, fmt, top, barrasH, columnas, linea, dona, vacio, montar, recortar, recortarPx, colorArea };
+  window.AppCharts = { T, fmt, top, barrasH, columnas, linea, dona, vacio, montar, recortar, recortarPx, colorArea };
 })();

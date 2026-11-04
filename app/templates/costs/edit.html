@@ -235,8 +235,8 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const esc = (window.AD17 && AD17.escapar) || (s => String(s == null ? '' : s));
-    const avisar = (msg) => (window.AD17 ? AD17.toast(msg, 'warning') : alert(msg));
+    const esc = (window.App && App.escapar) || (s => String(s == null ? '' : s));
+    const avisar = (msg) => (window.App ? App.toast(msg, 'warning') : alert(msg));
 
     // Inicializar Select2 para empleado y departamento
     $('#employee_id, #departamento').select2({

@@ -24,6 +24,7 @@ from .rh import rh_conn, rh_conn_lectura
 
 ESTATUS = ('PENDIENTE', 'AUTORIZADO', 'DENEGADO')
 TIPOS_MEDIO_DIA = ('INICIAL', 'FINAL')
+TIPOS_FESTIVO = ('OFICIAL', 'NO OFICIAL')
 
 
 class SinPermisoRH(RuntimeError):
@@ -359,6 +360,17 @@ def dias_habiles(desde, hasta, incluir_fines=False):
     return dias
 
 
+def dias_solicitables(desde, hasta, incluir_fines=False):
+    """
+    Fechas del rango que sí cuentan como vacaciones: sin festivos y, salvo que
+    se pida, sin fines de semana. Devuelve (fechas, [(fecha, titulo) omitidos]).
+    """
+    dias = dias_habiles(desde, hasta, incluir_fines)
+    festivos = festivos_en_rango(desde, hasta)
+    return ([d for d in dias if d not in festivos],
+            [(d, festivos[d]) for d in dias if d in festivos])
+
+
 def fechas_ocupadas(rh_id, fechas):
     """Fechas del conjunto que ya tienen vacación o medio día no denegado."""
     if not fechas:
@@ -456,6 +468,83 @@ def cancelar_solicitud(reg_id, tipo, rh_id):
         UPDATE %s SET estatus_autorizacion = 'DENEGADO', fecha_respuesta = CURDATE()
          WHERE regID = %%s AND rhID = %%s AND estatus_autorizacion = 'PENDIENTE'
     """ % tabla, (reg_id, rh_id))
+
+
+def eliminar_solicitud(reg_id, tipo):
+    """
+    Borra un día de vacaciones o un medio día, sea cual sea su estatus.
+
+    Es la corrección que hace RH o Administración; a diferencia de
+    `cancelar_solicitud`, no deja rastro en la tabla. Si estaba autorizado, el
+    saldo se recupera solo porque las vistas de RH cuentan estas filas.
+    """
+    tabla = 'Vacaciones' if tipo == 'VACACION' else 'MediosDias'
+    return _ejecutar_escritura("DELETE FROM %s WHERE regID = %%s" % tabla, (reg_id,))
+
+
+# ─────────────────────────────────────────────────────────────
+# Días festivos
+# ─────────────────────────────────────────────────────────────
+def listar_festivos(anio):
+    """Festivos de un año, en orden de fecha."""
+    return _consultar("""
+        SELECT regID, fecha, titulo, tipo FROM Festivos
+         WHERE fecha >= %s AND fecha <= %s
+         ORDER BY fecha
+    """, (date(anio, 1, 1), date(anio, 12, 31)))
+
+
+def festivo(reg_id):
+    filas = _consultar(
+        "SELECT regID, fecha, titulo, tipo FROM Festivos WHERE regID = %s LIMIT 1", (reg_id,))
+    return filas[0] if filas else None
+
+
+def festivos_en_rango(desde, hasta):
+    """{fecha: titulo} de los festivos entre dos fechas, inclusive."""
+    filas = _consultar(
+        "SELECT fecha, titulo FROM Festivos WHERE fecha >= %s AND fecha <= %s", (desde, hasta))
+    return {f['fecha']: f['titulo'] for f in filas}
+
+
+def crear_festivo(fecha, titulo, tipo):
+    """
+    Da de alta un festivo; devuelve False si esa fecha ya tiene uno.
+
+    `Festivos` no tiene AUTO_INCREMENT ni llaves, así que el regID y la fecha
+    única se resuelven aquí, en una sola sentencia para que un doble envío no
+    deje duplicados.
+    """
+    return bool(_ejecutar_escritura("""
+        INSERT INTO Festivos (regID, fecha, titulo, tipo)
+        SELECT COALESCE(MAX(regID), 0) + 1, %s, %s, %s FROM Festivos
+        HAVING COALESCE(SUM(fecha = %s), 0) = 0
+    """, (fecha, titulo, tipo, fecha)))
+
+
+def actualizar_festivo(reg_id, fecha, titulo, tipo):
+    """Modifica un festivo; devuelve False si la fecha ya la ocupa otro."""
+    if _consultar("SELECT regID FROM Festivos WHERE fecha = %s AND regID <> %s LIMIT 1",
+                  (fecha, reg_id)):
+        return False
+    _ejecutar_escritura(
+        "UPDATE Festivos SET fecha = %s, titulo = %s, tipo = %s WHERE regID = %s",
+        (fecha, titulo, tipo, reg_id))
+    return True
+
+
+def eliminar_festivo(reg_id):
+    return _ejecutar_escritura("DELETE FROM Festivos WHERE regID = %s", (reg_id,))
+
+
+def personas_con_vacaciones_en(fecha):
+    """Cuántas personas ya tienen vacación o medio día no denegado en esa fecha."""
+    filas = _consultar("""
+        SELECT rhID FROM Vacaciones WHERE fecha = %s AND estatus_autorizacion <> 'DENEGADO'
+        UNION
+        SELECT rhID FROM MediosDias WHERE fecha = %s AND estatus_autorizacion <> 'DENEGADO'
+    """, (fecha, fecha))
+    return len(filas)
 
 
 # ─────────────────────────────────────────────────────────────

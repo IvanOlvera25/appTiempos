@@ -288,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const DELETE_BASE = "{{ url_for('main.delete_activity', activity_id=0) }}"; // /activities/0/delete
   // Reemplaza SOLO el segmento /0/ por /{id}/
   const buildUrl = (base, id) => base.replace(/\/0(\/|$)/, `/${id}$1`);
-  const aviso = (msg) => AD17.toast(msg, 'danger');
+  const aviso = (msg) => App.toast(msg, 'danger');
 
   // ---------- fetch JSON robusto ----------
   async function fetchJSON(url, options = {}) {
@@ -338,16 +338,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let abiertosAntes = null;   // qué grupos estaban abiertos antes de buscar
 
     buscar.addEventListener('input', () => {
-      const terminos = AD17.normalizar(buscar.value.trim()).split(/\s+/).filter(Boolean);
+      const terminos = App.normalizar(buscar.value.trim()).split(/\s+/).filter(Boolean);
       if (terminos.length && !abiertosAntes) {
         abiertosAntes = grupos.filter((g) => g.querySelector('.accordion-collapse').classList.contains('show'));
       }
       let visibles = 0;
       grupos.forEach((g) => {
-        const area = AD17.normalizar(g.dataset.area);
+        const area = App.normalizar(g.dataset.area);
         let n = 0;
         g.querySelectorAll('tbody tr').forEach((tr) => {
-          const t = area + ' ' + AD17.normalizar(tr.textContent);
+          const t = area + ' ' + App.normalizar(tr.textContent);
           const ok = terminos.every((w) => t.includes(w));
           tr.classList.toggle('row-hidden', !ok);
           if (ok) n++;

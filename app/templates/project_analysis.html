@@ -268,14 +268,14 @@
       insertTag: (data, tag) => { data.push(tag); }, // las coincidencias reales van primero
       language: { noResults: () => 'Sin coincidencias' },
     }).on('select2:select', () => {
-      if (window.AD17Loader) AD17Loader.show('Analizando proyecto…', 'Calculando horas y participantes');
+      if (window.AppLoader) AppLoader.show('Analizando proyecto…', 'Calculando horas y participantes');
       document.getElementById('projectSearchForm').submit();
     });
     // Sin proyecto elegido: el cursor queda en el buscador (al escribir se abre la lista)
     if (!sel.value) $(sel).next('.select2').find('.select2-selection').trigger('focus');
   }
 
-  const C = window.AD17Charts;
+  const C = window.AppCharts;
   if (!C || !document.getElementById('dashboard-container')) return;
 
   // Celular: las etiquetas del eje de horas no se giran (las que no caben se omiten)
@@ -309,7 +309,7 @@
   const totalArea = {};
   filas.forEach((r) => { totalArea[r.area] = (totalArea[r.area] || 0) + r.h; });
   const orden = Object.keys(totalArea);
-  const global = window.AD17_AREAS || [];
+  const global = window.APP_AREAS || [];
   const conColor = orden.filter((a) => C.colorArea(a) !== C.T.otros).sort((a, b) => global.indexOf(a) - global.indexOf(b));
   const series = conColor.map((a) => ({ label: a, data: etiquetas.map(() => 0), color: C.colorArea(a) }));
   const otras = { label: 'Otras áreas', data: etiquetas.map(() => 0), color: C.T.otros };
@@ -332,7 +332,7 @@
   }
   document.getElementById('tendenciaSub').textContent = porDia ? '· por día, apiladas por área' : '· por semana, apiladas por área';
   document.getElementById('leyendaTendencia').innerHTML = series.length > 1
-    ? series.map((s) => `<span><i style="background:${s.color}"></i>${AD17.escapar(s.label)}</span>`).join('')
+    ? series.map((s) => `<span><i style="background:${s.color}"></i>${App.escapar(s.label)}</span>`).join('')
     : '';
 })();
 </script>

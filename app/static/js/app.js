@@ -1,9 +1,9 @@
-/* AD17 · comportamiento común de todas las páginas
+/* Comportamiento común de todas las páginas
    - Barra lateral (contraer, panel móvil)
    - Notificaciones (mensajes flash)
    - Paleta de comandos (Ctrl/⌘ + K) con búsqueda remota
    - Herramientas de tabla: <table data-buscable> agrega buscador y orden
-   - AD17Loader: indicador de carga que usan las vistas de registro */
+   - AppLoader: indicador de carga que usan las vistas de registro */
 (function () {
   'use strict';
 
@@ -40,7 +40,7 @@
     if (esEscritorio.matches) {
       body.classList.toggle('sidebar-hidden');
       const estado = body.classList.contains('sidebar-hidden') ? 'hidden' : (body.classList.contains('sidebar-mini') ? 'mini' : 'full');
-      guardar('ad17.sidebar', estado);
+      guardar('app.sidebar', estado);
       sincronizarAria();
     } else if (body.classList.contains('sidebar-open')) {
       cerrarPanel();
@@ -52,7 +52,7 @@
   document.querySelectorAll('[data-sidebar-mini]').forEach((b) => b.addEventListener('click', () => {
     body.classList.remove('sidebar-hidden');
     body.classList.toggle('sidebar-mini');
-    guardar('ad17.sidebar', body.classList.contains('sidebar-mini') ? 'mini' : 'full');
+    guardar('app.sidebar', body.classList.contains('sidebar-mini') ? 'mini' : 'full');
     sincronizarAria();
   }));
   document.querySelectorAll('[data-sidebar-open]').forEach((b) => b.addEventListener('click', abrirPanel));
@@ -103,7 +103,7 @@
   }
   document.querySelectorAll('.ad-toast').forEach(armarToast);
 
-  /** Muestra una notificación desde JS: AD17.toast('Guardado', 'success') */
+  /** Muestra una notificación desde JS: App.toast('Guardado', 'success') */
   function toast(mensaje, tipo = 'info', ms) {
     const stack = document.getElementById('toastStack');
     if (!stack) return;
@@ -397,7 +397,7 @@
   if (window.bootstrap) document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => new bootstrap.Tooltip(el));
 
   /* ───────────── Indicador de carga (API usada por las vistas) ───────────── */
-  window.AD17Loader = {
+  window.AppLoader = {
     overlay: null, textEl: null, subtextEl: null, progressBar: null, isShowing: false,
     init() {
       this.overlay = document.getElementById('loaderOverlay');
@@ -427,9 +427,9 @@
     showTimeEnd() { this.show('Finalizando registro...', 'Guardando tu tiempo trabajado'); },
     showProjectAdd() { this.show('Agregando proyecto...', 'Guardando información del proyecto'); },
   };
-  window.AD17Loader.init();
+  window.AppLoader.init();
   // Si el navegador regresa con "atrás" desde la caché, no dejar el indicador colgado
-  window.addEventListener('pageshow', (e) => { if (e.persisted) window.AD17Loader.hide(); });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) window.AppLoader.hide(); });
 
-  window.AD17 = { toast, normalizar: norm, escapar: esc, mejorarTabla, tarjetas, abrirBusqueda: abrirPaleta, alternarMenu };
+  window.App = { toast, normalizar: norm, escapar: esc, mejorarTabla, tarjetas, abrirBusqueda: abrirPaleta, alternarMenu };
 })();

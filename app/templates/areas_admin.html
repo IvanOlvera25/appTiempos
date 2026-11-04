@@ -97,7 +97,7 @@
         </select>
         <div class="form-text">
           {% if rh_areas %}
-            Enlaza con el catálogo de AD17_General.Areas.
+            Enlaza con el catálogo de áreas de RH.
           {% else %}
             No se pudo leer el catálogo de RH; puedes enlazarla después.
           {% endif %}
@@ -312,7 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (r.redirected) { window.location = r.url; return null; }
     const ct = r.headers.get('content-type') || '';
     if (!ct.includes('application/json')) {
-      AD17.toast('Respuesta inesperada del servidor.', 'danger');
+      App.toast('Respuesta inesperada del servidor.', 'danger');
       return null;
     }
     return await r.json();
@@ -344,7 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
       toggleBtn.disabled = false;
       if (!data) return;
       if (data.success) location.reload();
-      else AD17.toast(data.message || 'No se pudo cambiar el estado.', 'danger');
+      else App.toast(data.message || 'No se pudo cambiar el estado.', 'danger');
       return;
     }
 
@@ -369,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.disabled = false;
     if (!data) return;
     if (data.success) location.reload();
-    else AD17.toast(data.message || 'No se pudieron guardar los cambios.', 'danger');
+    else App.toast(data.message || 'No se pudieron guardar los cambios.', 'danger');
   });
 
   document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
@@ -379,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.disabled = false;
     if (!data) return;
     if (data.success) location.reload();
-    else AD17.toast(data.message || 'No se pudo eliminar el área.', 'danger');
+    else App.toast(data.message || 'No se pudo eliminar el área.', 'danger');
   });
 });
 </script>

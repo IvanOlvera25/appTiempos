@@ -528,7 +528,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const meta = document.querySelector('meta[name="csrf-token"]');
     return meta ? meta.getAttribute('content') : '';
   }
-  const avisar = (msg, tipo) => (window.AD17 ? AD17.toast(msg, tipo || 'danger') : alert(msg));
+  const avisar = (msg, tipo) => (window.App ? App.toast(msg, tipo || 'danger') : alert(msg));
 
   // -------- Persistencia de selección entre páginas --------
   function buildStorageKey() {

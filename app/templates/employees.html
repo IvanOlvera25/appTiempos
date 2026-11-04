@@ -80,13 +80,13 @@
           onsubmit="return confirm('Se dan de alta las personas nuevas de RH y se actualizan nombre, área, puesto y estado de las que ya existen. ¿Continuar?');">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <button type="submit" class="btn btn-outline-secondary"
-              title="Las altas y cambios de personal se hacen en el sistema de RH (AD17_RH); este botón los trae a la app.">
+              title="Las altas y cambios de personal se hacen en el sistema de RH; este botón los trae a la app.">
         <i class="bi bi-arrow-repeat"></i> Sincronizar con RH
       </button>
     </form>
     {% elif current_user.has_admin_privileges %}
     <span class="btn btn-outline-secondary disabled" tabindex="-1"
-          title="Las altas y cambios de personal se hacen en el sistema de RH (AD17_RH).">
+          title="Las altas y cambios de personal se hacen en el sistema de RH.">
       <i class="bi bi-info-circle"></i> Personal administrado en RH
     </span>
     {% endif %}
@@ -169,7 +169,7 @@
           </div>
         </div>
         {% if current_user.has_admin_privileges %}
-        <span class="badge bg-light"><i class="bi bi-shield-lock"></i>Datos de AD17_RH</span>
+        <span class="badge bg-light"><i class="bi bi-shield-lock"></i>Datos de RH</span>
         {% endif %}
         <a href="#empPersonal" class="btn btn-sm btn-outline-secondary d-xl-none ms-auto"><i class="bi bi-people"></i> Cambiar de persona</a>
       </div>
@@ -502,11 +502,11 @@
   const sinCoincidencias = document.getElementById('sinCoincidencias');
 
   function filtrarPersonas() {
-    const terminos = AD17.normalizar(searchInput.value.trim()).split(/\s+/).filter(Boolean);
+    const terminos = App.normalizar(searchInput.value.trim()).split(/\s+/).filter(Boolean);
     const area = areaFiltro ? areaFiltro.value : '';
     let count = 0;
     employeeItems.forEach((item) => {
-      const texto = AD17.normalizar(`${item.dataset.name || ''} ${item.dataset.dept || ''} ${item.dataset.num || ''}`);
+      const texto = App.normalizar(`${item.dataset.name || ''} ${item.dataset.dept || ''} ${item.dataset.num || ''}`);
       const ok = terminos.every((w) => texto.includes(w)) && (!area || item.dataset.dept === area);
       item.classList.toggle('hidden', !ok);
       if (ok) count++;
@@ -626,7 +626,7 @@
      20 letras. Ahora: top 10 + "Otros", ordenado, y el detalle completo queda
      en el desglose de abajo. */
   {% if selected_employee %}
-  const C = window.AD17Charts;
+  const C = window.AppCharts;
   const aNumeros = (o) => Object.fromEntries(Object.entries(o || {}).map(([k, v]) => [k, Number(v) || 0]));
   const porProyecto = aNumeros({{ metrics.projects|tojson }});
   const porActividad = aNumeros({{ metrics.activities|tojson }});

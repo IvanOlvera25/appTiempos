@@ -55,9 +55,10 @@ def _mes_pedido():
     return anio, mes
 
 
-def _semanas_del_mes(anio, mes, eventos):
+def _semanas_del_mes(anio, mes, eventos, festivos=None):
     """
-    Rejilla del mes (lunes a domingo) con los eventos ya agrupados por día.
+    Rejilla del mes (lunes a domingo) con los eventos ya agrupados por día y,
+    si se pasan ({fecha: titulo}), los días festivos.
 
     Se arma en el servidor para que el calendario no dependa de JavaScript ni
     de una librería externa.
@@ -76,6 +77,7 @@ def _semanas_del_mes(anio, mes, eventos):
                 'del_mes': dia.month == mes,
                 'hoy': dia == date.today(),
                 'eventos': sorted(por_dia.get(dia, []), key=lambda x: x['empleado']),
+                'festivo': (festivos or {}).get(dia),
             })
         semanas.append(fila)
     return semanas
@@ -95,9 +97,8 @@ def _navegacion_mes(anio, mes):
 def _sin_permiso(e):
     """Mensaje accionable cuando falta el GRANT sobre AD17_RH."""
     current_app.logger.error("vacaciones: sin permiso de escritura en AD17_RH: %s", e)
-    flash('No se pudo guardar: este sistema todavía no tiene permiso de escritura '
-          'sobre las tablas de vacaciones en AD17_RH. Pide a RH que otorgue '
-          'INSERT y UPDATE sobre AD17_RH.Vacaciones, MediosDias y Supervisores.',
+    flash('No se pudo guardar: este sistema todavía no tiene permiso para hacer ese '
+          'cambio en la base de RH. Pide al administrador de la base que lo otorgue.',
           'danger')
 
 
@@ -106,6 +107,18 @@ def _fecha(valor):
         return datetime.strptime((valor or '').strip(), '%Y-%m-%d').date()
     except ValueError:
         return None
+
+
+def _lista_festivos(omitidos):
+    """'16/11 Día de la Revolución, 25/12 Navidad' para los mensajes."""
+    return ', '.join('%s %s' % (f.strftime('%d/%m'), titulo) for f, titulo in omitidos)
+
+
+def _destino_interno(valor, respaldo):
+    """La página a la que se regresa, solo si es de esta misma app."""
+    if valor and valor.startswith('/') and valor[1:2] not in ('/', '\\'):
+        return valor
+    return respaldo
 
 
 # ─────────────────────────────────────────────────────────────
@@ -122,7 +135,7 @@ def mis_vacaciones():
 
     saldo = vac.saldo_empleado(rh_id)
     if not saldo:
-        flash('No encontramos tu registro en AD17_RH.', 'danger')
+        flash('No encontramos tu registro en RH.', 'danger')
         return redirect(url_for('main.home'))
 
     solicitudes = vac.listar_vacaciones(rh_ids=[rh_id])
@@ -164,6 +177,11 @@ def solicitar():
             if saldo['mediodias_libres'] < 1:
                 flash('No te quedan medios días disponibles en este periodo.', 'warning')
                 return redirect(url_for('vacaciones.mis_vacaciones'))
+            festivo = vac.festivos_en_rango(fecha, fecha).get(fecha)
+            if festivo:
+                flash('El %s es día festivo (%s): no hace falta pedir medio día.'
+                      % (fecha.strftime('%d/%m/%Y'), festivo), 'warning')
+                return redirect(url_for('vacaciones.mis_vacaciones'))
             if vac.fechas_ocupadas(rh_id, [fecha]):
                 flash('Ya tienes una solicitud o vacación en esa fecha.', 'warning')
                 return redirect(url_for('vacaciones.mis_vacaciones'))
@@ -183,10 +201,14 @@ def solicitar():
             flash('La fecha final no puede ser anterior a la inicial.', 'warning')
             return redirect(url_for('vacaciones.mis_vacaciones'))
 
-        fechas = vac.dias_habiles(desde, hasta, incluir_fines)
+        fechas, festivos = vac.dias_solicitables(desde, hasta, incluir_fines)
         if not fechas:
-            flash('El rango elegido no tiene días hábiles. Marca "incluir fines de '
-                  'semana" si de verdad quieres pedir sábado o domingo.', 'warning')
+            if festivos:
+                flash('Esas fechas son día festivo (%s): no hace falta pedirlas.'
+                      % _lista_festivos(festivos), 'warning')
+            else:
+                flash('El rango elegido no tiene días hábiles. Marca "incluir fines de '
+                      'semana" si de verdad quieres pedir sábado o domingo.', 'warning')
             return redirect(url_for('vacaciones.mis_vacaciones'))
 
         ocupadas = vac.fechas_ocupadas(rh_id, fechas)
@@ -203,8 +225,9 @@ def solicitar():
 
         vac.crear_solicitud_vacaciones(rh_id, fechas)
         omitidas = ' (%d fechas ya ocupadas se omitieron)' % len(ocupadas) if ocupadas else ''
+        sin_contar = ' No se contaron los festivos: %s.' % _lista_festivos(festivos) if festivos else ''
         flash('Solicitaste %d día(s) de vacaciones%s. Quedan pendientes de '
-              'autorización.' % (len(fechas), omitidas), 'success')
+              'autorización.%s' % (len(fechas), omitidas, sin_contar), 'success')
 
     except SinPermisoRH as e:
         _sin_permiso(e)
@@ -275,7 +298,7 @@ def equipo():
 
     return render_template(
         'vacaciones/equipo.html',
-        semanas=_semanas_del_mes(anio, mes, eventos),
+        semanas=_semanas_del_mes(anio, mes, eventos, vac.festivos_en_rango(inicio, fin)),
         nav=_navegacion_mes(anio, mes),
         pendientes=pendientes,
         saldos=saldos,
@@ -369,7 +392,7 @@ def admin():
 
     return render_template(
         'vacaciones/admin.html',
-        semanas=_semanas_del_mes(anio, mes, eventos),
+        semanas=_semanas_del_mes(anio, mes, eventos, vac.festivos_en_rango(inicio, fin)),
         nav=_navegacion_mes(anio, mes),
         eventos=eventos,
         pendientes=pendientes,
@@ -416,6 +439,11 @@ def admin_solicitar():
             if not fecha or momento not in vac.TIPOS_MEDIO_DIA:
                 flash('Indica la fecha y el momento del medio día.', 'warning')
                 return redirect(url_for('vacaciones.admin'))
+            festivo = vac.festivos_en_rango(fecha, fecha).get(fecha)
+            if festivo:
+                flash('El %s es día festivo (%s): no se registró el medio día.'
+                      % (fecha.strftime('%d/%m/%Y'), festivo), 'warning')
+                return redirect(url_for('vacaciones.admin'))
             vac.crear_solicitud_medio_dia(rh_id, fecha, momento, autorizar_con=mi_rh_id)
             flash('Medio día registrado y autorizado.', 'success')
             return redirect(url_for('vacaciones.admin'))
@@ -426,16 +454,17 @@ def admin_solicitar():
             flash('Rango de fechas inválido.', 'warning')
             return redirect(url_for('vacaciones.admin'))
 
-        fechas = vac.dias_habiles(desde, hasta, bool(request.form.get('incluir_fines')))
+        fechas, festivos = vac.dias_solicitables(desde, hasta, bool(request.form.get('incluir_fines')))
         ocupadas = vac.fechas_ocupadas(rh_id, fechas)
         fechas = [f for f in fechas if f not in ocupadas]
         if not fechas:
-            flash('No quedaron fechas por registrar (ya estaban ocupadas o el rango '
-                  'no tiene días hábiles).', 'warning')
+            flash('No quedaron fechas por registrar (ya estaban ocupadas, son festivos o '
+                  'el rango no tiene días hábiles).', 'warning')
             return redirect(url_for('vacaciones.admin'))
 
         vac.crear_solicitud_vacaciones(rh_id, fechas, autorizar_con=mi_rh_id)
-        flash('Se registraron y autorizaron %d día(s).' % len(fechas), 'success')
+        sin_contar = ' No se contaron los festivos: %s.' % _lista_festivos(festivos) if festivos else ''
+        flash('Se registraron y autorizaron %d día(s).%s' % (len(fechas), sin_contar), 'success')
 
     except SinPermisoRH as e:
         _sin_permiso(e)
@@ -446,6 +475,158 @@ def admin_solicitar():
         flash('No se pudo registrar.', 'danger')
 
     return redirect(url_for('vacaciones.admin'))
+
+
+@bp.route('/eliminar/<tipo>/<int:reg_id>', methods=['POST'])
+@login_required
+def eliminar_dia(tipo, reg_id):
+    """RH y Administración borran un día concreto de vacaciones o un medio día."""
+    bloqueo = _bloquear_si_no_es_rh()
+    if bloqueo:
+        return bloqueo
+
+    destino = _destino_interno(request.form.get('volver'), url_for('vacaciones.admin'))
+    if tipo not in ('VACACION', 'MEDIO_DIA'):
+        flash('Solicitud inválida.', 'danger')
+        return redirect(destino)
+
+    sol = vac.solicitud(reg_id, tipo)
+    if not sol:
+        flash('Ese día ya no existe.', 'warning')
+        return redirect(destino)
+
+    try:
+        vac.eliminar_solicitud(reg_id, tipo)
+    except SinPermisoRH as e:
+        _sin_permiso(e)
+        return redirect(destino)
+
+    # La fila desaparece de RH: el log es el único rastro de quién lo hizo
+    current_app.logger.info(
+        "vacaciones: %s eliminó %s regID=%s de rhID=%s, fecha=%s, estatus=%s",
+        current_user.username, tipo, reg_id, sol['rhID'], sol['fecha'], sol['estatus'])
+    flash('Se eliminó el %s. Si estaba autorizado, ya volvió al saldo de la persona.'
+          % sol['fecha'].strftime('%d/%m/%Y'), 'success')
+    return redirect(destino)
+
+
+# ─────────────────────────────────────────────────────────────
+# Días festivos (RH)
+# ─────────────────────────────────────────────────────────────
+def _festivo_del_form():
+    """(fecha, titulo, tipo) validados; ValueError con el mensaje para el usuario."""
+    fecha = _fecha(request.form.get('fecha'))
+    titulo = (request.form.get('titulo') or '').strip()
+    tipo = (request.form.get('tipo') or '').strip().upper()
+    if not fecha:
+        raise ValueError('Indica la fecha del día festivo.')
+    if not titulo:
+        raise ValueError('Indica el motivo del día festivo.')
+    if len(titulo) > 128:
+        raise ValueError('El motivo no puede pasar de 128 caracteres.')
+    if tipo not in vac.TIPOS_FESTIVO:
+        raise ValueError('Elige si el día festivo es oficial o no oficial.')
+    return fecha, titulo, tipo
+
+
+def _avisar_vacaciones_en(fecha):
+    """Lo ya registrado no se toca: RH decide si elimina esos días."""
+    n = vac.personas_con_vacaciones_en(fecha)
+    if n:
+        flash('%d persona(s) ya tienen vacaciones o medio día el %s y les sigue contando '
+              'en su saldo. Puedes eliminar ese día desde Toda la plantilla.'
+              % (n, fecha.strftime('%d/%m/%Y')), 'warning')
+
+
+@bp.route('/festivos')
+@login_required
+def festivos():
+    bloqueo = _bloquear_si_no_es_rh()
+    if bloqueo:
+        return bloqueo
+
+    anio = request.args.get('anio', type=int) or date.today().year
+    if not 2000 <= anio <= 2100:
+        anio = date.today().year
+    return render_template(
+        'vacaciones/festivos.html',
+        festivos=vac.listar_festivos(anio),
+        anio=anio
+    )
+
+
+@bp.route('/festivos/nuevo', methods=['POST'])
+@login_required
+def crear_festivo():
+    bloqueo = _bloquear_si_no_es_rh()
+    if bloqueo:
+        return bloqueo
+
+    try:
+        fecha, titulo, tipo = _festivo_del_form()
+    except ValueError as e:
+        flash(str(e), 'warning')
+        return redirect(url_for('vacaciones.festivos'))
+
+    try:
+        if vac.crear_festivo(fecha, titulo, tipo):
+            flash('Se registró el día festivo del %s.' % fecha.strftime('%d/%m/%Y'), 'success')
+            _avisar_vacaciones_en(fecha)
+        else:
+            flash('El %s ya está registrado como día festivo.' % fecha.strftime('%d/%m/%Y'), 'warning')
+    except SinPermisoRH as e:
+        _sin_permiso(e)
+    return redirect(url_for('vacaciones.festivos', anio=fecha.year))
+
+
+@bp.route('/festivos/<int:reg_id>/editar', methods=['POST'])
+@login_required
+def editar_festivo(reg_id):
+    bloqueo = _bloquear_si_no_es_rh()
+    if bloqueo:
+        return bloqueo
+
+    actual = vac.festivo(reg_id)
+    if not actual:
+        flash('Ese día festivo ya no existe.', 'warning')
+        return redirect(url_for('vacaciones.festivos'))
+
+    try:
+        fecha, titulo, tipo = _festivo_del_form()
+    except ValueError as e:
+        flash(str(e), 'warning')
+        return redirect(url_for('vacaciones.festivos', anio=actual['fecha'].year))
+
+    try:
+        if vac.actualizar_festivo(reg_id, fecha, titulo, tipo):
+            flash('Se actualizó el día festivo.', 'success')
+            if fecha != actual['fecha']:
+                _avisar_vacaciones_en(fecha)
+        else:
+            flash('El %s ya está registrado como otro día festivo.' % fecha.strftime('%d/%m/%Y'), 'warning')
+    except SinPermisoRH as e:
+        _sin_permiso(e)
+    return redirect(url_for('vacaciones.festivos', anio=fecha.year))
+
+
+@bp.route('/festivos/<int:reg_id>/eliminar', methods=['POST'])
+@login_required
+def eliminar_festivo(reg_id):
+    bloqueo = _bloquear_si_no_es_rh()
+    if bloqueo:
+        return bloqueo
+
+    actual = vac.festivo(reg_id)
+    if not actual:
+        flash('Ese día festivo ya no existe.', 'warning')
+        return redirect(url_for('vacaciones.festivos'))
+
+    try:
+        vac.eliminar_festivo(reg_id)
+        flash('Se eliminó el día festivo del %s.' % actual['fecha'].strftime('%d/%m/%Y'), 'success')
+    except SinPermisoRH as e:
+        _sin_permiso(e)
+    return redirect(url_for('vacaciones.festivos', anio=actual['fecha'].year))
 
 
 # ─────────────────────────────────────────────────────────────

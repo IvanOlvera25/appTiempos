@@ -1,7 +1,7 @@
 {# Rejilla mensual reutilizable. Espera `semanas`, `nav` y `endpoint`;
    opcionalmente `extra_args` (filtros que la navegación conserva) y `mi_rh_id`. #}
 {% set _cal = namespace(hoy_visible=false, con_eventos=0) %}
-{% for semana in semanas %}{% for dia in semana %}{% if dia.hoy and dia.del_mes %}{% set _cal.hoy_visible = true %}{% endif %}{% if dia.del_mes and dia.eventos %}{% set _cal.con_eventos = _cal.con_eventos + 1 %}{% endif %}{% endfor %}{% endfor %}
+{% for semana in semanas %}{% for dia in semana %}{% if dia.hoy and dia.del_mes %}{% set _cal.hoy_visible = true %}{% endif %}{% if dia.del_mes and (dia.eventos or dia.festivo) %}{% set _cal.con_eventos = _cal.con_eventos + 1 %}{% endif %}{% endfor %}{% endfor %}
 <div class="card mb-4 cal-card">
   <div class="card-header">
     <div class="d-flex align-items-center gap-1 cal-nav">
@@ -23,6 +23,7 @@
       <span><i class="cal-chip cal-pendiente"></i>Pendiente</span>
       <span><i class="cal-chip cal-denegado"></i>Denegado</span>
       <span><i class="bi bi-circle-half"></i>Medio día</span>
+      <span><i class="bi bi-star-fill"></i>Día festivo</span>
       {% if mi_rh_id is defined and mi_rh_id %}
       <span><i class="bi bi-person-fill"></i>Tus vacaciones</span>
       {% endif %}
@@ -30,7 +31,7 @@
   </div>
   {# Celular: agenda con solo los días que tienen movimientos; la rejilla queda para tableta y escritorio #}
   <div class="cal-agenda d-md-none">
-    {% for semana in semanas %}{% for dia in semana if dia.del_mes and dia.eventos %}
+    {% for semana in semanas %}{% for dia in semana if dia.del_mes and (dia.eventos or dia.festivo) %}
     <div class="cal-ag-dia{% if dia.hoy %} cal-hoy{% endif %}">
       <div class="cal-ag-fecha">
         <span class="cal-ag-num">{{ dia.fecha.day }}</span>
@@ -38,6 +39,7 @@
         {% if dia.hoy %}<span class="cal-ag-hoy">Hoy</span>{% endif %}
       </div>
       <div class="cal-ag-eventos">
+        {% if dia.festivo %}<div class="cal-festivo"><i class="bi bi-star-fill"></i><span>{{ dia.festivo }}</span></div>{% endif %}
         {% for e in dia.eventos %}
         {% set propio = mi_rh_id is defined and mi_rh_id and e.rh_id == mi_rh_id %}
         <div class="cal-ag-evento cal-{{ e.estatus|lower }}{% if propio %} cal-propio{% endif %}">
@@ -75,13 +77,14 @@
         <tr>
           {% for dia in semana %}
           {% set activos = dia.eventos|rejectattr('estatus', 'equalto', 'DENEGADO')|list %}
-          <td class="cal-dia{% if not dia.del_mes %} cal-fuera{% endif %}{% if dia.hoy %} cal-hoy{% endif %}{% if loop.index > 5 %} cal-finde{% endif %}">
+          <td class="cal-dia{% if not dia.del_mes %} cal-fuera{% endif %}{% if dia.hoy %} cal-hoy{% endif %}{% if loop.index > 5 %} cal-finde{% endif %}{% if dia.festivo %} cal-con-festivo{% endif %}">
             <div class="cal-cab">
               <span class="cal-num">{{ dia.fecha.day }}</span>
               {% if activos|length > 1 %}
               <span class="cal-cuenta" title="{{ activos|length }} personas con vacaciones autorizadas o pendientes">{{ activos|length }}</span>
               {% endif %}
             </div>
+            {% if dia.festivo %}<div class="cal-festivo" title="Día festivo: {{ dia.festivo }}"><i class="bi bi-star-fill"></i><span>{{ dia.festivo }}</span></div>{% endif %}
             {% for e in dia.eventos %}
             {% set propio = mi_rh_id is defined and mi_rh_id and e.rh_id == mi_rh_id %}
             <div class="cal-evento cal-{{ e.estatus|lower }}{% if propio %} cal-propio{% endif %}"
@@ -118,6 +121,12 @@
   .cal-table > tbody > tr > td.cal-finde { background: var(--ad-surface-2); }
   .cal-table > tbody > tr > td.cal-fuera { background: var(--ad-surface-3); }
   .cal-fuera .cal-num { color: var(--ad-text-4); }
+  .cal-table > tbody > tr > td.cal-con-festivo { background: var(--ad-info-soft); }
+  .cal-festivo {
+    display: flex; align-items: baseline; gap: .3rem; margin-bottom: .2rem;
+    font-size: .72rem; font-weight: 600; line-height: 1.25; color: var(--ad-info-ink);
+  }
+  .cal-festivo .bi { font-size: .65rem; flex-shrink: 0; }
   .cal-fuera .cal-evento { opacity: .55; }
   .cal-cab { display: flex; align-items: center; justify-content: space-between; margin-bottom: .3rem; }
   .cal-num {

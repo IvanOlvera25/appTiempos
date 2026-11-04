@@ -270,8 +270,8 @@
     activitySection.innerHTML = '<div class="k-picked" id="proyectoElegido"></div><div class="k-title"><h2>¿Qué actividad vas a hacer?</h2></div>' + actividadesHTML;
     document.getElementById('proyectoElegido').innerHTML = `
       <div class="min-w-0"><div class="k-fp">${card.querySelector('.k-fp').innerHTML}</div>
-      <div class="fw-semibold text-truncate">${AD17.escapar(card.querySelector('.k-name').textContent)}</div>
-      <div class="small text-muted text-truncate">${AD17.escapar(card.querySelector('.k-client').textContent)}</div></div>
+      <div class="fw-semibold text-truncate">${App.escapar(card.querySelector('.k-name').textContent)}</div>
+      <div class="small text-muted text-truncate">${App.escapar(card.querySelector('.k-client').textContent)}</div></div>
       <button type="button" class="btn btn-outline-secondary ms-auto" id="cambiarProyecto"><i class="bi bi-arrow-left-right"></i> Cambiar proyecto</button>`;
     document.getElementById('cambiarProyecto').addEventListener('click', volverAProyectos);
     activitySection.style.display = 'block';
@@ -322,7 +322,7 @@
       if (isIniciar && !activityHid.value) {
         e.preventDefault();
         clickedButtonName = null;
-        AD17.toast('Selecciona una actividad antes de iniciar.', 'warning', 5000);
+        App.toast('Selecciona una actividad antes de iniciar.', 'warning', 5000);
         return false;
       }
 
@@ -333,10 +333,10 @@
           btn.style.opacity = '0.6';
           btn.style.cursor = 'not-allowed';
         });
-        if (window.AD17Loader) {
-          if (isIniciar) AD17Loader.showTimeStart();
-          else if (isFinalizar) AD17Loader.showTimeEnd();
-          else AD17Loader.show('Procesando...', 'Por favor espere');
+        if (window.AppLoader) {
+          if (isIniciar) AppLoader.showTimeStart();
+          else if (isFinalizar) AppLoader.showTimeEnd();
+          else AppLoader.show('Procesando...', 'Por favor espere');
         }
       }, 50);
       return true;

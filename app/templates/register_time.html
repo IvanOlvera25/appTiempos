@@ -191,7 +191,7 @@
 </div>
 
 <script>
-    const avisarRegistro = (msg, tipo) => (window.AD17 ? AD17.toast(msg, tipo || 'info') : alert(msg));
+    const avisarRegistro = (msg, tipo) => (window.App ? App.toast(msg, tipo || 'info') : alert(msg));
 
     // Configurar geolocalización
     function setGeolocation() {

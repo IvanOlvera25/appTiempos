@@ -152,7 +152,7 @@
   const fpForm      = document.getElementById('fp-form');
   const fpDatalist  = document.getElementById('fp-suggestions');
   const fpHint      = document.getElementById('fp-hint');
-  const esc         = AD17.escapar;
+  const esc         = App.escapar;
 
   // Lista lateral con los mismos puntos del mapa
   const listaPuntos = document.getElementById('listaPuntos');
@@ -168,7 +168,7 @@
   const iniciales = (s) => (s || '?').split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
   function pintarLista() {
-    const terminos = AD17.normalizar(buscarPunto.value.trim()).split(/\s+/).filter(Boolean);
+    const terminos = App.normalizar(buscarPunto.value.trim()).split(/\s+/).filter(Boolean);
     const filas = puntos.filter((p) => terminos.every((w) => p.texto.includes(w)));
     nLista.textContent = terminos.length ? `${filas.length} de ${puntos.length}` : puntos.length;
     listaVacia.style.display = filas.length ? 'none' : '';
@@ -240,7 +240,7 @@
       bounds.push([lat, lng]);
       puntos.push({
         i, m, marker,
-        texto: AD17.normalizar(`${m.employee} ${m.project} FP ${m.folio} ${m.folio} ${m.department} ${m.activity}`),
+        texto: App.normalizar(`${m.employee} ${m.project} FP ${m.folio} ${m.folio} ${m.department} ${m.activity}`),
       });
     });
 
@@ -264,7 +264,7 @@
     } catch (err) {
       console.error(err);
       setStatus('Ocurrió un error al cargar los puntos.');
-      AD17.toast('Ocurrió un error al cargar los puntos del mapa.', 'danger');
+      App.toast('Ocurrió un error al cargar los puntos del mapa.', 'danger');
       renderMarkers([]);
     }
   }

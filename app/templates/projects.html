@@ -381,11 +381,11 @@ $(document).ready(function() {
         const rows = Array.from(tbody.rows);
         const total = rows.length;
         // Texto buscable de cada fila: FP, nombre y cliente (sin acentos)
-        const textos = new Map(rows.map((r) => [r, AD17.normalizar(`${r.dataset.folio} fp${r.dataset.folio} ${r.dataset.name} ${r.dataset.client}`)]));
+        const textos = new Map(rows.map((r) => [r, App.normalizar(`${r.dataset.folio} fp${r.dataset.folio} ${r.dataset.name} ${r.dataset.client}`)]));
         const conEstado = tableBodyId === 'allProjectsTable';
 
         function aplicar() {
-            const terminos = AD17.normalizar(input.value.trim()).split(/\s+/).filter(Boolean);
+            const terminos = App.normalizar(input.value.trim()).split(/\s+/).filter(Boolean);
             let visibles = 0;
             rows.forEach((r) => {
                 const t = textos.get(r);
@@ -424,7 +424,7 @@ $(document).ready(function() {
     function comparar(a, b) {
         const na = Number(a), nb = Number(b);
         if (a !== '' && b !== '' && !isNaN(na) && !isNaN(nb)) return na - nb;
-        return AD17.normalizar(a).localeCompare(AD17.normalizar(b), 'es', { numeric: true });
+        return App.normalizar(a).localeCompare(App.normalizar(b), 'es', { numeric: true });
     }
     document.querySelectorAll('#tablaActivos, #tablaTodos').forEach((tabla) => {
         const ths = tabla.querySelectorAll('thead th[data-sort]');
@@ -514,7 +514,7 @@ $(document).ready(function() {
 
     // Notificaciones con el sistema global
     function showToast(message, type = 'info') {
-        AD17.toast(message, type);
+        App.toast(message, type);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -570,8 +570,8 @@ $(document).ready(function() {
             return;
         }
 
-        if (window.AD17Loader) {
-            AD17Loader.show(
+        if (window.AppLoader) {
+            AppLoader.show(
                 action === 'activate' ? 'Activando proyectos...' : 'Desactivando proyectos...',
                 `Procesando ${selectedIds.length} proyecto(s)`
             );
@@ -589,7 +589,7 @@ $(document).ready(function() {
                 action: action
             }),
             success: function(response) {
-                if (window.AD17Loader) AD17Loader.hide();
+                if (window.AppLoader) AppLoader.hide();
                 if (response.success) {
                     showToast(response.message, 'success');
                     setTimeout(() => location.reload(), 1000);
@@ -598,7 +598,7 @@ $(document).ready(function() {
                 }
             },
             error: function(xhr) {
-                if (window.AD17Loader) AD17Loader.hide();
+                if (window.AppLoader) AppLoader.hide();
                 const err = (xhr.responseJSON && xhr.responseJSON.error) ? xhr.responseJSON.error : 'Error de conexión al servidor';
                 showToast(err, 'danger');
             }

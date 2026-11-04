@@ -1,5 +1,5 @@
 /* ═════════════════════════════════════════════════════════════════════
-   AD17 · Sistema de diseño
+   Sistema de diseño
    Una sola hoja para toda la app: tokens, esqueleto (barra lateral y
    superior), y la capa que lleva los componentes de Bootstrap al mismo
    lenguaje visual. Las plantillas siguen usando clases de Bootstrap; aquí
@@ -22,7 +22,7 @@
   --ad-text-3: #667085;
   --ad-text-4: #98a2b3;
 
-  /* Marca: naranja AD17, en un tono que sí contrasta con texto blanco */
+  /* Marca: naranja, en un tono que sí contrasta con texto blanco */
   --ad-brand: #e8650a;
   --ad-brand-hover: #cf5806;
   --ad-brand-press: #b54c05;
@@ -178,7 +178,7 @@ body.has-sidebar .app-shell { padding-left: var(--ad-side-w); }
   width: 34px; height: 34px; border-radius: 9px;
   display: grid; place-items: center; flex-shrink: 0;
   background: linear-gradient(145deg, #f7842a, #d2560a);
-  color: #fff; font-weight: 800; font-size: .8rem; letter-spacing: -.02em;
+  color: #fff; font-size: 1.15rem; line-height: 1;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 2px rgba(0,0,0,.4);
 }
 .brand-text { line-height: 1.15; overflow: hidden; white-space: nowrap; }

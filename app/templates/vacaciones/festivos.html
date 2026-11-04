@@ -1,0 +1,155 @@
+{% extends "layout.html" %}
+{% block title %}Días festivos{% endblock %}
+
+{% block content %}
+{% set dias_semana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] %}
+{% set tipos = [('OFICIAL', 'Oficial'), ('NO OFICIAL', 'No oficial')] %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-calendar-event"></i> Vacaciones · RH</div>
+    <h1>Días festivos</h1>
+    <p>Oficiales o no, estos días no se descuentan al registrar vacaciones ni medios días.</p>
+  </div>
+  <div class="actions">
+    <a href="{{ url_for('vacaciones.admin') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Vacaciones
+    </a>
+  </div>
+</div>
+
+<!-- Registrar -->
+<div class="card mb-4">
+  <div class="card-header"><i class="bi bi-calendar-plus"></i>Registrar día festivo</div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('vacaciones.crear_festivo') }}" class="row g-3 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-sm-6 col-lg-3">
+        <label class="form-label" for="fes_fecha">Fecha</label>
+        <input type="date" name="fecha" id="fes_fecha" class="form-control" required>
+      </div>
+      <div class="col-sm-6 col-lg-2">
+        <label class="form-label" for="fes_tipo">Tipo</label>
+        <select name="tipo" id="fes_tipo" class="form-select" required>
+          {% for valor, etiqueta in tipos %}<option value="{{ valor }}">{{ etiqueta }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-5">
+        <label class="form-label" for="fes_titulo">Motivo</label>
+        <input type="text" name="titulo" id="fes_titulo" class="form-control" maxlength="128" required
+               placeholder="Ej. Día de la Revolución">
+      </div>
+      <div class="col-lg-2">
+        <button class="btn btn-primary w-100"><i class="bi bi-save"></i> Registrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Listado del año -->
+<div class="card">
+  <div class="card-header">
+    <div class="d-flex align-items-center gap-1">
+      <a class="btn btn-sm btn-outline-secondary btn-icon" title="Año anterior" aria-label="Año anterior"
+         href="{{ url_for('vacaciones.festivos', anio=anio - 1) }}"><i class="bi bi-chevron-left"></i></a>
+      <a class="btn btn-sm btn-outline-secondary btn-icon" title="Año siguiente" aria-label="Año siguiente"
+         href="{{ url_for('vacaciones.festivos', anio=anio + 1) }}"><i class="bi bi-chevron-right"></i></a>
+      <span class="ms-2">Festivos de {{ anio }}</span>
+    </div>
+    <span class="badge bg-secondary">{{ festivos|length }}</span>
+  </div>
+  {% if festivos %}
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle" data-tarjetas{% if festivos|length > 5 %} data-buscable="Buscar por motivo o tipo…"{% endif %}>
+      <thead>
+        <tr><th>Fecha</th><th data-titulo>Motivo</th><th>Tipo</th><th data-nosort></th></tr>
+      </thead>
+      <tbody>
+        {% for f in festivos %}
+        <tr>
+          <td class="text-nowrap" data-valor="{{ f.fecha.isoformat() }}">
+            <span class="text-muted small">{{ dias_semana[f.fecha.weekday()] }}</span>
+            {{ f.fecha.strftime('%d/%m/%Y') }}
+          </td>
+          <td class="fw-semibold">{{ f.titulo }}</td>
+          <td>
+            {% if 'NO OFICIAL' in f.tipo %}<span class="badge bg-secondary">No oficial</span>
+            {% else %}<span class="badge bg-info">Oficial</span>{% endif %}
+          </td>
+          <td class="text-end">
+            <div class="d-inline-flex gap-1">
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalFestivo"
+                      data-url="{{ url_for('vacaciones.editar_festivo', reg_id=f.regID) }}"
+                      data-fecha="{{ f.fecha.isoformat() }}" data-titulo="{{ f.titulo }}"
+                      data-tipo="{{ 'NO OFICIAL' if 'NO OFICIAL' in f.tipo else 'OFICIAL' }}">
+                <i class="bi bi-pencil"></i> Editar
+              </button>
+              <form method="POST" action="{{ url_for('vacaciones.eliminar_festivo', reg_id=f.regID) }}"
+                    data-confirmar="¿Eliminar el día festivo del {{ f.fecha.strftime('%d/%m/%Y') }} ({{ f.titulo }})? Ese día volverá a contar como vacaciones."
+                    onsubmit="return confirm(this.dataset.confirmar);">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-danger" aria-label="Eliminar el día festivo del {{ f.fecha.strftime('%d/%m/%Y') }}">
+                  <i class="bi bi-trash"></i> Eliminar
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon"><i class="bi bi-calendar-event"></i></div>
+    <h6>Sin días festivos en {{ anio }}</h6>
+    <p>Registra el primero con el formulario de arriba.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Editar -->
+<div class="modal fade" id="modalFestivo" tabindex="-1" aria-labelledby="modalFestivoTitulo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="POST" class="modal-content" id="formFestivo">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalFestivoTitulo">Modificar día festivo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="form-label" for="edit_fecha">Fecha</label>
+            <input type="date" name="fecha" id="edit_fecha" class="form-control" required>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label" for="edit_tipo">Tipo</label>
+            <select name="tipo" id="edit_tipo" class="form-select" required>
+              {% for valor, etiqueta in tipos %}<option value="{{ valor }}">{{ etiqueta }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="edit_titulo">Motivo</label>
+            <input type="text" name="titulo" id="edit_titulo" class="form-control" maxlength="128" required>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.getElementById('modalFestivo').addEventListener('show.bs.modal', (e) => {
+    const b = e.relatedTarget.dataset;
+    document.getElementById('formFestivo').action = b.url;
+    document.getElementById('edit_fecha').value = b.fecha;
+    document.getElementById('edit_titulo').value = b.titulo;
+    document.getElementById('edit_tipo').value = b.tipo;
+  });
+</script>
+{% endblock %}

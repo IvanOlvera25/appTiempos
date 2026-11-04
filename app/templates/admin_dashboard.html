@@ -323,8 +323,8 @@
 <script>
 (function () {
   'use strict';
-  const C = window.AD17Charts;
-  const esc = AD17.escapar;
+  const C = window.AppCharts;
+  const esc = App.escapar;
   const nf1 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 1 });
   const nf0 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
 
@@ -378,7 +378,7 @@
     fetch(`{{ url_for('main.api_dashboard_metricas') }}?${p}`, { signal: pidiendo.signal })
       .then((r) => r.json())
       .then(pintarMetricas)
-      .catch((e) => { if (e.name !== 'AbortError') AD17.toast('No se pudieron cargar las métricas.', 'danger'); });
+      .catch((e) => { if (e.name !== 'AbortError') App.toast('No se pudieron cargar las métricas.', 'danger'); });
   }
 
   function delta(actual, anterior) {
@@ -468,12 +468,12 @@
       })
       .catch(() => {
         document.getElementById('activeRecordsLoading').style.display = 'none';
-        AD17.toast('Error al cargar los registros activos.', 'danger');
+        App.toast('Error al cargar los registros activos.', 'danger');
       });
   }
   function pintarActivos() {
-    const q = AD17.normalizar(buscarActivos.value.trim());
-    const filas = activos.filter((r) => !q || AD17.normalizar(`${r.employee_full_name} ${r.department} ${r.project_name} FP ${r.project_folio} ${r.activity}`).includes(q));
+    const q = App.normalizar(buscarActivos.value.trim());
+    const filas = activos.filter((r) => !q || App.normalizar(`${r.employee_full_name} ${r.department} ${r.project_name} FP ${r.project_folio} ${r.activity}`).includes(q));
     document.getElementById('recordsCountBadge').textContent = activos.length;
     document.getElementById('activeRecordsCount').textContent = activos.length;
     const hay = filas.length > 0;
@@ -640,7 +640,7 @@
   /* ───────────── Análisis individual ───────────── */
   document.getElementById('searchWorkerBtn').addEventListener('click', () => {
     const id = document.getElementById('workerSelect').value;
-    if (!id) { AD17.toast('Primero elige a una persona.', 'warning', 4000); return; }
+    if (!id) { App.toast('Primero elige a una persona.', 'warning', 4000); return; }
     const spin = document.getElementById('loadingSpinner');
     const destino = document.getElementById('workerMetrics');
     spin.style.display = '';

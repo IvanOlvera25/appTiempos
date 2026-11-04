@@ -219,7 +219,7 @@
   const TODAY = "{{ today }}";
   const URL_DATA = "{{ url_for('main.adicionales_data') }}";
   const ALCANCE_TOTAL = {{ 'true' if alcance.total else 'false' }};
-  const esc = AD17.escapar;
+  const esc = App.escapar;
 
   // El servidor manda costo = null cuando el usuario no puede verlo
   const conCosto = (a) => a.costo !== null && a.costo !== undefined;
@@ -366,10 +366,10 @@
         </div>`;
       return;
     }
-    const terminos = AD17.normalizar(buscarDetalle.value.trim()).split(/\s+/).filter(Boolean);
+    const terminos = App.normalizar(buscarDetalle.value.trim()).split(/\s+/).filter(Boolean);
     const filas = estado.registros.filter(a => {
       if (!terminos.length) return true;
-      const t = AD17.normalizar(`${a.empleado} ${a.area} ${a.tipo} ${a.nota} ${textoFps(a)} ${textoEstatus(a.estatus)} ${fechaCorta(a.fecha)}`);
+      const t = App.normalizar(`${a.empleado} ${a.area} ${a.tipo} ${a.nota} ${textoFps(a)} ${textoEstatus(a.estatus)} ${fechaCorta(a.fecha)}`);
       return terminos.every(w => t.includes(w));
     });
     if (terminos.length) {
@@ -454,7 +454,7 @@
           <h6>No se pudo cargar</h6>
           <p>No fue posible cargar los adicionales. Intenta de nuevo.</p>
         </div>`;
-      AD17.toast('No fue posible cargar los adicionales.', 'danger');
+      App.toast('No fue posible cargar los adicionales.', 'danger');
     } finally {
       grid.style.opacity = 1;
       cargando.classList.add('d-none');
