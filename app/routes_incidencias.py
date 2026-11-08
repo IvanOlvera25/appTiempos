@@ -18,14 +18,16 @@ Visibilidad de los informes (ver `informes_visibles`):
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
-from flask import (Blueprint, current_app, flash, redirect, render_template,
-                   request, url_for)
+from flask import (Blueprint, abort, current_app, flash, redirect, render_template,
+                   request, send_file, url_for)
 from flask_login import current_user, login_required
 from sqlalchemy import or_
 from sqlalchemy.orm import joinedload
 
 from . import db
-from .catalogs import get_area_names, get_clasificaciones
+from . import imagenes_incidencias as imagenes
+from .catalogs import (clave_area, get_areas_empresa,
+                       get_clasificaciones, nombres_de_area)
 from .models import (Employee, Incident, IncidentClassification, IncidentProject,
                      IncidentReport, IncidentReportProject, Project, User)
 
@@ -69,7 +71,10 @@ def informes_visibles():
     if current_user.employee_id:
         condiciones.append(IncidentReport.causante_employee_id == current_user.employee_id)
     if getattr(current_user, 'is_area_manager', False) and current_user.area_manager_department:
-        condiciones.append(IncidentReport.causante_area == current_user.area_manager_department)
+        # El área causante sale del catálogo de la empresa y la del jefe de la
+        # configuración local: pueden estar escritas distinto (Staging / Stagging)
+        condiciones.append(IncidentReport.causante_area.in_(
+            list(nombres_de_area(current_user.area_manager_department))))
 
     # Un informe marcado como inválido queda oculto para el resto de perfiles
     return q.filter(IncidentReport.invalido.is_(False)).filter(or_(*condiciones))
@@ -123,7 +128,29 @@ def _ids_proyectos(campo='project_ids'):
     return [p.id for p in Project.query.filter(Project.id.in_(ids)).all()]
 
 
-def _causante_del_form():
+def _opciones_area(actual=None):
+    """
+    (opciones del select de área, cuál va marcada), con el catálogo de la empresa.
+
+    Un registro anterior puede tener el área con otra escritura, o una que ya no
+    está en el catálogo; al editarlo no debe perderse.
+    """
+    areas = get_areas_empresa()
+    if not actual:
+        return areas, None
+    clave = clave_area(actual)
+    for area in areas:
+        if clave_area(area) == clave:
+            return areas, area
+    return sorted(areas + [actual]), actual
+
+
+def _area_valida(area, actual=None):
+    """Del catálogo de la empresa, o la que ya tenía el registro que se edita."""
+    return bool(area) and (area == actual or area in get_areas_empresa())
+
+
+def _causante_del_form(area_actual=None):
     """(tipo, area, employee_id, texto) validado."""
     tipo = (request.form.get('causante_tipo') or 'AREA').strip().upper()
     if tipo not in IncidentReport.TIPOS_CAUSANTE:
@@ -132,7 +159,7 @@ def _causante_del_form():
     area = employee_id = texto = None
     if tipo == 'AREA':
         area = (request.form.get('causante_area') or '').strip()
-        if area not in get_area_names(solo_activas=False):
+        if not _area_valida(area, area_actual):
             raise ValueError('Selecciona un área válida como causante.')
     elif tipo == 'EMPLEADO':
         try:
@@ -146,6 +173,25 @@ def _causante_del_form():
         if not texto:
             raise ValueError('Escribe quién causó la incidencia.')
     return tipo, area, employee_id, texto
+
+
+def _imagen_del_form():
+    """JPEG listo para guardar, o None si no eligieron imagen. ValueError con el mensaje."""
+    archivo = next((f for f in request.files.getlist('imagen') if f and f.filename), None)
+    return imagenes.preparar(archivo) if archivo else None
+
+
+def _aplicar_imagen(report_id, datos, quitar=False):
+    """Va después del commit: si falla el disco, el informe ya quedó guardado."""
+    try:
+        if datos:
+            imagenes.guardar(report_id, datos)
+        elif quitar:
+            imagenes.borrar(report_id)
+    except OSError as e:
+        current_app.logger.error("incidencias: imagen del informe %s: %s", report_id, e)
+        flash('El informe se guardó, pero la imagen no. Vuelve a intentarlo desde Editar.',
+              'warning')
 
 
 def _clasificacion_del_form():
@@ -198,7 +244,8 @@ def informes():
         clasificaciones=get_clasificaciones(solo_activas=False),
         estado=estado,
         clasificacion_id=clasificacion,
-        administra=_administra()
+        administra=_administra(),
+        con_imagen=imagenes.con_imagen()
     )
 
 
@@ -219,6 +266,7 @@ def nuevo_informe():
 
         try:
             tipo, area, employee_id, texto = _causante_del_form()
+            imagen = _imagen_del_form()
         except ValueError as e:
             flash(str(e), 'warning')
             return redirect(url_for('incidencias.nuevo_informe'))
@@ -245,6 +293,7 @@ def nuevo_informe():
         try:
             db.session.commit()
             flash('Informe de incidencia registrado.', 'success')
+            _aplicar_imagen(informe.id, imagen)
             return redirect(url_for('incidencias.ver_informe', report_id=informe.id))
         except Exception as e:
             db.session.rollback()
@@ -252,14 +301,17 @@ def nuevo_informe():
             flash('No se pudo guardar el informe.', 'danger')
             return redirect(url_for('incidencias.nuevo_informe'))
 
+    areas, area_actual = _opciones_area()
     return render_template(
         'incidencias/informe_form.html',
         informe=None,
         clasificaciones=get_clasificaciones(),
-        areas=get_area_names(),
+        areas=areas,
+        area_actual=area_actual,
         empleados=Employee.query.filter_by(active=True).order_by(Employee.nompropio).all(),
         catalogo_fp=_catalogo_fp(),
-        seleccionados=[]
+        seleccionados=[],
+        imagen_actual=None
     )
 
 
@@ -273,6 +325,7 @@ def ver_informe(report_id):
     return render_template(
         'incidencias/informe_detalle.html',
         informe=informe,
+        imagen_version=imagenes.version(informe.id),
         administra=_administra(),
         puede_editar=(informe.reporter_user_id == current_user.id and not informe.incident_id)
                      or _administra()
@@ -302,7 +355,8 @@ def editar_informe(report_id):
             return redirect(url_for('incidencias.editar_informe', report_id=report_id))
 
         try:
-            tipo, area, employee_id, texto = _causante_del_form()
+            tipo, area, employee_id, texto = _causante_del_form(informe.causante_area)
+            imagen = _imagen_del_form()
         except ValueError as e:
             flash(str(e), 'warning')
             return redirect(url_for('incidencias.editar_informe', report_id=report_id))
@@ -323,21 +377,43 @@ def editar_informe(report_id):
         try:
             db.session.commit()
             flash('Informe actualizado.', 'success')
+            _aplicar_imagen(informe.id, imagen, quitar=request.form.get('quitar_imagen') == '1')
             return redirect(url_for('incidencias.ver_informe', report_id=informe.id))
         except Exception as e:
             db.session.rollback()
             current_app.logger.error("incidencias.editar_informe: %s", e)
             flash('No se pudo actualizar el informe.', 'danger')
 
+    areas, area_actual = _opciones_area(informe.causante_area)
     return render_template(
         'incidencias/informe_form.html',
         informe=informe,
         clasificaciones=get_clasificaciones(),
-        areas=get_area_names(solo_activas=False),
+        areas=areas,
+        area_actual=area_actual,
         empleados=Employee.query.filter_by(active=True).order_by(Employee.nompropio).all(),
         catalogo_fp=_catalogo_fp([p.project_id for p in informe.projects]),
-        seleccionados=[p.project_id for p in informe.projects]
+        seleccionados=[p.project_id for p in informe.projects],
+        imagen_actual=(url_for('incidencias.imagen_informe', report_id=informe.id,
+                               v=imagenes.version(informe.id))
+                       if imagenes.version(informe.id) else None)
     )
+
+
+@bp.route('/informes/<int:report_id>/imagen')
+@login_required
+def imagen_informe(report_id):
+    bloqueo = _bloquear_sin_acceso()
+    if bloqueo:
+        return bloqueo
+    _informe_visible_o_404(report_id)
+    if not imagenes.version(report_id):
+        abort(404)
+    resp = send_file(imagenes.ruta(report_id), mimetype='image/jpeg', max_age=0)
+    # Solo el navegador de quien la pidió puede guardarla, nunca un caché compartido
+    resp.cache_control.private = True
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    return resp
 
 
 @bp.route('/informes/<int:report_id>/invalidar', methods=['POST'])
@@ -407,7 +483,7 @@ def lista():
     )
 
 
-def _responsable_del_form():
+def _responsable_del_form(area_actual=None):
     tipo = (request.form.get('responsable_tipo') or 'AREA').strip().upper()
     if tipo not in Incident.TIPOS_RESPONSABLE:
         raise ValueError('Tipo de responsable inválido.')
@@ -415,7 +491,7 @@ def _responsable_del_form():
     area = employee_id = texto = None
     if tipo == 'AREA':
         area = (request.form.get('responsable_area') or '').strip()
-        if area not in get_area_names(solo_activas=False):
+        if not _area_valida(area, area_actual):
             raise ValueError('Selecciona un área válida como responsable.')
     elif tipo == 'EMPLEADO':
         try:
@@ -438,7 +514,8 @@ def _guardar_incidencia(incidencia, es_alta):
         return 'Escribe la descripción de la incidencia.'
 
     try:
-        tipo, area, employee_id, texto = _responsable_del_form()
+        tipo, area, employee_id, texto = _responsable_del_form(
+            None if es_alta else incidencia.responsable_area)
     except ValueError as e:
         return str(e)
 
@@ -502,10 +579,12 @@ def _contexto_incidencia(incidencia):
                        IncidentReport.incident_id == (incidencia.id if incidencia else -1)))
                    .order_by(IncidentReport.created_at.desc())
                    .all())
+    areas, area_actual = _opciones_area(incidencia.responsable_area if incidencia else None)
     return {
         'incidencia': incidencia,
         'clasificaciones': get_clasificaciones(),
-        'areas': get_area_names(solo_activas=False),
+        'areas': areas,
+        'area_actual': area_actual,
         'empleados': Employee.query.filter_by(active=True).order_by(Employee.nompropio).all(),
         'proyectos': _proyectos_activos(),
         'informes_disponibles': disponibles,

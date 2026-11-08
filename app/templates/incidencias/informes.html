@@ -124,6 +124,7 @@
                class="text-decoration-none text-body fw-medium">
               {{ i.motivo|truncate(110) }}
             </a>
+            {% if i.id in con_imagen %}<i class="bi bi-image text-muted ms-1" title="Con imagen" aria-label="Con imagen"></i>{% endif %}
             <div class="small text-muted">{{ i.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
           </td>
           <td class="small">{{ i.clasificacion.nombre if i.clasificacion else '—' }}</td>

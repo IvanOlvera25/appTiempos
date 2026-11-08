@@ -25,18 +25,16 @@ SELECT TABLE_NAME, PRIVILEGE_TYPE FROM information_schema.TABLE_PRIVILEGES
  WHERE TABLE_SCHEMA = 'AD17_RH';
 ```
 
-### Pendiente: permisos para días festivos y eliminar días
+### Pendiente: permiso para eliminar medios días
 
-La página de **Días festivos** y el botón de **eliminar un día de vacaciones**
-necesitan permisos que `IvanUriel` todavía no tiene. Mientras falten, la app
-responde con un mensaje de permiso (no truena) y lo demás sigue funcionando; los
-festivos que ya estén en la tabla sí se respetan, porque solo requieren leer.
-Debe correrlo quien administre `AD17_RH`:
+Revisado el 08/11/2026 con `SHOW GRANTS`: **Días festivos** (registrar, modificar
+y eliminar), eliminar días completos de **Vacaciones** y **Permisos y Eventos**
+(registrar, modificar y eliminar) ya tienen sus permisos. Solo falta el de
+eliminar un **medio día**; mientras falte, ese botón responde con un mensaje de
+permiso (no truena). Debe correrlo quien administre `AD17_RH`:
 
 ```sql
-GRANT INSERT, UPDATE, DELETE ON `AD17_RH`.`Festivos`   TO 'IvanUriel'@'%';
-GRANT DELETE                 ON `AD17_RH`.`Vacaciones` TO 'IvanUriel'@'%';
-GRANT DELETE                 ON `AD17_RH`.`MediosDias` TO 'IvanUriel'@'%';
+GRANT DELETE ON `AD17_RH`.`MediosDias` TO 'IvanUriel'@'%';
 ```
 
 Opcional, para que la base también lo garantice: `Festivos` no tiene llave
@@ -222,3 +220,9 @@ Se muestran en *Administración → Usuarios*.
 - `AD17_RH.MediosDias` está vacía en producción, pero el flujo de medio día ya
   se ejerció contra el esquema real (crear, autorizar y bloquear duplicados en
   la misma fecha).
+- Las **imágenes de los informes de incidencia** se guardan en el disco del
+  servidor, en `instance/incidencias/informe_<id>.jpg`, no en la base. No
+  necesitan migración y `git pull` no las toca (`instance/` está en
+  `.gitignore`), pero tampoco entran en los respaldos de MySQL: esa carpeta se
+  respalda aparte. Las que se suban desde la app local se quedan en la máquina
+  local.

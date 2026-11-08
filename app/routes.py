@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from .models import db, Employee, Project, TimeRecord, User, DepartmentActivity, AreaConfig
 from .catalogs import (
     GENERAL_KEY, GENERAL_LABEL, activity_departments, area_usa_flujo_impresion,
-    department_label, ensure_seed_activities, ensure_seed_areas, get_area,
+    clave_area, department_label, ensure_seed_activities, ensure_seed_areas, get_area,
     get_area_names, get_areas, get_department_activities, get_general_activities,
     next_area_order,
 )
@@ -2843,25 +2843,12 @@ def _adicionales_rango(desde, hasta, alcance, area=None, rh_id=None, estatus=Non
     return registros
 
 
-# Los nombres de área locales no siempre coinciden con los de AD17_General.Areas
-_ALIAS_AREAS = {'stagging': 'staging'}
-
-
-def _clave_area(nombre):
-    """Normaliza un nombre de área para poder compararlo entre bases."""
-    limpio = ''.join(
-        c for c in unicodedata.normalize('NFD', nombre or '')
-        if unicodedata.category(c) != 'Mn'
-    ).strip().lower()
-    return _ALIAS_AREAS.get(limpio, limpio)
-
-
 def _area_id_por_nombre(nombre, areas):
-    clave = _clave_area(nombre)
+    clave = clave_area(nombre)
     if not clave:
         return None
     for a in areas:
-        if _clave_area(a['nombre']) == clave:
+        if clave_area(a['nombre']) == clave:
             return a['id']
     return None
 

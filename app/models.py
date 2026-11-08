@@ -225,7 +225,7 @@ class AreaConfig(db.Model):
     la edicion lo propaga en una sola transaccion.
 
     `rh_area_id` enlaza con AD17_General.Areas.regID y evita tener que adivinar
-    la correspondencia por nombre (ver _ALIAS_AREAS en routes.py).
+    la correspondencia por nombre (ver _ALIAS_AREAS en catalogs.py).
     """
     __tablename__ = 'areas_config'
 

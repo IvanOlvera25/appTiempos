@@ -156,7 +156,7 @@
                 <option value="">Selecciona un área…</option>
                 {% for a in areas %}
                 <option value="{{ a }}"
-                  {% if incidencia and incidencia.responsable_area == a %}selected{% endif %}>{{ a }}</option>
+                  {% if area_actual == a %}selected{% endif %}>{{ a }}</option>
                 {% endfor %}
               </select>
             </div>

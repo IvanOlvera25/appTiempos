@@ -5,6 +5,7 @@ Antes ambos vivian hardcodeados (listas en routes.py, botones en las plantillas)
 Aqui quedan en base de datos para que un administrador pueda dar de alta areas
 nuevas y editar sus actividades sin tocar codigo.
 """
+import unicodedata
 from itertools import chain
 
 from flask import current_app, g, has_app_context
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from . import db
 from .models import AreaConfig, DepartmentActivity
+from .rh import listar_areas_seguro
 
 # Las actividades del proyecto especial FP 0 se guardan en la misma tabla que
 # las de area, bajo un departamento centinela que ningun area puede usar.
@@ -103,6 +105,41 @@ def _invalidar_areas(session, _contexto):
 
 def get_area_names(solo_activas=True):
     return [a.nombre for a in get_areas(solo_activas=solo_activas)]
+
+
+# regID de "No Definido" en AD17_General.Areas: no es un área real
+AREA_NO_DEFINIDA = 1
+
+# Los nombres de área locales no siempre coinciden con los de AD17_General.Areas
+_ALIAS_AREAS = {'stagging': 'staging'}
+
+
+def clave_area(nombre):
+    """Normaliza un nombre de área para poder compararlo entre bases."""
+    limpio = ''.join(
+        c for c in unicodedata.normalize('NFD', nombre or '')
+        if unicodedata.category(c) != 'Mn'
+    ).strip().lower()
+    return _ALIAS_AREAS.get(limpio, limpio)
+
+
+def get_areas_empresa():
+    """
+    Todas las áreas de la empresa (AD17_General.Areas), sin "No Definido".
+
+    get_area_names() solo trae las habilitadas para registrar tiempos. Si RH no
+    responde se usan esas, para que los formularios sigan funcionando.
+    """
+    areas = [a['nombre'] for a in listar_areas_seguro()
+             if a['id'] != AREA_NO_DEFINIDA and a['nombre']]
+    return areas or get_area_names(solo_activas=False)
+
+
+def nombres_de_area(nombre):
+    """Todas las formas en que un área puede estar escrita, en ambas bases."""
+    clave = clave_area(nombre)
+    return {nombre} | {n for n in chain(get_area_names(solo_activas=False), get_areas_empresa())
+                       if clave_area(n) == clave}
 
 
 def get_area(nombre):

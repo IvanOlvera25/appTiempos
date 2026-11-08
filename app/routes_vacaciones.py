@@ -18,6 +18,7 @@ from flask import (Blueprint, current_app, flash, jsonify, redirect,
 from flask_login import current_user, login_required
 
 from .models import Employee
+from . import rh
 from . import vacaciones as vac
 from .vacaciones import SinPermisoRH
 
@@ -627,6 +628,169 @@ def eliminar_festivo(reg_id):
     except SinPermisoRH as e:
         _sin_permiso(e)
     return redirect(url_for('vacaciones.festivos', anio=actual['fecha'].year))
+
+
+# ─────────────────────────────────────────────────────────────
+# Permisos y Eventos (RH)
+# ─────────────────────────────────────────────────────────────
+def _evento_del_form():
+    """(rh_id, fecha, tipo_evento, descripcion) validados; ValueError con el mensaje."""
+    rh_id = request.form.get('rh_id', type=int)
+    if not rh_id or not vac.empleado(rh_id):
+        raise ValueError('Selecciona a la persona.')
+
+    fecha = _fecha(request.form.get('fecha'))
+    # Sin límite, un año mal tecleado (0026) dejaría el registro fuera de toda consulta
+    if not fecha or not 2000 <= fecha.year <= 2100:
+        raise ValueError('Revisa la fecha del evento.')
+
+    tipo_evento = request.form.get('tipo_evento', type=int)
+    if tipo_evento not in {t['regID'] for t in vac.tipos_evento()}:
+        raise ValueError('Elige el tipo y la categoría del evento.')
+
+    # La columna es utf8 de 3 bytes: un emoji haría fallar el guardado
+    descripcion = ''.join(c for c in request.form.get('descripcion') or ''
+                          if ord(c) <= 0xFFFF).strip()
+    if not descripcion:
+        raise ValueError('Describe el motivo del evento.')
+    if len(descripcion) > 256:
+        raise ValueError('La descripción no puede pasar de 256 caracteres.')
+    return rh_id, fecha, tipo_evento, descripcion
+
+
+@bp.route('/permisos-eventos')
+@login_required
+def eventos():
+    bloqueo = _bloquear_si_no_es_rh()
+    if bloqueo:
+        return bloqueo
+
+    hoy = date.today()
+    anio = request.args.get('anio', type=int) or hoy.year
+    if not 2000 <= anio <= 2100:
+        anio = hoy.year
+    mes = request.args.get('mes', type=int)
+    if mes not in range(1, 13):
+        mes = None
+    desde, hasta = vac.rango_mes(anio, mes) if mes else (date(anio, 1, 1), date(anio, 12, 31))
+
+    persona = request.args.get('persona', type=int)
+    area = (request.args.get('area') or '').strip()
+    tipo = (request.args.get('tipo') or '').strip()
+    registros = [e for e in vac.listar_eventos(desde, hasta)
+                 if (not persona or e['rhID'] == persona)
+                 and (not area or e['area'] == area)
+                 and (not tipo or e['tipo'] == tipo)]
+
+    catalogo = vac.tipos_evento()
+    tipos = list(dict.fromkeys(t['tipo'] for t in catalogo))
+    empleados = rh.listar_empleados()
+
+    return render_template(
+        'vacaciones/eventos.html',
+        registros=registros,
+        catalogo=catalogo,
+        tipos=tipos,
+        resumen=[(t, sum(1 for e in registros if e['tipo'] == t)) for t in tipos],
+        empleados=empleados,
+        areas=sorted({e['area'] for e in empleados if e['area']}),
+        anio=anio,
+        mes=mes,
+        meses=MESES,
+        persona=persona,
+        area=area,
+        tipo=tipo,
+        # Lo que la navegación por año debe conservar
+        filtros={k: v for k, v in (('mes', mes), ('persona', persona),
+                                   ('area', area), ('tipo', tipo)) if v},
+    )
+
+
+@bp.route('/permisos-eventos/nuevo', methods=['POST'])
+@login_required
+def crear_evento():
+    bloqueo = _bloquear_si_no_es_rh()
+    if bloqueo:
+        return bloqueo
+
+    try:
+        rh_id, fecha, tipo_evento, descripcion = _evento_del_form()
+    except ValueError as e:
+        flash(str(e), 'warning')
+        return redirect(url_for('vacaciones.eventos'))
+
+    try:
+        if vac.crear_evento(rh_id, fecha, tipo_evento, descripcion, _mi_rh_id()):
+            flash('Se registró el evento del %s.' % fecha.strftime('%d/%m/%Y'), 'success')
+        else:
+            flash('Esa persona ya tiene ese mismo evento el %s.' % fecha.strftime('%d/%m/%Y'), 'warning')
+    except SinPermisoRH as e:
+        _sin_permiso(e)
+    return redirect(url_for('vacaciones.eventos', anio=fecha.year))
+
+
+@bp.route('/permisos-eventos/<int:reg_id>/editar', methods=['POST'])
+@login_required
+def editar_evento(reg_id):
+    bloqueo = _bloquear_si_no_es_rh()
+    if bloqueo:
+        return bloqueo
+
+    actual = vac.evento(reg_id)
+    if not actual:
+        flash('Ese evento ya no existe.', 'warning')
+        return redirect(url_for('vacaciones.eventos'))
+
+    try:
+        rh_id, fecha, tipo_evento, descripcion = _evento_del_form()
+    except ValueError as e:
+        flash(str(e), 'warning')
+        return redirect(url_for('vacaciones.eventos', anio=actual['fecha'].year))
+
+    try:
+        if vac.actualizar_evento(reg_id, rh_id, fecha, tipo_evento, descripcion):
+            # El valor anterior se sobrescribe: el log es el único rastro del cambio
+            current_app.logger.info(
+                "eventos: %s modificó regID=%s; antes rhID=%s, fecha=%s, tipo=%s, descripción=%r",
+                current_user.username, reg_id, actual['rhID'], actual['fecha'],
+                actual['tipo_evento'], actual['descripcion'])
+            flash('Se actualizó el evento.', 'success')
+        else:
+            flash('Esa persona ya tiene ese mismo evento el %s.' % fecha.strftime('%d/%m/%Y'), 'warning')
+    except SinPermisoRH as e:
+        _sin_permiso(e)
+    return redirect(url_for('vacaciones.eventos', anio=fecha.year))
+
+
+@bp.route('/permisos-eventos/<int:reg_id>/eliminar', methods=['POST'])
+@login_required
+def eliminar_evento(reg_id):
+    bloqueo = _bloquear_si_no_es_rh()
+    if bloqueo:
+        return bloqueo
+
+    actual = vac.evento(reg_id)
+    destino = _destino_interno(
+        request.form.get('volver'),
+        url_for('vacaciones.eventos', anio=actual['fecha'].year if actual else None))
+    if not actual:
+        flash('Ese evento ya no existe.', 'warning')
+        return redirect(destino)
+
+    try:
+        vac.eliminar_evento(reg_id)
+    except SinPermisoRH as e:
+        _sin_permiso(e)
+        return redirect(destino)
+
+    # La fila desaparece de RH: el log es el único rastro de quién lo hizo
+    current_app.logger.info(
+        "eventos: %s eliminó regID=%s; rhID=%s (%s), fecha=%s, %s / %s, descripción=%r",
+        current_user.username, reg_id, actual['rhID'], actual['empleado'], actual['fecha'],
+        actual['tipo'], actual['categoria'], actual['descripcion'])
+    flash('Se eliminó el evento de %s del %s.'
+          % (actual['empleado'], actual['fecha'].strftime('%d/%m/%Y')), 'success')
+    return redirect(destino)
 
 
 # ─────────────────────────────────────────────────────────────

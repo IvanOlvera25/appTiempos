@@ -12,6 +12,7 @@
   .fp-lista { display: flex; flex-direction: column; gap: .4rem; }
   .fp-lista .fp { display: flex; align-items: baseline; gap: .5rem; font-size: .84rem; font-weight: 500; }
   .fp-lista .fp .badge { flex-shrink: 0; }
+  .inf-imagen { display: block; max-width: 100%; max-height: 520px; margin: 0 auto; border-radius: var(--ad-radius); object-fit: contain; }
 </style>
 
 <div style="max-width: 1100px;">
@@ -72,6 +73,22 @@
           {% endif %}
         </div>
       </div>
+
+      {% if imagen_version %}
+      {% set url_imagen = url_for('incidencias.imagen_informe', report_id=informe.id, v=imagen_version) %}
+      <div class="card mb-3">
+        <div class="card-header"><i class="bi bi-image"></i>Imagen
+          <a href="{{ url_imagen }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary ms-auto">
+            <i class="bi bi-arrows-fullscreen"></i> Ver completa
+          </a>
+        </div>
+        <div class="card-body">
+          <a href="{{ url_imagen }}" target="_blank" rel="noopener">
+            <img src="{{ url_imagen }}" class="inf-imagen" alt="Imagen del informe #{{ informe.id }}" loading="lazy">
+          </a>
+        </div>
+      </div>
+      {% endif %}
 
       <div class="card">
         <div class="card-header"><i class="bi bi-collection"></i>Incidencia</div>

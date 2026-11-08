@@ -31,6 +31,18 @@
     .fp-card { align-items: center; padding-right: .3rem; }
     .fp-card .btn-close { box-sizing: border-box; width: 40px; height: 40px; padding: 0; margin: -.4rem 0; background-size: .75rem; }
   }
+  /* Imagen */
+  .img-vista { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem; margin-bottom: .75rem; }
+  .img-vista img {
+    display: block; max-width: 100%; max-height: 260px; border-radius: var(--ad-radius);
+    border: 1px solid var(--ad-border); background: var(--ad-surface-2); object-fit: contain;
+  }
+  .img-botones .btn { cursor: pointer; }
+  /* "Tomar foto" solo donde hay cámara a la mano: celulares y tabletas */
+  @media (pointer: fine) { .solo-tactil { display: none !important; } }
+  @media (pointer: coarse) { .solo-escritorio { display: none !important; } }
+  @media (max-width: 575.98px) { .img-botones .btn { flex: 1 1 0; } }
+
   /* Celular: guardar siempre a la mano (la barra inferior global se oculta con .k-actions) */
   @media (max-width: 767.98px) {
     .inf-acciones {
@@ -57,7 +69,7 @@
     </div>
   </div>
 
-  <form method="POST" class="card">
+  <form method="POST" class="card" enctype="multipart/form-data" id="formInforme">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="card-body">
 
@@ -109,7 +121,7 @@
               <select name="causante_area" id="inf_area" class="form-select">
                 <option value="">Selecciona un área…</option>
                 {% for a in areas %}
-                <option value="{{ a }}" {% if informe and informe.causante_area == a %}selected{% endif %}>{{ a }}</option>
+                <option value="{{ a }}" {% if area_actual == a %}selected{% endif %}>{{ a }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -168,6 +180,38 @@
           <label class="form-label" for="inf_repercusion">Repercusión de la incidencia</label>
           <textarea name="repercusion" id="inf_repercusion" class="form-control" rows="3"
                     placeholder="¿En qué afectó? Retrabajo, retraso, costo…">{{ informe.repercusion or '' if informe else '' }}</textarea>
+        </div>
+      </div>
+
+      <!-- Imagen -->
+      <div class="form-sec">
+        <div>
+          <div class="form-sec-tit">Imagen</div>
+          <p class="form-sec-ayuda">Opcional. Una foto de lo que pasó, con la cámara o desde la memoria del dispositivo.</p>
+        </div>
+        <div>
+          <div class="img-vista" id="img_vista" {% if not imagen_actual %}hidden{% endif %}>
+            <img id="img_preview" src="{{ imagen_actual or '' }}" alt="Imagen del informe">
+            <button type="button" class="btn btn-sm btn-outline-danger" id="img_quitar">
+              <i class="bi bi-trash"></i> Quitar imagen
+            </button>
+          </div>
+          <div class="d-flex flex-wrap gap-2 img-botones">
+            <label class="btn btn-outline-secondary solo-tactil" for="img_camara" role="button" tabindex="0">
+              <i class="bi bi-camera"></i> Tomar foto
+            </label>
+            <label class="btn btn-outline-secondary" for="img_archivo" role="button" tabindex="0">
+              <i class="bi bi-image"></i>
+              <span class="solo-tactil">Galería</span><span class="solo-escritorio">Elegir imagen</span>
+            </label>
+          </div>
+          {# Dos campos: con `capture` el celular abre la cámara directo; sin él deja elegir de la galería #}
+          <input type="file" name="imagen" id="img_camara" accept="image/*" capture="environment" class="visually-hidden" tabindex="-1">
+          <input type="file" name="imagen" id="img_archivo" accept="image/*" class="visually-hidden" tabindex="-1">
+          <input type="hidden" name="quitar_imagen" id="img_quitar_campo" value="">
+          <div class="form-text" id="img_estado">
+            {% if imagen_actual %}Si eliges otra, reemplaza a la actual.{% else %}JPG o PNG, hasta 15 MB.{% endif %}
+          </div>
         </div>
       </div>
     </div>
@@ -294,6 +338,107 @@ document.addEventListener('DOMContentLoaded', () => {
   const iniciales = {{ seleccionados|tojson }};
   catalogo.filter(p => iniciales.includes(p.id)).forEach(p => elegidos.set(p.id, p));
   pintar();
+
+  // ── Imagen: cámara o galería, reducida en el navegador antes de subirla ──
+  // Una foto de celular pesa varios MB; reducida pesa unos cientos de KB y sube
+  // rápido con datos móviles. El servidor la vuelve a procesar de todos modos.
+  const LADO_MAX = 1920, TAMANO_MAX = 15 * 1024 * 1024;
+  const camara = document.getElementById('img_camara');
+  const galeria = document.getElementById('img_archivo');
+  const vista = document.getElementById('img_vista');
+  const preview = document.getElementById('img_preview');
+  const quitarCampo = document.getElementById('img_quitar_campo');
+  const estadoImg = document.getElementById('img_estado');
+  const guardar = document.querySelector('.inf-acciones .btn-primary');
+  const original = preview.getAttribute('src') || '';
+  const habiaImagen = !!original;
+  let urlVista = null;
+
+  const mostrarVista = (src) => {
+    if (urlVista) URL.revokeObjectURL(urlVista);
+    urlVista = src && src.startsWith('blob:') ? src : null;
+    preview.src = src || '';
+    vista.hidden = !src;
+  };
+
+  // Resuelve con el archivo listo, o null si el navegador no puede leerlo como imagen
+  const reducir = (archivo) => new Promise((resolve) => {
+    const url = URL.createObjectURL(archivo);
+    const img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const escala = Math.min(1, LADO_MAX / Math.max(img.naturalWidth, img.naturalHeight));
+      if (escala === 1 && archivo.type === 'image/jpeg' && archivo.size < 1.5 * 1024 * 1024) {
+        return resolve(archivo);
+      }
+      try {
+        const lienzo = document.createElement('canvas');
+        lienzo.width = Math.round(img.naturalWidth * escala);
+        lienzo.height = Math.round(img.naturalHeight * escala);
+        const ctx = lienzo.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, lienzo.width, lienzo.height);
+        ctx.drawImage(img, 0, 0, lienzo.width, lienzo.height);
+        lienzo.toBlob((b) => resolve(b && b.size < archivo.size
+          ? new File([b], 'foto.jpg', { type: 'image/jpeg' }) : archivo), 'image/jpeg', 0.85);
+      } catch (e) {
+        resolve(archivo);
+      }
+    };
+    img.src = url;
+  });
+
+  const elegir = async (campo, otro) => {
+    const archivo = campo.files[0];
+    if (!archivo) return;
+    otro.value = '';
+    guardar.disabled = true;
+    estadoImg.classList.remove('text-danger');
+    estadoImg.textContent = 'Preparando la imagen…';
+    const listo = await reducir(archivo);
+    guardar.disabled = false;
+    if (!listo || listo.size > TAMANO_MAX) {
+      // No se sube nada nuevo: la vista vuelve a lo que de verdad se va a guardar
+      campo.value = '';
+      mostrarVista(habiaImagen && !quitarCampo.value ? original : null);
+      estadoImg.classList.add('text-danger');
+      estadoImg.textContent = !listo
+        ? 'Ese archivo no es una imagen que se pueda usar. Elige una foto JPG o PNG.'
+        : 'La imagen pesa más de 15 MB. Elige otra o tómala de nuevo.';
+      return;
+    }
+    if (listo !== archivo) {
+      try {
+        const dt = new DataTransfer();
+        dt.items.add(listo);
+        campo.files = dt.files;
+      } catch (e) { /* navegador viejo: se sube la original y la reduce el servidor */ }
+    }
+    quitarCampo.value = '';
+    mostrarVista(URL.createObjectURL(campo.files[0]));
+    estadoImg.textContent = `Lista para guardar (${Math.max(1, Math.round(campo.files[0].size / 1024))} KB).`
+      + (habiaImagen ? ' Reemplaza a la actual.' : '');
+  };
+  camara.addEventListener('change', () => elegir(camara, galeria));
+  galeria.addEventListener('change', () => elegir(galeria, camara));
+
+  document.getElementById('img_quitar').addEventListener('click', () => {
+    camara.value = '';
+    galeria.value = '';
+    quitarCampo.value = habiaImagen ? '1' : '';
+    mostrarVista(null);
+    estadoImg.classList.remove('text-danger');
+    estadoImg.textContent = habiaImagen ? 'La imagen se quitará al guardar.' : 'JPG o PNG, hasta 15 MB.';
+  });
+
+  // Los botones son etiquetas: con teclado también deben abrir el selector
+  document.querySelectorAll('.img-botones label').forEach(l => l.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      document.getElementById(l.htmlFor).click();
+    }
+  }));
 });
 </script>
 {% endblock %}

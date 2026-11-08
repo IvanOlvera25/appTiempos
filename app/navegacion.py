@@ -79,6 +79,7 @@ def menu_para(user):
                 _item('Toda la plantilla', 'bi-calendar3', 'vacaciones.admin'),
                 _item('Supervisores', 'bi-diagram-2', 'vacaciones.supervisores'),
                 _item('Días festivos', 'bi-calendar-event', 'vacaciones.festivos'),
+                _item('Permisos y Eventos', 'bi-journal-text', 'vacaciones.eventos'),
             ]
         secciones.append({'title': 'Vacaciones', 'items': vacaciones})
 
@@ -163,7 +164,7 @@ def barra_inferior(user, secciones):
     if user.employee_id:
         candidatos.append(tomar('vacaciones.mis_vacaciones', 'Vacaciones', 'bi-sun',
                                 ('vacaciones.equipo', 'vacaciones.admin', 'vacaciones.supervisores',
-                                 'vacaciones.festivos')))
+                                 'vacaciones.festivos', 'vacaciones.eventos')))
     elif user.is_admin or getattr(user, 'is_rh', False):
         candidatos.append(tomar('vacaciones.admin', 'Vacaciones', 'bi-calendar3'))
     else:

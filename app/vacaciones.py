@@ -548,6 +548,82 @@ def personas_con_vacaciones_en(fecha):
 
 
 # ─────────────────────────────────────────────────────────────
+# Permisos y eventos del personal
+# ─────────────────────────────────────────────────────────────
+def tipos_evento():
+    """Catálogo de eventos: `tipo` (con goce, sin goce, castigo) y su categoría."""
+    return _consultar(
+        "SELECT regID, tipo, categoria FROM TiposEventosPersonales ORDER BY tipo, categoria")
+
+
+_SELECT_EVENTO = """
+    SELECT e.regID, e.rhID, e.fecha, e.tipo_evento, e.descripcion, e.fecha_registro,
+           t.tipo, t.categoria,
+           r.nomPropio AS empleado, r.titulo_area AS area,
+           q.nomPropio AS registrado_por
+      FROM Eventos_Personal e
+      JOIN TiposEventosPersonales t ON t.regID = e.tipo_evento
+      LEFT JOIN registro r ON r.id = e.rhID
+      LEFT JOIN registro q ON q.id = e.rh_registro
+"""
+
+
+def _normaliza_evento(f):
+    return {
+        **f,
+        'empleado': (f['empleado'] or '').strip() or 'RH %s' % f['rhID'],
+        'area': (f['area'] or '').strip(),
+        'registrado_por': (f['registrado_por'] or '').strip() or None,
+    }
+
+
+def listar_eventos(desde, hasta):
+    """Eventos del personal en un rango de fechas, del más reciente al más antiguo."""
+    filas = _consultar(
+        _SELECT_EVENTO + " WHERE e.fecha >= %s AND e.fecha <= %s"
+                         " ORDER BY e.fecha DESC, e.regID DESC",
+        (desde, hasta))
+    return [_normaliza_evento(f) for f in filas]
+
+
+def evento(reg_id):
+    filas = _consultar(_SELECT_EVENTO + " WHERE e.regID = %s LIMIT 1", (reg_id,))
+    return _normaliza_evento(filas[0]) if filas else None
+
+
+def crear_evento(rh_id, fecha, tipo_evento, descripcion, registrado_por):
+    """
+    Da de alta un evento; devuelve False si esa persona ya tiene ese mismo tipo
+    en esa fecha. Va en una sola sentencia para que un doble envío no lo duplique.
+    """
+    return bool(_ejecutar_escritura("""
+        INSERT INTO Eventos_Personal (rhID, fecha, tipo_evento, descripcion, rh_registro)
+        SELECT %s, %s, %s, %s, %s FROM DUAL
+         WHERE NOT EXISTS (SELECT 1 FROM Eventos_Personal
+                            WHERE rhID = %s AND fecha = %s AND tipo_evento = %s)
+    """, (rh_id, fecha, tipo_evento, descripcion, registrado_por, rh_id, fecha, tipo_evento)))
+
+
+def actualizar_evento(reg_id, rh_id, fecha, tipo_evento, descripcion):
+    """Modifica un evento; devuelve False si chocaría con otro. Conserva quién lo registró."""
+    if _consultar("""
+        SELECT regID FROM Eventos_Personal
+         WHERE rhID = %s AND fecha = %s AND tipo_evento = %s AND regID <> %s LIMIT 1
+    """, (rh_id, fecha, tipo_evento, reg_id)):
+        return False
+    _ejecutar_escritura("""
+        UPDATE Eventos_Personal
+           SET rhID = %s, fecha = %s, tipo_evento = %s, descripcion = %s
+         WHERE regID = %s
+    """, (rh_id, fecha, tipo_evento, descripcion, reg_id))
+    return True
+
+
+def eliminar_evento(reg_id):
+    return _ejecutar_escritura("DELETE FROM Eventos_Personal WHERE regID = %s", (reg_id,))
+
+
+# ─────────────────────────────────────────────────────────────
 # Utilidades
 # ─────────────────────────────────────────────────────────────
 def rh_id_de(employee):

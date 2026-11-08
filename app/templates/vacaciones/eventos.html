@@ -1,0 +1,300 @@
+{% extends "layout.html" %}
+{% block title %}Permisos y Eventos{% endblock %}
+
+{% block content %}
+{% set dias_semana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'] %}
+{% set badges = {'Permiso Con Goce': 'bg-success', 'Permiso Sin Goce': 'bg-warning', 'Castigo': 'bg-danger'} %}
+{% set iconos = {'Permiso Con Goce': 'bi-cash-coin', 'Permiso Sin Goce': 'bi-calendar-x', 'Castigo': 'bi-exclamation-octagon'} %}
+
+<style>
+  #filtro_eventos .ev-persona { flex: 0 1 300px; min-width: 220px; }
+  .ev-desc { min-width: 220px; max-width: 420px; white-space: normal; overflow-wrap: anywhere; }
+  @media (max-width: 575.98px) {
+    #filtro_eventos .ev-persona { flex: 1 1 100%; }
+    .ev-desc { min-width: 0; max-width: none; }
+  }
+</style>
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><i class="bi bi-journal-text"></i> Personal · RH</div>
+    <h1>Permisos y Eventos</h1>
+    <p>Permisos con goce de sueldo, sin goce de sueldo y castigos del personal.</p>
+  </div>
+</div>
+
+<!-- Indicadores: siguen el periodo y los filtros de abajo -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi bi-journal-text"></i></span>
+      <div class="stat-label">Registros</div>
+      <div class="stat-value">{{ registros|length }}</div>
+      <div class="stat-foot">{{ meses[mes] ~ ' ' if mes }}{{ anio }}{% if filtros.persona or filtros.area or filtros.tipo %} · con filtros{% endif %}</div>
+    </div>
+  </div>
+  {% for t, n in resumen %}
+  <div class="col-6 col-xl-3">
+    <div class="stat">
+      <span class="stat-icon"><i class="bi {{ iconos.get(t, 'bi-tag') }}"></i></span>
+      <div class="stat-label">{{ t }}</div>
+      <div class="stat-value">{{ n }}</div>
+      <div class="stat-foot">{{ meses[mes] ~ ' ' if mes }}{{ anio }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Registrar -->
+<div class="card mb-4">
+  <div class="card-header"><i class="bi bi-plus-circle"></i>Registrar evento</div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('vacaciones.crear_evento') }}" class="row g-3 js-un-envio">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-lg-6">
+        <label class="form-label" for="ev_persona">Persona</label>
+        <select name="rh_id" id="ev_persona" class="form-select js-persona" required>
+          <option value="">Selecciona…</option>
+          {% for e in empleados %}
+          <option value="{{ e.rh_id }}">{{ e.nompropio }}{% if e.area %} — {{ e.area }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-6">
+        <label class="form-label" for="ev_fecha">Fecha</label>
+        <input type="date" name="fecha" id="ev_fecha" class="form-control" required>
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label" for="ev_tipo">Tipo</label>
+        <select id="ev_tipo" class="form-select js-tipo" data-categorias="#ev_categoria" required>
+          <option value="">Selecciona…</option>
+          {% for t in tipos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label" for="ev_categoria">Categoría</label>
+        <select name="tipo_evento" id="ev_categoria" class="form-select" required disabled>
+          <option value="">Elige primero el tipo…</option>
+        </select>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="ev_descripcion">Descripción</label>
+        <textarea name="descripcion" id="ev_descripcion" class="form-control" rows="2" maxlength="256" required
+                  placeholder="Motivo del permiso o del castigo"></textarea>
+      </div>
+      <div class="col-12 text-end">
+        <button class="btn btn-primary"><i class="bi bi-save"></i> Registrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Filtros -->
+<form method="GET" class="filter-bar" id="filtro_eventos">
+  <i class="bi bi-funnel text-muted ms-1"></i>
+  <input type="hidden" name="anio" value="{{ anio }}">
+  <select name="mes" class="form-select form-select-sm" aria-label="Mes" onchange="this.form.submit()">
+    <option value="">Todo el año</option>
+    {% for m in range(1, 13) %}
+    <option value="{{ m }}" {% if mes == m %}selected{% endif %}>{{ meses[m] }}</option>
+    {% endfor %}
+  </select>
+  <select name="tipo" class="form-select form-select-sm" aria-label="Tipo" onchange="this.form.submit()">
+    <option value="">Todos los tipos</option>
+    {% for t in tipos %}
+    <option value="{{ t }}" {% if tipo == t %}selected{% endif %}>{{ t }}</option>
+    {% endfor %}
+  </select>
+  <select name="area" class="form-select form-select-sm" aria-label="Área" onchange="this.form.submit()">
+    <option value="">Todas las áreas</option>
+    {% for a in areas %}
+    <option value="{{ a }}" {% if area == a %}selected{% endif %}>{{ a }}</option>
+    {% endfor %}
+  </select>
+  <div class="ev-persona">
+    <select name="persona" class="form-select form-select-sm" aria-label="Persona" onchange="this.form.submit()">
+      <option value="">Todas las personas</option>
+      {% for e in empleados %}
+      <option value="{{ e.rh_id }}" {% if persona == e.rh_id %}selected{% endif %}>{{ e.nompropio }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% if filtros %}
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('vacaciones.eventos', anio=anio) }}">
+    <i class="bi bi-x-lg"></i> Quitar filtros
+  </a>
+  {% endif %}
+</form>
+
+<!-- Listado -->
+<div class="card">
+  <div class="card-header">
+    <div class="d-flex align-items-center gap-1">
+      <a class="btn btn-sm btn-outline-secondary btn-icon" title="Año anterior" aria-label="Año anterior"
+         href="{{ url_for('vacaciones.eventos', anio=anio - 1, **filtros) }}"><i class="bi bi-chevron-left"></i></a>
+      <a class="btn btn-sm btn-outline-secondary btn-icon" title="Año siguiente" aria-label="Año siguiente"
+         href="{{ url_for('vacaciones.eventos', anio=anio + 1, **filtros) }}"><i class="bi bi-chevron-right"></i></a>
+      <span class="ms-2">Eventos de {{ meses[mes] ~ ' ' if mes }}{{ anio }}</span>
+    </div>
+    <span class="badge bg-secondary">{{ registros|length }}</span>
+  </div>
+  {% if registros %}
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle" data-tarjetas{% if registros|length > 5 %} data-buscable="Buscar por persona, área, tipo o descripción…"{% endif %}>
+      <thead>
+        <tr><th>Fecha</th><th data-titulo>Persona</th><th>Tipo</th><th>Descripción</th><th>Registró</th><th data-nosort></th></tr>
+      </thead>
+      <tbody>
+        {% for e in registros %}
+        <tr>
+          <td class="text-nowrap" data-valor="{{ e.fecha.isoformat() }}">
+            <span class="text-muted small">{{ dias_semana[e.fecha.weekday()] }}</span>
+            {{ e.fecha.strftime('%d/%m/%Y') }}
+          </td>
+          <td class="fw-semibold">
+            {{ e.empleado }}
+            {% if e.area %}<div class="small text-muted fw-normal">{{ e.area }}</div>{% endif %}
+          </td>
+          <td>
+            <span class="badge {{ badges.get(e.tipo, 'bg-secondary') }}">{{ e.tipo }}</span>
+            <div class="small text-muted">{{ e.categoria }}</div>
+          </td>
+          <td class="ev-desc">{{ e.descripcion }}</td>
+          <td class="small">
+            {{ e.registrado_por or '—' }}
+            <div class="text-muted">{{ e.fecha_registro.strftime('%d/%m/%Y') }}</div>
+          </td>
+          <td class="text-end">
+            <div class="d-inline-flex gap-1">
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalEvento"
+                      data-url="{{ url_for('vacaciones.editar_evento', reg_id=e.regID) }}"
+                      data-persona="{{ e.rhID }}" data-nombre="{{ e.empleado }}"
+                      data-fecha="{{ e.fecha.isoformat() }}" data-tipo="{{ e.tipo }}"
+                      data-categoria="{{ e.tipo_evento }}" data-descripcion="{{ e.descripcion }}">
+                <i class="bi bi-pencil"></i> Editar
+              </button>
+              <form method="POST" action="{{ url_for('vacaciones.eliminar_evento', reg_id=e.regID) }}"
+                    data-confirmar="¿Eliminar el evento de {{ e.empleado }} del {{ e.fecha.strftime('%d/%m/%Y') }} ({{ e.tipo }} · {{ e.categoria }})? No se puede deshacer."
+                    onsubmit="return confirm(this.dataset.confirmar);">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="volver" value="{{ request.full_path }}">
+                <button class="btn btn-sm btn-outline-danger" aria-label="Eliminar el evento de {{ e.empleado }} del {{ e.fecha.strftime('%d/%m/%Y') }}">
+                  <i class="bi bi-trash"></i> Eliminar
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon"><i class="bi bi-journal-text"></i></div>
+    <h6>Sin eventos en {{ meses[mes] ~ ' ' if mes }}{{ anio }}{% if filtros.persona or filtros.area or filtros.tipo %} con estos filtros{% endif %}</h6>
+    <p>Registra el primero con el formulario de arriba.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Editar -->
+<div class="modal fade" id="modalEvento" tabindex="-1" aria-labelledby="modalEventoTitulo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="POST" class="modal-content js-un-envio" id="formEvento">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalEventoTitulo">Modificar evento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label" for="edit_persona">Persona</label>
+            <select name="rh_id" id="edit_persona" class="form-select" required>
+              {% for e in empleados %}
+              <option value="{{ e.rh_id }}">{{ e.nompropio }}{% if e.area %} — {{ e.area }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="edit_fecha">Fecha</label>
+            <input type="date" name="fecha" id="edit_fecha" class="form-control" required>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label" for="edit_tipo">Tipo</label>
+            <select id="edit_tipo" class="form-select js-tipo" data-categorias="#edit_categoria" required>
+              {% for t in tipos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label" for="edit_categoria">Categoría</label>
+            <select name="tipo_evento" id="edit_categoria" class="form-select" required></select>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="edit_descripcion">Descripción</label>
+            <textarea name="descripcion" id="edit_descripcion" class="form-control" rows="3" maxlength="256" required></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const catalogo = {{ catalogo|tojson }};
+  const conSelect2 = !!(window.jQuery && $.fn.select2);
+
+  // La categoría depende del tipo: "Tema Personal" existe con goce y sin goce
+  const llenarCategorias = (selTipo, valor) => {
+    const sel = document.querySelector(selTipo.dataset.categorias);
+    const opciones = catalogo.filter(c => c.tipo === selTipo.value);
+    sel.replaceChildren(new Option(opciones.length ? 'Selecciona…' : 'Elige primero el tipo…', ''),
+                        ...opciones.map(c => new Option(c.categoria, c.regID)));
+    sel.disabled = !opciones.length;
+    sel.value = valor || '';
+  };
+  document.querySelectorAll('.js-tipo').forEach(s =>
+    s.addEventListener('change', () => llenarCategorias(s)));
+
+  // Un doble toque no debe enviar dos veces
+  document.querySelectorAll('.js-un-envio').forEach(f =>
+    f.addEventListener('submit', () => {
+      f.querySelector('button.btn-primary').disabled = true;
+    }));
+  // Al volver con "Atrás" el navegador restaura la página con el botón apagado
+  window.addEventListener('pageshow', () =>
+    document.querySelectorAll('.js-un-envio button.btn-primary').forEach(b => { b.disabled = false; }));
+
+  if (conSelect2) {
+    $('.js-persona').select2({ theme: 'bootstrap4', width: '100%', placeholder: 'Selecciona…' });
+    $('#filtro_eventos select[name="persona"]').select2({ theme: 'bootstrap4', width: '100%' });
+    $('#edit_persona').select2({ theme: 'bootstrap4', width: '100%', dropdownParent: $('#modalEvento') });
+  }
+
+  document.getElementById('modalEvento').addEventListener('show.bs.modal', (e) => {
+    const b = e.relatedTarget.dataset;
+    document.getElementById('formEvento').action = b.url;
+    document.getElementById('edit_fecha').value = b.fecha;
+    document.getElementById('edit_descripcion').value = b.descripcion;
+
+    // Alguien que ya causó baja no está en la lista de personal activo
+    const persona = document.getElementById('edit_persona');
+    if (![...persona.options].some(o => o.value === b.persona)) {
+      persona.add(new Option(b.nombre, b.persona));
+    }
+    persona.value = b.persona;
+    if (conSelect2) $(persona).trigger('change');
+
+    const tipo = document.getElementById('edit_tipo');
+    tipo.value = b.tipo;
+    llenarCategorias(tipo, b.categoria);
+  });
+});
+</script>
+{% endblock %}
