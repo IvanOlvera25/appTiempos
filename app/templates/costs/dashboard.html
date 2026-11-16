@@ -6,6 +6,16 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 
 <style>
+  /* width 0 + min-width 100%: ocupa lo que mida la celda sin ensancharla; si no cabe, baja de línea */
+  .motivo-cambio { display: flex; align-items: flex-start; gap: .3rem; margin-top: .2rem; width: 0; min-width: 100%;
+                   font-size: .74rem; font-weight: 500; line-height: 1.3; color: var(--ad-warning-ink); white-space: normal; }
+  .motivo-cambio .bi { margin-top: .1rem; }
+  #mapaUbicaciones { height: 320px; border-radius: var(--ad-radius); border: 1px solid var(--ad-border); background: var(--ad-surface-2); }
+  .ubic-lista { display: grid; gap: .6rem; margin-top: .9rem; }
+  .ubic-item { display: flex; align-items: flex-start; gap: .65rem; padding: .65rem .8rem; border: 1px solid var(--ad-border); border-radius: var(--ad-radius); }
+  .ubic-punto { width: 12px; height: 12px; border-radius: 50%; margin-top: .3rem; flex-shrink: 0; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+  .ubic-item .btn { flex-shrink: 0; }
+  @media (max-width: 575.98px) { #mapaUbicaciones { height: 240px; } .ubic-item { flex-wrap: wrap; } .ubic-item .btn { margin-left: 1.4rem !important; } }
   #filterForm .search-field { flex: 1 1 260px; }
   #filterForm .search-field .form-control { width: 100%; }
   #filterForm .input-group { width: auto; flex-wrap: nowrap; }
@@ -358,7 +368,7 @@
           </td>
           <td class="c-area"><span class="badge bg-light">{{ record.departamento or 'N/A' }}</span></td>
           <td class="c-act">
-            <span class="small text-truncate d-inline-block align-middle" style="max-width: 170px;" title="{{ record.actividad or '' }}">{{ record.actividad or 'Sin especificar' }}</span>
+            <span class="small text-truncate d-inline-block align-middle" style="max-width: 140px;" title="{{ record.actividad or '' }}">{{ record.actividad or 'Sin especificar' }}</span>
           </td>
           <td class="c-fecha text-nowrap">
             <div>{{ record.start_time_cdmx.strftime('%d/%m/%Y') }}</div>
@@ -370,6 +380,12 @@
                 <span class="text-success">en curso</span>
               {% endif %}
             </div>
+            {% set cambio = ultimos_cambios.get(record.id) %}
+            {% if cambio %}
+            <div class="motivo-cambio" title="{{ acciones.get(cambio.accion, cambio.accion) }}{% if cambio.usuario %} por {{ cambio.usuario.username }}{% endif %}, {{ cambio.creado_en|mx('%d/%m/%Y %H:%M') }}: {{ cambio.motivo }}">
+              <i class="bi bi-pencil-square"></i><span>{{ cambio.motivo }}</span>
+            </div>
+            {% endif %}
           </td>
           <td class="c-dur text-end text-nowrap">
             {% if record.end_time %}
@@ -394,6 +410,21 @@
                  title="Editar registro" data-bs-toggle="tooltip" aria-label="Editar registro">
                 <i class="bi bi-pencil"></i>
               </a>
+              {% set geo = ubicaciones.get(record.id) %}
+              {% if geo %}
+              <button type="button" class="btn btn-sm btn-outline-secondary btn-icon geo-btn"
+                      data-ubicaciones='{{ geo|tojson }}'
+                      data-titulo="{{ record.employee.nompropio }} · {{ record.start_time_cdmx.strftime('%d/%m/%Y') }}"
+                      title="Ver ubicaciones" data-bs-toggle="tooltip" aria-label="Ver ubicaciones del registro">
+                <i class="bi bi-geo-alt"></i>
+              </button>
+              {% else %}
+              <span class="d-inline-block" title="Sin ubicación registrada" data-bs-toggle="tooltip" tabindex="0">
+                <button type="button" class="btn btn-sm btn-outline-secondary btn-icon" disabled aria-label="Sin ubicación registrada">
+                  <i class="bi bi-geo-alt"></i>
+                </button>
+              </span>
+              {% endif %}
               {% if not record.end_time %}
               <button type="button"
                       class="btn btn-sm btn-outline-warning btn-icon finalize-btn"
@@ -511,7 +542,13 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
-        <p class="mb-0">¿Seguro que quieres finalizar este registro de tiempo? Se cerrará con la hora actual.</p>
+        <p>Se cerrará con la hora actual.</p>
+        <label class="form-label" for="finalizeMotivo">Motivo <span class="text-danger">*</span></label>
+        <select id="finalizeMotivo" class="form-select" required>
+          <option value="">Selecciona el motivo…</option>
+          {% for m in motivos %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+        </select>
+        <div class="invalid-feedback">Elige el motivo para finalizar el registro.</div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -521,8 +558,112 @@
   </div>
 </div>
 
+<!-- Ubicaciones de un registro -->
+<div class="modal fade" id="ubicacionesModal" tabindex="-1" aria-labelledby="ubicacionesTitulo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="ubicacionesTitulo">Ubicaciones del registro</h5>
+          <div class="small text-muted" id="ubicacionesSub"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="mapaUbicaciones" role="img" aria-label="Mapa con la ubicación de inicio y de fin"></div>
+        <div class="ubic-lista" id="ubicacionesLista"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // -------- Ubicaciones (Leaflet se carga solo la primera vez que se abre) --------
+  const esc = (window.App && App.escapar) || (t => String(t == null ? '' : t));
+  const COLORES = { inicio: '#12b76a', fin: '#d92d20' };
+  const ETIQUETAS = { inicio: 'Inicio', fin: 'Fin' };
+  const ubicModalEl = document.getElementById('ubicacionesModal');
+  const ubicModal = new bootstrap.Modal(ubicModalEl);
+  let mapa = null, capa = null, cargaLeaflet = null, pendientes = null;
+
+  const cargarLeaflet = () => cargaLeaflet || (cargaLeaflet = new Promise((resolve, reject) => {
+    if (window.L) return resolve();
+    const css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = 'https://unpkg.com/leaflet@1.7.1/dist/leaflet.css';
+    document.head.appendChild(css);
+    const js = document.createElement('script');
+    js.src = 'https://unpkg.com/leaflet@1.7.1/dist/leaflet.js';
+    js.onload = resolve;
+    js.onerror = () => { cargaLeaflet = null; reject(); };
+    document.head.appendChild(js);
+  }));
+
+  const metros = (a, b) => {
+    const r = Math.PI / 180, R = 6371000;
+    const dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  };
+  const distancia = (m) => m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
+
+  const pintarLista = (datos) => {
+    const lista = document.getElementById('ubicacionesLista');
+    lista.innerHTML = ['inicio', 'fin'].map(k => {
+      const u = datos[k];
+      if (!u) {
+        return `<div class="ubic-item text-muted"><span class="ubic-punto" style="background:${COLORES[k]};opacity:.35"></span>
+          <div><div class="fw-semibold text-body">${ETIQUETAS[k]}</div>
+          <div class="small">Sin ubicación${k === 'fin' ? ': se cerró antes de este cambio, desde Costos o automáticamente' : ''}.</div></div></div>`;
+      }
+      const coords = `${u.lat.toFixed(6)}, ${u.lng.toFixed(6)}`;
+      return `<div class="ubic-item"><span class="ubic-punto" style="background:${COLORES[k]}"></span>
+        <div class="flex-grow-1 min-w-0"><div class="fw-semibold">${ETIQUETAS[k]}${u.cuando ? ` · ${esc(u.cuando)}` : ''}</div>
+        <div class="small text-muted">${coords}${u.precision ? ` · precisión de ${Math.round(u.precision)} m` : ''}</div></div>
+        <a class="btn btn-sm btn-outline-secondary ms-auto" target="_blank" rel="noopener"
+           href="https://www.google.com/maps?q=${u.lat},${u.lng}"><i class="bi bi-box-arrow-up-right"></i> Google Maps</a></div>`;
+    }).join('') + (datos.inicio && datos.fin
+      ? `<div class="small text-muted"><i class="bi bi-arrows"></i> Distancia entre inicio y fin: <b class="text-body">${distancia(metros(datos.inicio, datos.fin))}</b></div>`
+      : '');
+  };
+
+  const pintarMapa = (datos) => {
+    if (!mapa) {
+      mapa = L.map('mapaUbicaciones', { scrollWheelZoom: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '&copy; OpenStreetMap',
+      }).addTo(mapa);
+    }
+    if (capa) capa.remove();
+    capa = L.featureGroup().addTo(mapa);
+    ['inicio', 'fin'].forEach(k => {
+      const u = datos[k];
+      if (!u) return;
+      if (u.precision) L.circle([u.lat, u.lng], { radius: u.precision, color: COLORES[k], weight: 1, fillOpacity: .08 }).addTo(capa);
+      L.circleMarker([u.lat, u.lng], { radius: 9, color: '#fff', weight: 2, fillColor: COLORES[k], fillOpacity: 1 })
+        .bindTooltip(ETIQUETAS[k] + (u.cuando ? ' · ' + u.cuando : '')).addTo(capa);
+    });
+    mapa.invalidateSize();
+    const puntos = ['inicio', 'fin'].filter(k => datos[k]).map(k => [datos[k].lat, datos[k].lng]);
+    if (puntos.length === 1) mapa.setView(puntos[0], 17);
+    else mapa.fitBounds(L.latLngBounds(puntos), { padding: [40, 40], maxZoom: 17 });
+  };
+
+  document.querySelectorAll('.geo-btn').forEach(btn => btn.addEventListener('click', () => {
+    const datos = JSON.parse(btn.dataset.ubicaciones);
+    document.getElementById('ubicacionesSub').textContent = btn.dataset.titulo || '';
+    pintarLista(datos);
+    pendientes = datos;
+    ubicModal.show();
+  }));
+  ubicModalEl.addEventListener('shown.bs.modal', () => {
+    const datos = pendientes;
+    cargarLeaflet().then(() => pintarMapa(datos)).catch(() => {
+      document.getElementById('mapaUbicaciones').innerHTML =
+        '<div class="empty py-5"><p>No se pudo cargar el mapa. Usa los enlaces a Google Maps.</p></div>';
+    });
+  });
+
   // -------- CSRF --------
   function getCSRFToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
@@ -662,18 +803,28 @@ document.addEventListener('DOMContentLoaded', function() {
   const finalizeModal = new bootstrap.Modal(document.getElementById('finalizeModal'));
   let recordToFinalize = null;
 
+  const motivoFinalizar = document.getElementById('finalizeMotivo');
   document.querySelectorAll('.finalize-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       recordToFinalize = this.getAttribute('data-record-id');
+      motivoFinalizar.value = '';
+      motivoFinalizar.classList.remove('is-invalid');
       finalizeModal.show();
     });
   });
+  motivoFinalizar.addEventListener('change', () => motivoFinalizar.classList.remove('is-invalid'));
 
   document.getElementById('confirmFinalizeBtn').addEventListener('click', function() {
     if (!recordToFinalize) return;
+    if (!motivoFinalizar.value) {
+      motivoFinalizar.classList.add('is-invalid');
+      motivoFinalizar.focus();
+      return;
+    }
     fetch(`/costs/finalize/${recordToFinalize}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() }
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCSRFToken() },
+      body: JSON.stringify({ motivo: motivoFinalizar.value })
     })
     .then(r => r.json())
     .then(data => {

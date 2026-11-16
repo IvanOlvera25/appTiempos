@@ -431,5 +431,49 @@
   // Si el navegador regresa con "atrás" desde la caché, no dejar el indicador colgado
   window.addEventListener('pageshow', (e) => { if (e.persisted) window.AppLoader.hide(); });
 
-  window.App = { toast, normalizar: norm, escapar: esc, mejorarTabla, tarjetas, abrirBusqueda: abrirPaleta, alternarMenu };
+  /* ───────────── Ubicación (obligatoria para iniciar y finalizar tiempos) ─────────────
+     App.ubicacion() → promesa con {latitude, longitude, accuracy}; si no se puede,
+     se rechaza con un mensaje listo para mostrar. Primero intenta con GPS y, si no
+     responde a tiempo, con la ubicación aproximada (wifi o red celular). */
+  const MSG_UBICACION = {
+    0: 'Este navegador no puede compartir tu ubicación. Usa Chrome o Safari actualizados.',
+    1: 'La ubicación está bloqueada para esta página. Permítela (en el candado junto a la dirección, o en Ajustes › Privacidad › Ubicación del celular) y vuelve a intentarlo.',
+    2: 'No se pudo saber dónde estás. Revisa que la ubicación del dispositivo esté encendida y vuelve a intentarlo.',
+    3: 'Tu ubicación tardó demasiado en llegar. Vuelve a intentarlo; con wifi o datos activos suele ser más rápido.',
+  };
+  function ubicacion({ reciente = true } = {}) {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation || window.isSecureContext === false) return reject(MSG_UBICACION[0]);
+      const listo = (p) => resolve({
+        latitude: p.coords.latitude, longitude: p.coords.longitude,
+        accuracy: Math.round(p.coords.accuracy || 0),
+      });
+      const pedir = (precisa, alFallar) => navigator.geolocation.getCurrentPosition(listo, alFallar, {
+        enableHighAccuracy: precisa, timeout: precisa ? 12000 : 15000, maximumAge: reciente ? 30000 : 300000,
+      });
+      pedir(true, (e) => (e.code === 1
+        ? reject(MSG_UBICACION[1])
+        : pedir(false, (e2) => reject(MSG_UBICACION[e2.code] || MSG_UBICACION[2]))));
+    });
+  }
+
+  /* <div data-estado-ubicacion> dice si ya se tiene la ubicación. Se pide al abrir
+     la pantalla para que el permiso no sorprenda a la hora de registrar. */
+  function vigilarUbicacion(el) {
+    if (!el) return { ok() {}, error() {} };
+    const pintar = (estado, html) => { el.dataset.estado = estado; el.innerHTML = html; };
+    const ok = (u) => pintar('ok', `<i class="bi bi-geo-alt-fill"></i><span>Ubicación activa${u.accuracy ? ` · precisión de ${u.accuracy} m` : ''}</span>`);
+    const error = (msg) => pintar('error', `<i class="bi bi-geo-alt"></i><span>${esc(msg)}</span>
+      <button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-reintentar><i class="bi bi-arrow-clockwise"></i> Reintentar</button>`);
+    const intentar = () => {
+      pintar('buscando', '<span class="spinner-border spinner-border-sm"></span><span>Obteniendo tu ubicación… es obligatoria para registrar tiempos.</span>');
+      ubicacion({ reciente: false }).then(ok, error);
+    };
+    el.addEventListener('click', (e) => { if (e.target.closest('[data-reintentar]')) intentar(); });
+    intentar();
+    return { ok, error };
+  }
+
+  window.App = { toast, normalizar: norm, escapar: esc, mejorarTabla, tarjetas, abrirBusqueda: abrirPaleta, alternarMenu,
+                 ubicacion, vigilarUbicacion };
 })();

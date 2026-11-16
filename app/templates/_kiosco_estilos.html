@@ -2,6 +2,13 @@
    register_employee, register_project y register_project_imp. #}
 <style>
   .kiosco { max-width: 1180px; margin: 0 auto; padding-bottom: 6.5rem; }
+  .k-ubic { display: flex; align-items: center; gap: .55rem; padding: .55rem 1.25rem; font-size: .84rem; line-height: 1.35;
+            border-top: 1px solid var(--ad-border); background: var(--ad-surface-2); color: var(--ad-text-2); }
+  .k-ubic .bi { flex-shrink: 0; }
+  .k-ubic[data-estado="ok"] { background: var(--ad-success-soft); color: var(--ad-success-ink); }
+  .k-ubic[data-estado="error"] { background: var(--ad-danger-soft); color: var(--ad-danger-ink); font-weight: 500; }
+  .k-ubic[data-estado="error"] .btn { flex-shrink: 0; }
+  @media (max-width: 575.98px) { .k-ubic { padding: .5rem .9rem; flex-wrap: wrap; } .k-ubic[data-estado="error"] .btn { margin-left: 0 !important; } }
   .k-head { background: var(--ad-surface); border: 1px solid var(--ad-border); border-radius: var(--ad-radius-xl); box-shadow: var(--ad-shadow-xs); margin-bottom: 1.25rem; overflow: hidden; }
   .k-who { display: flex; align-items: center; gap: .9rem; padding: 1rem 1.25rem; }
   .k-who-name { font-size: 1.15rem; font-weight: 650; letter-spacing: -.01em; line-height: 1.2; }

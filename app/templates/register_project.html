@@ -26,6 +26,7 @@
       </a>
       {% endif %}
     </div>
+    <div class="k-ubic" data-estado-ubicacion role="status" aria-live="polite"></div>
     <ol class="k-steps">
       <li class="done"><span>1</span>Persona</li>
       <li class="current" id="paso-proyecto"><span>2</span>Proyecto</li>
@@ -67,6 +68,7 @@
     <input type="hidden" id="activity_hidden" name="activity">
     <input type="hidden" name="latitude" id="latitude">
     <input type="hidden" name="longitude" id="longitude">
+    <input type="hidden" name="accuracy" id="accuracy">
 
     <!-- Paso 2: proyecto -->
     <section id="project-selection">
@@ -192,19 +194,12 @@
 <div id="flashOverlay" style="position: fixed; inset: 0; background: white; opacity: 0; z-index: 9999; pointer-events: none; transition: opacity 0.3s;"></div>
 
 <script>
-  // 1) Geolocalización
-  function setGeolocation() {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        function (position) {
-          document.getElementById('latitude').value = position.coords.latitude;
-          document.getElementById('longitude').value = position.coords.longitude;
-        },
-        function (error) { console.error("Error al obtener la ubicación:", error); }
-      );
-    }
-  }
-  window.onload = setGeolocation;
+  // 1) Ubicación: obligatoria; se pide al abrir y otra vez, fresca, al iniciar o finalizar.
+  //    Este script va dentro del contenido y corre antes que app.js: App se usa ya cargada.
+  let estadoUbicacion = { ok() {}, error() {} };
+  document.addEventListener('DOMContentLoaded', () => {
+    estadoUbicacion = App.vigilarUbicacion(document.querySelector('[data-estado-ubicacion]'));
+  });
 
   // Selección de proyecto y actividad
   const projectCards = document.querySelectorAll('.project-card');
@@ -314,32 +309,58 @@
       btn.addEventListener('click', function () { clickedButtonName = this.name; });
     });
 
-    form.addEventListener('submit', function (e) {
-      if (isSubmitting) { e.preventDefault(); return false; }
-      const isIniciar = clickedButtonName === 'iniciar';
-      const isFinalizar = clickedButtonName === 'finalizar';
+    const botones = [...form.querySelectorAll('button[type="submit"]')];
+    const bloquear = (si) => {
+      botones.forEach(btn => {
+        if (si) btn.dataset.estabaApagado = btn.disabled ? '1' : '';
+        btn.disabled = si || btn.dataset.estabaApagado === '1';
+        btn.style.opacity = si ? '0.6' : '';
+        btn.style.cursor = si ? 'not-allowed' : '';
+      });
+    };
 
-      if (isIniciar && !activityHid.value) {
-        e.preventDefault();
-        clickedButtonName = null;
+    // El envío espera a tener la ubicación; sin ella no se inicia ni se finaliza
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (isSubmitting) return false;
+      const boton = e.submitter || botones.find(b => b.name === clickedButtonName);
+      const accion = boton ? boton.name : clickedButtonName;
+      clickedButtonName = null;
+
+      if (accion === 'iniciar' && !activityHid.value) {
         App.toast('Selecciona una actividad antes de iniciar.', 'warning', 5000);
         return false;
       }
 
       isSubmitting = true;
-      setTimeout(function () {
-        form.querySelectorAll('button[type="submit"]').forEach(btn => {
-          btn.disabled = true;
-          btn.style.opacity = '0.6';
-          btn.style.cursor = 'not-allowed';
-        });
-        if (window.AppLoader) {
-          if (isIniciar) AppLoader.showTimeStart();
-          else if (isFinalizar) AppLoader.showTimeEnd();
-          else AppLoader.show('Procesando...', 'Por favor espere');
+      bloquear(true);
+      AppLoader.show('Obteniendo tu ubicación…', 'Es obligatoria para registrar tu tiempo');
+      App.ubicacion().then(u => {
+        document.getElementById('latitude').value = u.latitude;
+        document.getElementById('longitude').value = u.longitude;
+        document.getElementById('accuracy').value = u.accuracy;
+        estadoUbicacion.ok(u);
+        AppLoader.hide();
+        if (accion === 'iniciar') AppLoader.showTimeStart();
+        else if (accion === 'finalizar') AppLoader.showTimeEnd();
+        else AppLoader.show('Procesando...', 'Por favor espere');
+        // form.submit() no manda el botón presionado: viaja en un campo oculto
+        if (accion) {
+          form.querySelectorAll('input[data-boton]').forEach(i => i.remove());
+          const campo = document.createElement('input');
+          Object.assign(campo, { type: 'hidden', name: accion, value: boton ? boton.value : accion });
+          campo.dataset.boton = '1';
+          form.appendChild(campo);
         }
-      }, 50);
-      return true;
+        form.submit();
+      }).catch(msg => {
+        AppLoader.hide();
+        isSubmitting = false;
+        bloquear(false);
+        estadoUbicacion.error(msg);
+        App.toast(msg, 'danger', 10000);
+      });
+      return false;
     });
   })();
 </script>

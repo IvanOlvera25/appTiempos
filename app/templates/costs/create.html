@@ -143,6 +143,18 @@
       </div>
     </div>
 
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-chat-square-text"></i>Motivo <span class="text-danger">*</span></div>
+      <div class="card-body">
+        <label for="motivo" class="form-label">¿Por qué se registra desde aquí?</label>
+        <select name="motivo" id="motivo" class="form-select" required>
+          <option value="">Selecciona el motivo…</option>
+          {% for m in motivos %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+        </select>
+        <div class="form-text">Queda guardado en el historial del registro, con tu usuario y la fecha.</div>
+      </div>
+    </div>
+
     <div class="acciones-form">
       <a href="{{ url_for('main.costs_dashboard') }}" class="btn btn-outline-secondary">Cancelar</a>
       <button type="submit" class="btn btn-primary">

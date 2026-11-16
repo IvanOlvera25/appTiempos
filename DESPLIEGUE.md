@@ -2,6 +2,62 @@
 
 Pasos para actualizar la app en PythonAnywhere después de un `git pull`.
 
+## 0. Ubicación obligatoria y motivos de cambio — requiere migrar (noviembre 2026)
+
+Agrega dos tablas nuevas, `time_record_locations` (dónde se inició y finalizó
+cada registro) y `time_record_changes` (motivo de las altas y cambios hechos
+desde Costos). No toca `time_records` ni ningún dato existente.
+
+```bash
+git pull
+FLASK_SKIP_SCHEDULER=1 flask db upgrade e7c2a1f9b4d0   # con el virtualenv activo, ver 4b
+```
+
+Recarga la web app. **Usa el destino `e7c2a1f9b4d0`, no `flask db upgrade` a secas**:
+sin destino también correría la fase 2, que sigue detenida (sección 4).
+
+Si se recarga sin migrar, registrar tiempos sigue funcionando (la ubicación de
+inicio se guarda en `time_records` como siempre), pero la ubicación de fin y los
+motivos no se guardan y queda un error en el log que pide correr la migración.
+
+Si `flask db` no funciona en la consola, el mismo cambio en SQL:
+
+```sql
+CREATE TABLE time_record_locations (
+    id INTEGER NOT NULL AUTO_INCREMENT,
+    time_record_id INTEGER NOT NULL,
+    momento VARCHAR(10) NOT NULL,
+    latitude DOUBLE NOT NULL,
+    longitude DOUBLE NOT NULL,
+    precision_m FLOAT,
+    registrada_en DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uq_time_record_location UNIQUE (time_record_id, momento),
+    FOREIGN KEY (time_record_id) REFERENCES time_records (id) ON DELETE CASCADE
+);
+CREATE INDEX ix_time_record_locations_time_record_id ON time_record_locations (time_record_id);
+CREATE TABLE time_record_changes (
+    id INTEGER NOT NULL AUTO_INCREMENT,
+    time_record_id INTEGER NOT NULL,
+    user_id INTEGER,
+    creado_en DATETIME NOT NULL,
+    accion VARCHAR(12) NOT NULL,
+    motivo VARCHAR(60) NOT NULL,
+    detalle TEXT,
+    PRIMARY KEY (id),
+    FOREIGN KEY (time_record_id) REFERENCES time_records (id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
+);
+CREATE INDEX ix_time_record_changes_time_record_id ON time_record_changes (time_record_id);
+UPDATE alembic_version SET version_num = 'e7c2a1f9b4d0' WHERE version_num = 'd4e19a7c5b83';
+```
+
+Antes de recargar, conviene revisar los equipos compartidos (tabletas o
+computadoras de las áreas): **sin ubicación ya no se puede iniciar ni finalizar
+un tiempo**. El navegador debe tener permitida la ubicación para la página y el
+dispositivo debe tenerla encendida. En los 30 días previos al cambio, alrededor de
+la mitad de los registros llegaban sin ubicación, y los de Impresión, ninguno.
+
 ## 1. Permisos sobre AD17_RH — LISTO
 
 RH ya otorgó a `IvanUriel` los permisos de escritura a nivel de tabla:
@@ -58,7 +114,7 @@ para después:
 
 | Fase | Comando | Qué hace |
 |---|---|---|
-| **1 — aditiva** | `flask db upgrade d4e19a7c5b83` | Crea `areas_config` con las 7 áreas de siempre, agrega los perfiles RH/Ejecutivo y las tablas de incidencias. **No toca ningún dato existente.** |
+| **1 — aditiva** | `flask db upgrade e7c2a1f9b4d0` | Crea `areas_config` con las 7 áreas de siempre, agrega los perfiles RH/Ejecutivo, las tablas de incidencias y las de ubicaciones y motivos de cambio. **No toca ningún dato existente.** |
 | **2 — destructiva** | `flask db upgrade` | Convierte `employees` en vista sobre `AD17_RH` y remapea `employee_id` a `rhID`. |
 
 Para volver a operar basta la fase 1. La fase 2 puede esperar al momento que
@@ -69,7 +125,7 @@ elijas.
 ```bash
 git pull
 pip install -r requirements.txt          # no hay dependencias nuevas
-flask db upgrade d4e19a7c5b83
+flask db upgrade e7c2a1f9b4d0
 ```
 
 Recarga la web app. Con esto vuelven los botones de área, el login y quedan
@@ -162,7 +218,7 @@ python -c "import flask, flask_sqlalchemy; print(flask.__version__, flask_sqlalc
 Debe imprimir `3.1.0 3.1.1`. Con eso ya corre:
 
 ```bash
-FLASK_SKIP_SCHEDULER=1 flask db upgrade d4e19a7c5b83
+FLASK_SKIP_SCHEDULER=1 flask db upgrade e7c2a1f9b4d0
 ```
 
 `FLASK_SKIP_SCHEDULER=1` evita que APScheduler arranque en la consola; no afecta

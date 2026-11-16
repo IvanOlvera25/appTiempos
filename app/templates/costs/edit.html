@@ -207,18 +207,36 @@
           </div>
         </div>
 
-        <!-- Coordenadas (solo lectura) -->
-        {% if record.latitude and record.longitude %}
-        <div class="d-flex flex-wrap align-items-center gap-2 mt-3 pt-3 border-top small">
-          <i class="bi bi-geo-alt text-muted"></i>
-          <span class="text-muted">Ubicación registrada:</span>
-          <span class="fw-semibold">{{ record.latitude }}, {{ record.longitude }}</span>
-          <a href="https://maps.google.com/?q={{ record.latitude }},{{ record.longitude }}"
+        <!-- Ubicaciones (solo lectura) -->
+        {% for clave, etiqueta in (('inicio', 'Inicio'), ('fin', 'Fin')) %}
+        {% set u = ubicaciones.get(clave) %}
+        <div class="d-flex flex-wrap align-items-center gap-2 {{ 'mt-3 pt-3 border-top' if loop.first else 'mt-2' }} small">
+          <i class="bi bi-geo-alt{{ '-fill' if u else '' }} {{ 'text-success' if clave == 'inicio' else 'text-danger' }}"></i>
+          <span class="text-muted">Ubicación de {{ etiqueta|lower }}:</span>
+          {% if u %}
+          <span class="fw-semibold">{{ '%.6f'|format(u.lat) }}, {{ '%.6f'|format(u.lng) }}</span>
+          {% if u.precision %}<span class="text-muted">· precisión de {{ u.precision|round|int }} m</span>{% endif %}
+          <a href="https://www.google.com/maps?q={{ u.lat }},{{ u.lng }}"
              target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary ms-auto">
             <i class="bi bi-box-arrow-up-right"></i> Ver en mapa
           </a>
+          {% else %}
+          <span class="text-muted">sin registrar</span>
+          {% endif %}
         </div>
-        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-chat-square-text"></i>Motivo del cambio <span class="text-danger">*</span></div>
+      <div class="card-body">
+        <label for="motivo" class="form-label">¿Por qué se modifica este registro?</label>
+        <select name="motivo" id="motivo" class="form-select" required>
+          <option value="">Selecciona el motivo…</option>
+          {% for m in motivos %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+        </select>
+        <div class="form-text">Queda guardado en el historial, con tu usuario, la fecha y lo que cambió.</div>
       </div>
     </div>
 
@@ -229,6 +247,28 @@
       </button>
     </div>
   </form>
+
+  <!-- Historial de cambios -->
+  <div class="card mt-4">
+    <div class="card-header"><i class="bi bi-clock-history"></i>Historial de cambios
+      {% if historial %}<span class="badge bg-secondary ms-auto">{{ historial|length }}</span>{% endif %}</div>
+    {% if historial %}
+    <ul class="list-group list-group-flush">
+      {% for c in historial %}
+      <li class="list-group-item">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <span class="badge bg-light">{{ acciones.get(c.accion, c.accion) }}</span>
+          <span class="fw-semibold">{{ c.motivo }}</span>
+          <span class="small text-muted ms-auto">{{ c.creado_en|mx('%d/%m/%Y %H:%M') }}{% if c.usuario %} · {{ c.usuario.username }}{% endif %}</span>
+        </div>
+        {% if c.detalle %}<div class="small text-muted mt-1">{{ c.detalle }}</div>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty py-4"><p>Sin cambios registrados desde Costos.</p></div>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}
 

@@ -93,6 +93,61 @@ class TimeRecord(db.Model):
         )
 
 
+class TimeRecordLocation(db.Model):
+    """
+    Dónde estaba la persona al iniciar y al finalizar un registro de tiempo.
+
+    Va en una tabla aparte, y no como columnas de `time_records`, para no tocar
+    esa tabla (la usan los triggers de analítica de Impresión). El inicio se
+    sigue copiando en `time_records.latitude/longitude`, que es lo que lee el
+    mapa en vivo.
+    """
+    __tablename__ = 'time_record_locations'
+
+    INICIO = 'INICIO'
+    FIN = 'FIN'
+
+    id             = db.Column(db.Integer, primary_key=True)
+    time_record_id = db.Column(db.Integer, db.ForeignKey('time_records.id', ondelete='CASCADE'),
+                               nullable=False, index=True)
+    momento        = db.Column(db.String(10), nullable=False)
+    # DOUBLE: el FLOAT de MySQL redondea las coordenadas a cerca de un metro
+    latitude       = db.Column(db.Double, nullable=False)
+    longitude      = db.Column(db.Double, nullable=False)
+    precision_m    = db.Column(db.Float, nullable=True)    # radio de error que reporta el navegador
+    registrada_en  = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('time_record_id', 'momento', name='uq_time_record_location'),
+    )
+
+
+class TimeRecordChange(db.Model):
+    """Por qué Administración dio de alta, modificó o cerró un registro desde Costos."""
+    __tablename__ = 'time_record_changes'
+
+    MOTIVOS = (
+        'No se registró salida',
+        'Corrección de Horario',
+        'Con asistencia sin registro',
+        'Falla del sistema',
+        'El tiempo seguía en progreso',
+    )
+    ACCIONES = {'ALTA': 'Alta', 'EDICION': 'Modificación', 'FINALIZADO': 'Finalizado'}
+
+    id             = db.Column(db.Integer, primary_key=True)
+    time_record_id = db.Column(db.Integer, db.ForeignKey('time_records.id', ondelete='CASCADE'),
+                               nullable=False, index=True)
+    user_id        = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'),
+                               nullable=True)
+    creado_en      = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    accion         = db.Column(db.String(12), nullable=False)
+    motivo         = db.Column(db.String(60), nullable=False)
+    detalle        = db.Column(db.Text, nullable=True)    # qué cambió, en hora de CDMX
+
+    usuario = db.relationship('User')
+
+
 # =========================
 # User
 # =========================

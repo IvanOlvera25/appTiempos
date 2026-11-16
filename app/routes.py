@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, session, current_app
-from .models import db, Employee, Project, TimeRecord, User, DepartmentActivity, AreaConfig
+from .models import db, Employee, Project, TimeRecord, User, DepartmentActivity, AreaConfig, TimeRecordChange
 from .catalogs import (
     GENERAL_KEY, GENERAL_LABEL, activity_departments, area_usa_flujo_impresion,
     clave_area, department_label, ensure_seed_activities, ensure_seed_areas, get_area,
@@ -16,6 +16,7 @@ from sqlalchemy import case, func, text  # Para MySQL TIMESTAMPDIFF
 from wtforms.validators import DataRequired, Length, ValidationError
 from werkzeug.security import generate_password_hash, check_password_hash
 from . import db, csrf
+from . import trazabilidad as traza
 from flask_login import login_required, current_user, login_user, logout_user
 from sqlalchemy.exc import IntegrityError
 import pymysql
@@ -172,14 +173,15 @@ def _rechazado_por_analitica(exc):
     return any(marca in texto for marca in _MARCAS_TRIGGER_ANALITICA)
 
 
-def _cerrar_registros_previos(employee_id, department, project_id):
+def _cerrar_registros_previos(employee_id, department, project_id, ubicacion=None):
     """Cierra lo que el empleado deja abierto al iniciar un registro nuevo.
 
     En un area normal se cierra todo lo abierto, venga de donde venga (antes solo
     se cerraba el primero y los varios abiertos de Impresion quedaban colgados).
     En un area con flujo de impresion se conservan los registros abiertos de esa
     misma area, salvo el del mismo proyecto, pero se cierran los de otras areas.
-    Devuelve cuantos registros cerro.
+    Devuelve cuantos registros cerro. Su ubicacion de fin es `ubicacion`: donde
+    esta la persona al iniciar lo nuevo.
     """
     abiertos = TimeRecord.query.filter_by(employee_id=employee_id, end_time=None).all()
     if area_usa_flujo_impresion(department):
@@ -188,6 +190,7 @@ def _cerrar_registros_previos(employee_id, department, project_id):
     ahora = datetime.utcnow()
     for r in abiertos:
         r.end_time = ahora
+        traza.guardar_ubicacion(r.id, 'FIN', ubicacion)
     if abiertos:
         db.session.commit()
     return len(abiertos)
@@ -419,6 +422,10 @@ def register_project():
     # Acciones de POST
     if 'finalizar' in request.form:
         employee_id = form.employee_id.data or request.form.get('employee_id')
+        ubicacion = traza.ubicacion_del_form()
+        if not ubicacion:
+            flash(traza.MSG_SIN_UBICACION, 'danger')
+            return redirect(url_for('main.register_project', department=department, employee_id=employee_id))
         # Buscar el registro abierto más reciente para el empleado
         open_record = TimeRecord.query.filter_by(
             employee_id=employee_id,
@@ -428,6 +435,7 @@ def register_project():
             flash('No se encontró ningún registro de tiempo abierto para este empleado.', 'warning')
             return redirect(url_for('main.register_project', department=department, employee_id=employee_id))
         open_record.end_time = datetime.utcnow()
+        traza.guardar_ubicacion(open_record.id, 'FIN', ubicacion)
         db.session.commit()
         flash('Registro de tiempo finalizado exitosamente.', 'success')
         return redirect(url_for('main.register_employee', department=department, employee_id=employee_id))
@@ -435,17 +443,7 @@ def register_project():
     # Iniciar nuevo registro
     if form.validate_on_submit():
         if form.iniciar.data:
-            # Finalizar registro(s) abierto(s) previos, tambien los de otras areas
-            if _cerrar_registros_previos(form.employee_id.data, department, form.project_id.data):
-                flash("Se finalizaron automáticamente los registros anteriores.", "info")
-
-            # Geolocalización opcional
-            try:
-                latitude = float(request.form.get('latitude', 0))
-                longitude = float(request.form.get('longitude', 0))
-            except ValueError:
-                latitude, longitude = None, None
-
+            # Primero se valida todo: si falta algo no se cierra nada de lo abierto
             activity = (request.form.get('activity') or '').strip()
             if not activity:
                 flash('Debes seleccionar una actividad antes de iniciar el registro.', 'warning')
@@ -453,17 +451,31 @@ def register_project():
                                         department=department,
                                         employee_id=form.employee_id.data))
 
+            ubicacion = traza.ubicacion_del_form()
+            if not ubicacion:
+                flash(traza.MSG_SIN_UBICACION, 'danger')
+                return redirect(url_for('main.register_project',
+                                        department=department,
+                                        employee_id=form.employee_id.data))
+
+            # Finalizar registro(s) abierto(s) previos, tambien los de otras areas
+            if _cerrar_registros_previos(form.employee_id.data, department,
+                                         form.project_id.data, ubicacion):
+                flash("Se finalizaron automáticamente los registros anteriores.", "info")
+
             new_record = TimeRecord(
                 employee_id=form.employee_id.data,
                 project_id=form.project_id.data,
                 start_time=datetime.utcnow(),
                 end_time=None,
-                latitude=latitude,
-                longitude=longitude,
+                latitude=ubicacion['latitude'],
+                longitude=ubicacion['longitude'],
                 departamento=department,
                 actividad=activity
             )
             db.session.add(new_record)
+            db.session.flush()
+            traza.guardar_ubicacion(new_record.id, 'INICIO', ubicacion)
             db.session.commit()
             flash('Registro de tiempo iniciado exitosamente.', 'success')
             return redirect(url_for('main.register_employee',
@@ -535,9 +547,15 @@ def register_project_imp():
     if request.method == 'POST':
         # finalizar registro específico (por id)
         if 'finalize_rec_id' in request.form:
+            ubicacion = traza.ubicacion_del_form()
+            if not ubicacion:
+                flash(traza.MSG_SIN_UBICACION, 'danger')
+                return redirect(url_for('main.register_project_imp',
+                                        department=department, employee_id=employee_id))
             rec = TimeRecord.query.get(int(request.form['finalize_rec_id']))
             if rec and rec.end_time is None:
                 rec.end_time = datetime.utcnow()
+                traza.guardar_ubicacion(rec.id, 'FIN', ubicacion)
                 db.session.commit()
                 flash('Registro específico finalizado.', 'success')
             return redirect(url_for(
@@ -550,18 +568,15 @@ def register_project_imp():
         if form.validate_on_submit() and 'iniciar' in request.form:
             proj_id  = form.project_id.data
             activity = request.form.get('activity')
+            ubicacion = traza.ubicacion_del_form()
             if not proj_id or not activity:
                 flash('Selecciona proyecto y actividad.', 'warning')
+            elif not ubicacion:
+                flash(traza.MSG_SIN_UBICACION, 'danger')
             else:
-                try:
-                    lat = float(request.form.get('latitude', 0))
-                    lon = float(request.form.get('longitude', 0))
-                except ValueError:
-                    lat = lon = None
-
                 # Se conservan los otros proyectos abiertos de esta area, pero se
                 # cierran el del mismo proyecto y todo lo que siga abierto en otra area
-                if _cerrar_registros_previos(selected_employee.id, department, proj_id):
+                if _cerrar_registros_previos(selected_employee.id, department, proj_id, ubicacion):
                     flash("Se finalizaron automáticamente los registros anteriores "
                           "de este proyecto o de otra área.", "info")
 
@@ -571,11 +586,13 @@ def register_project_imp():
                     actividad=activity,
                     start_time=datetime.utcnow(),
                     end_time=None,
-                    latitude=lat,
-                    longitude=lon,
+                    latitude=ubicacion['latitude'],
+                    longitude=ubicacion['longitude'],
                     departamento=department
                 )
                 db.session.add(new_rec)
+                db.session.flush()
+                traza.guardar_ubicacion(new_rec.id, 'INICIO', ubicacion)
                 db.session.commit()
                 flash('Registro de impresión iniciado.', 'success')
                 return redirect(url_for(
@@ -1179,10 +1196,16 @@ def finalize_time_record_from_costs(record_id):
         if record.end_time is not None:
             return jsonify({'success': False, 'message': 'El registro ya está finalizado'})
 
+        motivo = traza.motivo_del_form(request.get_json(silent=True) or {})
+        if not motivo:
+            return jsonify({'success': False, 'message': 'Elige el motivo para finalizar el registro.'}), 400
+
         employee_name = record.employee.nompropio
         project_name = record.project.name
 
         record.end_time = datetime.utcnow()
+        traza.registrar_cambio(record.id, 'FINALIZADO', motivo,
+                               'Fin: en curso → %s' % _hora_mx(record.end_time))
         db.session.commit()
 
         message = f'Registro finalizado: {employee_name} - {project_name}'
@@ -1281,7 +1304,12 @@ def get_active_records():
 @login_required
 @csrf.exempt
 def finalize_record_admin(record_id):
-    """Finalizar un registro específico desde el dashboard admin"""
+    """
+    Finalizar un registro específico por cuenta de otro.
+
+    Hoy ninguna pantalla lo llama; si se usa, pide el mismo motivo que Costos
+    para que ningún cierre hecho por otra persona quede sin explicación.
+    """
     if not current_user.has_admin_privileges:
         return jsonify({'success': False, 'message': 'Acceso denegado'}), 403
 
@@ -1291,7 +1319,13 @@ def finalize_record_admin(record_id):
         if record.end_time is not None:
             return jsonify({'success': False, 'message': 'El registro ya está finalizado'})
 
+        motivo = traza.motivo_del_form(request.get_json(silent=True) or request.form)
+        if not motivo:
+            return jsonify({'success': False, 'message': 'Elige el motivo para finalizar el registro.'}), 400
+
         record.end_time = datetime.utcnow()
+        traza.registrar_cambio(record.id, 'FINALIZADO', motivo,
+                               'Fin: en curso → %s' % _hora_mx(record.end_time))
         db.session.commit()
 
         return jsonify({
@@ -2112,6 +2146,9 @@ def check_active_record_by_project(employee_id, project_id):
 @main.route('/finalize_active_record/<int:employee_id>/<int:project_id>', methods=['POST'])
 @csrf.exempt
 def finalize_active_record(employee_id, project_id):
+    ubicacion = traza.ubicacion_del_form()
+    if not ubicacion:
+        return jsonify({"success": False, "message": traza.MSG_SIN_UBICACION}), 400
     active_record = TimeRecord.query.filter_by(
         employee_id=employee_id,
         project_id=project_id,
@@ -2119,6 +2156,7 @@ def finalize_active_record(employee_id, project_id):
     ).first()
     if active_record:
         active_record.end_time = datetime.utcnow()
+        traza.guardar_ubicacion(active_record.id, 'FIN', ubicacion)
         db.session.commit()
         return jsonify({"success": True})
     else:
@@ -2287,7 +2325,11 @@ def finalize_time_record(record_id):
     rec = TimeRecord.query.get_or_404(record_id)
     if rec.end_time is not None:
         return jsonify({'success': False, 'message': 'Registro ya está finalizado.'})
+    ubicacion = traza.ubicacion_del_form()
+    if not ubicacion:
+        return jsonify({'success': False, 'message': traza.MSG_SIN_UBICACION}), 400
     rec.end_time = datetime.utcnow()
+    traza.guardar_ubicacion(rec.id, 'FIN', ubicacion)
     db.session.commit()
     return jsonify({'success': True})
 
@@ -2298,6 +2340,9 @@ def finalize_all_for_project(employee_id, project_id):
     """
     (Opcional) Cierra *todos* los registros activos de un proyecto dado.
     """
+    ubicacion = traza.ubicacion_del_form()
+    if not ubicacion:
+        return jsonify({'success': False, 'message': traza.MSG_SIN_UBICACION}), 400
     recs = TimeRecord.query.filter_by(
         employee_id=employee_id,
         project_id=project_id,
@@ -2305,6 +2350,7 @@ def finalize_all_for_project(employee_id, project_id):
     ).all()
     for r in recs:
         r.end_time = datetime.utcnow()
+        traza.guardar_ubicacion(r.id, 'FIN', ubicacion)
     db.session.commit()
     return jsonify({'success': True})
 
@@ -3169,6 +3215,10 @@ def costs_dashboard():
     return render_template(
         'costs/dashboard.html',
         records=records,
+        ubicaciones=_ubicaciones_para_vista(records.items),
+        ultimos_cambios=traza.ultimo_cambio_de([r.id for r in records.items]),
+        acciones=TimeRecordChange.ACCIONES,
+        motivos=traza.MOTIVOS,
         projects=projects,
         employees=employees,
         total_records=total_records,
@@ -3184,6 +3234,52 @@ def costs_dashboard():
         }
     )
 
+
+
+def _hora_mx(dt):
+    """'16/11/2026 08:30' en hora de CDMX, o 'en curso'."""
+    return filtro_hora_mx(dt, '%d/%m/%Y %H:%M') if dt else 'en curso'
+
+
+def _al_minuto(dt):
+    return dt.replace(second=0, microsecond=0) if dt else None
+
+
+def _nombre_proyecto(project_id):
+    p = Project.query.get(project_id)
+    if not p:
+        return 'Proyecto %s' % project_id
+    return p.name if not p.folio else 'FP %s %s' % (p.folio, p.name)
+
+
+def _cambios_de_registro(record, employee_id, project_id, inicio, fin, departamento, actividad):
+    """Lo que cambia en el registro, en texto para el historial."""
+    cambios = []
+    if record.employee_id != employee_id:
+        antes, despues = Employee.query.get(record.employee_id), Employee.query.get(employee_id)
+        cambios.append('Persona: %s → %s' % (antes.nompropio if antes else record.employee_id,
+                                             despues.nompropio if despues else employee_id))
+    if record.project_id != project_id:
+        cambios.append('Proyecto: %s → %s' % (_nombre_proyecto(record.project_id),
+                                              _nombre_proyecto(project_id)))
+    if record.start_time != inicio:
+        cambios.append('Inicio: %s → %s' % (_hora_mx(record.start_time), _hora_mx(inicio)))
+    if record.end_time != fin:
+        cambios.append('Fin: %s → %s' % (_hora_mx(record.end_time), _hora_mx(fin)))
+    if (record.departamento or '') != (departamento or ''):
+        cambios.append('Área: %s → %s' % (record.departamento or '—', departamento or '—'))
+    if (record.actividad or '') != (actividad or ''):
+        cambios.append('Actividad: %s → %s' % (record.actividad or '—', actividad or '—'))
+    return cambios
+
+
+def _ubicaciones_para_vista(registros):
+    """{id: {'inicio': {...}, 'fin': {...}}} listo para JSON, con la hora en CDMX."""
+    vista = {}
+    for rid, momentos in traza.ubicaciones_de(registros).items():
+        vista[rid] = {m.lower(): {**u, 'cuando': _hora_mx(u['cuando']) if u['cuando'] else None}
+                      for m, u in momentos.items()}
+    return vista
 
 
 @main.route('/costs/create', methods=['GET', 'POST'])
@@ -3206,6 +3302,11 @@ def create_time_record():
             # Validaciones
             if not all([employee_id, project_id, start_time, departamento]):
                 flash('Todos los campos obligatorios deben ser completados.', 'danger')
+                return redirect(url_for('main.create_time_record'))
+
+            motivo = traza.motivo_del_form()
+            if not motivo:
+                flash('Elige el motivo del registro.', 'danger')
                 return redirect(url_for('main.create_time_record'))
 
             # Validar que el empleado esté activo
@@ -3240,6 +3341,9 @@ def create_time_record():
             )
 
             db.session.add(new_record)
+            db.session.flush()
+            traza.registrar_cambio(new_record.id, 'ALTA', motivo,
+                                   '%s → %s' % (_hora_mx(start_time_utc), _hora_mx(end_time_utc)))
             db.session.commit()
 
             flash('Registro de tiempo creado exitosamente.', 'success')
@@ -3284,7 +3388,8 @@ def create_time_record():
 
     projects = Project.query.filter_by(active=True).order_by(Project.name).all()
 
-    return render_template('costs/create.html', employees=employees, projects=projects)
+    return render_template('costs/create.html', employees=employees, projects=projects,
+                           motivos=traza.MOTIVOS)
 
 @main.route('/costs/edit/<int:record_id>', methods=['GET', 'POST'])
 @login_required
@@ -3327,6 +3432,11 @@ def edit_time_record(record_id):
                 flash('Todos los campos obligatorios deben ser completados.', 'danger')
                 return redirect(url_for('main.edit_time_record', record_id=record_id))
 
+            motivo = traza.motivo_del_form()
+            if not motivo:
+                flash('Elige el motivo del cambio.', 'danger')
+                return redirect(url_for('main.edit_time_record', record_id=record_id))
+
             # Validar que el empleado esté activo o sea el mismo del registro original
             emp = Employee.query.get(employee_id)
             if not emp or (not emp.active and employee_id != record.employee_id):
@@ -3348,6 +3458,18 @@ def edit_time_record(record_id):
                     flash('La hora de fin debe ser posterior a la hora de inicio.', 'danger')
                     return redirect(url_for('main.edit_time_record', record_id=record_id))
 
+            # El formulario trabaja al minuto: sin tocar la hora no se pierden sus segundos
+            if _al_minuto(record.start_time) == start_time_utc:
+                start_time_utc = record.start_time
+            if record.end_time and _al_minuto(record.end_time) == end_time_utc:
+                end_time_utc = record.end_time
+
+            cambios = _cambios_de_registro(record, employee_id, project_id, start_time_utc,
+                                           end_time_utc, departamento, actividad or None)
+            if not cambios:
+                flash('No había cambios que guardar.', 'info')
+                return redirect(url_for('main.costs_dashboard'))
+
             # Actualizar registro
             record.employee_id = employee_id
             record.project_id = project_id
@@ -3356,6 +3478,7 @@ def edit_time_record(record_id):
             record.departamento = departamento
             record.actividad = actividad or None
 
+            traza.registrar_cambio(record.id, 'EDICION', motivo, ' · '.join(cambios))
             db.session.commit()
 
             flash('Registro actualizado exitosamente.', 'success')
@@ -3401,7 +3524,10 @@ def edit_time_record(record_id):
 
     projects = Project.query.order_by(Project.name).all()
 
-    return render_template('costs/edit.html', record=record, employees=employees, projects=projects)
+    return render_template('costs/edit.html', record=record, employees=employees, projects=projects,
+                           motivos=traza.MOTIVOS, historial=traza.cambios_de(record.id),
+                           acciones=TimeRecordChange.ACCIONES,
+                           ubicaciones=_ubicaciones_para_vista([record]).get(record.id, {}))
 
 # FUNCIÓN HELPER: Para reutilizar en múltiples lugares
 def get_unique_employees(active_only=False):

@@ -26,6 +26,7 @@
       </a>
       {% endif %}
     </div>
+    <div class="k-ubic" data-estado-ubicacion role="status" aria-live="polite"></div>
     <ol class="k-steps">
       <li class="done"><span>1</span>Persona</li>
       <li class="current" id="paso-proyecto"><span>2</span>Proyecto</li>
@@ -37,6 +38,9 @@
     {{ form.hidden_tag() }}
     <input type="hidden" name="department" value="{{ department }}">
     <input type="hidden" name="employee_id" value="{{ selected_employee.id }}">
+    <input type="hidden" name="latitude" id="latitude">
+    <input type="hidden" name="longitude" id="longitude">
+    <input type="hidden" name="accuracy" id="accuracy">
     <!-- project_id y activity se inyectan vía JS -->
 
     <!-- Registros abiertos de la persona -->
@@ -130,6 +134,14 @@
     let isSubmitting = false;
     const pista = document.getElementById('pistaAccion');
 
+    // Ubicación: obligatoria; se pide al abrir y otra vez, fresca, al iniciar o finalizar
+    const estadoUbicacion = App.vigilarUbicacion(document.querySelector('[data-estado-ubicacion]'));
+    const conUbicacion = () => {
+      AppLoader.show('Obteniendo tu ubicación…', 'Es obligatoria para registrar tu tiempo');
+      return App.ubicacion().then(u => { estadoUbicacion.ok(u); AppLoader.hide(); return u; },
+                                  msg => { estadoUbicacion.error(msg); AppLoader.hide(); throw msg; });
+    };
+
     // 1. Finalizar un registro concreto
     $('.finalize-btn').click(function () {
       if (isSubmitting) return;
@@ -137,23 +149,20 @@
       const $btn = $(this);
       isSubmitting = true;
       $btn.prop('disabled', true).css('opacity', '0.6');
-      if (window.AppLoader) AppLoader.showTimeEnd();
-
-      $.post(`/finalize_time_record/${recId}`, {}, res => {
-        if (res.success) {
-          location.reload();
-        } else {
-          if (window.AppLoader) AppLoader.hide();
-          isSubmitting = false;
-          $btn.prop('disabled', false).css('opacity', '1');
-          App.toast(res.message || 'No se pudo finalizar.', 'danger');
-        }
-      }).fail(function () {
+      const liberar = (msg) => {
         if (window.AppLoader) AppLoader.hide();
         isSubmitting = false;
         $btn.prop('disabled', false).css('opacity', '1');
-        App.toast('Error de conexión. Intenta de nuevo.', 'danger');
-      });
+        App.toast(msg, 'danger', 10000);
+      };
+
+      conUbicacion().then(u => {
+        AppLoader.showTimeEnd();
+        $.post(`/finalize_time_record/${recId}`, u, res => {
+          if (res.success) location.reload();
+          else liberar(res.message || 'No se pudo finalizar.');
+        }).fail(xhr => liberar((xhr.responseJSON && xhr.responseJSON.message) || 'Error de conexión. Intenta de nuevo.'));
+      }, liberar);
     });
 
     const $activitySection = $('#activity-section');
@@ -226,20 +235,32 @@
       if (visibles.length === 1) elegir(visibles[0]);
     });
 
-    // 3. Enviar con indicador de carga
+    // 3. Iniciar: espera a tener la ubicación; sin ella no se inicia
     $('#new-time-form').on('submit', function (e) {
-      if (isSubmitting) { e.preventDefault(); return false; }
+      e.preventDefault();
+      if (isSubmitting) return false;
       if (!$('#new-time-form input[name="activity"]').val()) {
-        e.preventDefault();
         App.toast('Selecciona una actividad antes de iniciar.', 'warning', 5000);
         return false;
       }
+      const form = this;
       isSubmitting = true;
-      setTimeout(function () {
-        $('#start-btn').prop('disabled', true).css('opacity', '0.6');
-        if (window.AppLoader) AppLoader.showTimeStart();
-      }, 50);
-      return true;
+      $('#start-btn').prop('disabled', true).css('opacity', '0.6');
+      conUbicacion().then(u => {
+        $('#latitude').val(u.latitude);
+        $('#longitude').val(u.longitude);
+        $('#accuracy').val(u.accuracy);
+        AppLoader.showTimeStart();
+        // form.submit() no manda el botón presionado: viaja en un campo oculto
+        $(form).find('input[data-boton]').remove();
+        $('<input>', { type: 'hidden', name: 'iniciar', value: '1', 'data-boton': '1' }).appendTo(form);
+        form.submit();
+      }, msg => {
+        isSubmitting = false;
+        $('#start-btn').prop('disabled', false).css('opacity', '1');
+        App.toast(msg, 'danger', 10000);
+      });
+      return false;
     });
   });
 </script>

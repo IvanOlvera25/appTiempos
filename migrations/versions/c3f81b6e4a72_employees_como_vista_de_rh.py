@@ -8,14 +8,15 @@ La migración es destructiva (reescribe employee_id en time_records y users), as
 que hace una verificación previa y aborta si algo no cuadra. La tabla original
 NO se borra: se conserva como `employees_legacy` y el downgrade la restaura.
 
-Va al final de la cadena a propósito: todo lo demás (áreas, perfiles nuevos e
-incidencias) es aditivo y se puede aplicar sin tocar los datos, con
-`flask db upgrade d4e19a7c5b83`. Esta se corre aparte, cuando se decida.
+Va al final de la cadena a propósito: todo lo demás (áreas, perfiles nuevos,
+incidencias, ubicaciones y motivos de cambio) es aditivo y se puede aplicar sin
+tocar los datos, con `flask db upgrade e7c2a1f9b4d0`. Esta se corre aparte,
+cuando se decida.
 
 PRUÉBALA SOBRE UNA COPIA DE LA BASE ANTES DE CORRERLA EN PRODUCCIÓN.
 
 Revision ID: c3f81b6e4a72
-Revises: d4e19a7c5b83
+Revises: e7c2a1f9b4d0
 Create Date: 2026-09-01 10:30:00
 """
 from alembic import op
@@ -23,7 +24,7 @@ import sqlalchemy as sa
 
 
 revision = 'c3f81b6e4a72'
-down_revision = 'd4e19a7c5b83'
+down_revision = 'e7c2a1f9b4d0'
 branch_labels = None
 depends_on = None
 
