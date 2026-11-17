@@ -2,7 +2,7 @@
 
 Pasos para actualizar la app en PythonAnywhere después de un `git pull`.
 
-## 0. Ubicación obligatoria y motivos de cambio — requiere migrar (noviembre 2026)
+## 0. Ubicación obligatoria y motivos de cambio — se migra solo (noviembre 2026)
 
 Agrega dos tablas nuevas, `time_record_locations` (dónde se inició y finalizó
 cada registro) y `time_record_changes` (motivo de las altas y cambios hechos
@@ -10,15 +10,27 @@ desde Costos). No toca `time_records` ni ningún dato existente.
 
 ```bash
 git pull
-FLASK_SKIP_SCHEDULER=1 flask db upgrade e7c2a1f9b4d0   # con el virtualenv activo, ver 4b
 ```
 
-Recarga la web app. **Usa el destino `e7c2a1f9b4d0`, no `flask db upgrade` a secas**:
-sin destino también correría la fase 2, que sigue detenida (sección 4).
+y recarga la web app. **La migración se aplica sola al arrancar**
+(`app/migraciones.py`): solo hasta `e7c2a1f9b4d0`, nunca la fase 2, y con un
+candado de MySQL para que, si arrancan varios procesos, migre uno solo. En el log
+de errores de la web app queda la línea
+`migraciones: se aplicó e7c2a1f9b4d0`. Si algo falla, queda el error en ese mismo
+log y la app arranca igual.
 
-Si se recarga sin migrar, registrar tiempos sigue funcionando (la ubicación de
+Si se necesita que no migre al arrancar (por ejemplo, después de un `flask db
+downgrade` hecho a propósito), define la variable de entorno
+`TIEMPOS_MIGRAR_AL_ARRANCAR=0`. **Ojo:** la app local usa la misma base que
+producción, así que correrla en local también migra esa base.
+
+Mientras no se haya migrado, registrar tiempos sigue funcionando (la ubicación de
 inicio se guarda en `time_records` como siempre), pero la ubicación de fin y los
-motivos no se guardan y queda un error en el log que pide correr la migración.
+motivos no se guardan y queda un error en el log.
+
+A mano, con el virtualenv activo (sección 4b):
+`FLASK_SKIP_SCHEDULER=1 flask db upgrade e7c2a1f9b4d0`. **Con ese destino**: `flask
+db upgrade` a secas también correría la fase 2, que sigue detenida (sección 4).
 
 Si `flask db` no funciona en la consola, el mismo cambio en SQL:
 

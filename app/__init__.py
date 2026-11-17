@@ -183,6 +183,10 @@ def create_app():
 
     _configurar_entrega(app)
 
+    # Migraciones aditivas pendientes: se aplican solas al recargar (ver app/migraciones.py)
+    from .migraciones import aplicar_pendientes
+    aplicar_pendientes(app, db)
+
     # ---------------- CLI Commands (dejas tus comandos tal cual) ----------------
     # (Aquí sigue tu código de import_employees e import_employees_remote sin cambios)
 

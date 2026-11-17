@@ -4,7 +4,10 @@ Solo crea dos tablas nuevas; no toca `time_records` (la usan los triggers de
 analítica de Impresión) ni ningún dato existente.
 
 Va ANTES de c3f81b6e4a72 (employees como vista, detenida) para poder aplicarse
-sola: `flask db upgrade e7c2a1f9b4d0`.
+sola: `flask db upgrade e7c2a1f9b4d0`, o al recargar la app (app/migraciones.py).
+
+Crea solo las tablas que falten, por si alguna ya se creó a mano con el SQL de
+DESPLIEGUE.md o quedó a medias.
 
 Revision ID: e7c2a1f9b4d0
 Revises: d4e19a7c5b83
@@ -20,7 +23,22 @@ branch_labels = None
 depends_on = None
 
 
+def _existentes():
+    try:
+        return set(sa.inspect(op.get_bind()).get_table_names())
+    except Exception:
+        return set()    # modo --sql: no hay base que revisar
+
+
 def upgrade():
+    existentes = _existentes()
+    if 'time_record_locations' not in existentes:
+        _crear_ubicaciones()
+    if 'time_record_changes' not in existentes:
+        _crear_cambios()
+
+
+def _crear_ubicaciones():
     op.create_table(
         'time_record_locations',
         sa.Column('id', sa.Integer(), primary_key=True),
@@ -36,6 +54,8 @@ def upgrade():
     op.create_index('ix_time_record_locations_time_record_id', 'time_record_locations',
                     ['time_record_id'])
 
+
+def _crear_cambios():
     op.create_table(
         'time_record_changes',
         sa.Column('id', sa.Integer(), primary_key=True),
